@@ -1,0 +1,12 @@
+{
+  "name": "gritroom-d1-cli",
+  "compatibility_date": "2026-11-06",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gritroom-db",
+      "database_id": "bd30feba-b7bc-456a-9a71-600c1941d608",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

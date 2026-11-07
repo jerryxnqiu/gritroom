@@ -21,15 +21,17 @@
     "cf": "^1.0.0-beta.28",
     "tailwindcss": "latest",
     "typescript": "latest",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "wrangler": "^4.158.0"
   },
   "type": "module",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
     "start": "vite preview",
-    "db:migrate": "cf d1 migrations apply bd30feba-b7bc-456a-9a71-600c1941d608",
-    "db:migrate:local": "cf d1 migrations apply bd30feba-b7bc-456a-9a71-600c1941d608 --local --persist-to .cloudflare/state",
+    "check": "cf workers types && tsc --noEmit && npm run build",
+    "db:migrate": "wrangler d1 migrations apply gritroom-db --remote --config wrangler.d1.jsonc",
+    "db:migrate:local": "wrangler d1 migrations apply gritroom-db --local --config wrangler.d1.jsonc",
     "deploy": "npm run db:migrate && vinext-cloudflare deploy"
   }
 }
