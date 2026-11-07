@@ -336,12 +336,21 @@ p { margin: 0; }
 .shelf-item-links .text-button:not(.shelf-delete):not(:disabled):hover {
   background: #e2ecd3; border-color: #a8bf95;
 }
+.shelf-item-links .shelf-analysed {
+  color: var(--muted); background: #f3f6ef; border-color: #d5e0cb; font-weight: 600;
+}
+.shelf-item-links .shelf-analysed:not(:disabled):hover {
+  color: var(--green); background: var(--pale); border-color: #b9c9b4;
+}
 .shelf-item-links .shelf-delete {
   color: var(--danger); background: #f8eae6; border-color: #e7c7bf;
 }
 .shelf-item-links .shelf-delete:not(:disabled):hover {
   background: #f3ddd6; border-color: #d7a89d;
 }
+.shelf-status { font-weight: 650; }
+.shelf-status-done { color: var(--green); }
+.shelf-status-failed { color: var(--danger); }
 .shelf-nest {
   margin: .85rem 0 0 1rem; padding: .35rem 0 .15rem .85rem;
   border-left: 2px solid #d5e0cb;

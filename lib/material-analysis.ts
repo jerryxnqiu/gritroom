@@ -137,7 +137,8 @@ export async function analyseMaterial(
     },
     ...images.pages.map((page) => ({
       type: "image_url" as const,
-      image_url: { url: page.dataUrl, detail: "high" as const },
+      // low keeps coaching PDFs under request limits while still reading text/marks
+      image_url: { url: page.dataUrl, detail: "low" as const },
     })),
   ];
 
@@ -146,7 +147,7 @@ export async function analyseMaterial(
       role: "system",
       content: [
         "You analyse Selective/OC Thinking Skills coaching materials for a private family learning room.",
-        "Return JSON with keys: summary_en, parent_zh, training_directions (string array, max 5), evidence_limits.",
+        "Return one JSON object with keys: summary_en, parent_zh, training_directions (string array, max 5), evidence_limits.",
         "summary_en: short English summary of useful practice signals from the source.",
         "parent_zh: optional short Chinese parent reading; empty string if not useful.",
         "training_directions: concrete next practice directions, not invented missing questions.",
@@ -157,7 +158,12 @@ export async function analyseMaterial(
       ].join(" "),
     },
     { role: "user", content: userContent },
-  ]);
+  ], {
+    // Vision + forced json_object has returned empty assistant content on coaching PDFs.
+    // Ask for JSON in the prompt and parse it; deepseekChat still retries if needed.
+    jsonObject: images.pages.length === 0,
+    maxTokens: 2200,
+  });
 
   const done = nowIso();
   if (!modelResult.ok) {

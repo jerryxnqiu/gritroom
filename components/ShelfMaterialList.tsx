@@ -72,14 +72,22 @@ export function ShelfMaterialList({
       <ul className="shelf-items">
         {materials.map((material) => {
           const analysis = latest.get(material.id);
+          const analysing = busyId === material.id && pending;
+          const analysed = analysis?.status === "succeeded";
+          const failed = analysis?.status === "failed";
           return (
             <li className="shelf-item" key={material.id}>
               <div>
                 <strong>{material.title}</strong>
-                <p className="meta">{materialKinds[material.kind]} · <time dateTime={material.createdAt}>{material.createdAt.slice(0, 10)}</time></p>
+                <p className="meta">
+                  {materialKinds[material.kind]} · <time dateTime={material.createdAt}>{material.createdAt.slice(0, 10)}</time>
+                  {analysed ? <> · <span className="shelf-status shelf-status-done">Analysed</span></> : null}
+                  {failed ? <> · <span className="shelf-status shelf-status-failed">Analysis failed</span></> : null}
+                  {analysis?.status === "running" || analysing ? <> · <span className="shelf-status">Analysing…</span></> : null}
+                </p>
                 {material.notes ? <details className="shelf-notes"><summary>Notes</summary><p className="shelf-copy">{material.notes}</p></details> : null}
-                {analysis?.status === "succeeded" ? (
-                  <details className="shelf-notes shelf-analysis">
+                {analysed ? (
+                  <details className="shelf-notes shelf-analysis" open>
                     <summary>Analysis</summary>
                     <p className="shelf-copy">{analysis.summaryEn}</p>
                     {analysis.trainingDirections.length ? (
@@ -96,8 +104,7 @@ export function ShelfMaterialList({
                     ) : null}
                   </details>
                 ) : null}
-                {analysis?.status === "failed" ? <p className="error" role="status">{analysis.error}</p> : null}
-                {analysis?.status === "running" ? <p className="meta" role="status">Analysis in progress…</p> : null}
+                {failed ? <p className="error" role="status">{analysis.error}</p> : null}
               </div>
               <div className="shelf-item-links">
                 {material.url ? <a href={material.url} target="_blank" rel="noopener noreferrer">Open link <span aria-hidden="true">↗</span></a> : null}
@@ -106,8 +113,13 @@ export function ShelfMaterialList({
                     Download file
                   </a>
                 ) : null}
-                <button type="button" className="text-button" disabled={pending} onClick={() => run(material, "analyse")}>
-                  {busyId === material.id && pending ? "Analysing…" : analysis?.status === "succeeded" ? "Re-analyse" : "Analyse resource"}
+                <button
+                  type="button"
+                  className={`text-button${analysed ? " shelf-analysed" : ""}`}
+                  disabled={pending}
+                  onClick={() => run(material, "analyse")}
+                >
+                  {analysing ? "Analysing…" : analysed ? "Analyse again" : failed ? "Retry analysis" : "Analyse resource"}
                 </button>
                 <button type="button" className="text-button shelf-delete" disabled={pending} onClick={() => run(material, "delete")}>
                   Delete

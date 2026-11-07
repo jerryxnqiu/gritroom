@@ -2,8 +2,8 @@
 
 import { MAX_ANALYSIS_PAGES, type AnalysisPageImage } from "./shelf-pages";
 
-const MAX_RENDER_WIDTH = 1280;
-const JPEG_QUALITY = 0.72;
+const MAX_RENDER_WIDTH = 960;
+const JPEG_QUALITY = 0.62;
 
 export async function renderPdfPages(file: Blob): Promise<
   | { ok: true; pages: AnalysisPageImage[]; totalPages: number; truncated: boolean }
