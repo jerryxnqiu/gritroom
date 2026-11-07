@@ -1,4 +1,6 @@
 // OpenAI-compatible DeepSeek API: https://api-docs.deepseek.com/
+// Reserved for the learner practice assistant chat (not shelf material analysis).
+// Coaching/study materials are reviewed with Codex and saved back via the shelf.
 export const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 export const DEEPSEEK_CHAT_URL = `${DEEPSEEK_BASE_URL}/chat/completions`;
 
@@ -31,31 +33,30 @@ export async function deepseekChat(
   options?: ChatOptions,
 ) {
   const model = options?.model ?? DEEPSEEK_MODEL;
+  const maxTokens = options?.maxTokens ?? 8192;
   const first = await requestChat(apiKey, messages, {
     model,
     temperature: options?.temperature ?? 0.2,
-    maxTokens: options?.maxTokens ?? 2200,
+    maxTokens,
     jsonObject: options?.jsonObject ?? true,
   });
   if (first.ok) return first;
 
-  // Vision + json_object sometimes returns an empty assistant message. Retry once as plain text JSON.
-  if (first.empty && (options?.jsonObject ?? true)) {
+  // Empty/length cutoffs happen on vision PDFs; retry once with plain JSON and a higher cap.
+  if (first.empty) {
     console.error("deepseek.empty_retry", { model, detail: first.error });
-    const retry = await requestChat(apiKey, [
+    return requestChat(apiKey, [
       ...messages,
       {
         role: "user",
-        content: "Reply with one JSON object only. No markdown fences.",
+        content: "Reply with one JSON object only. No markdown fences. Keep each field concise.",
       },
     ], {
       model,
       temperature: options?.temperature ?? 0.2,
-      maxTokens: options?.maxTokens ?? 2200,
+      maxTokens: Math.max(maxTokens, 12288),
       jsonObject: false,
     });
-    if (retry.ok) return retry;
-    return retry;
   }
 
   return first;

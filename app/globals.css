@@ -364,7 +364,9 @@ p { margin: 0; }
 .shelf-analysis { margin-top: .55rem; }
 .shelf-directions { margin: .45rem 0 0; padding-left: 1.1rem; color: var(--ink); font-size: .86rem; line-height: 1.55; }
 .shelf-directions li + li { margin-top: .25rem; }
-.shelf-notes, .shelf-feedback-form { margin-top: .7rem; }
+.shelf-notes, .shelf-feedback-form, .shelf-codex-form { margin-top: .7rem; }
+.shelf-codex-form { max-width: 40rem; }
+.shelf-codex-form .actions { margin-top: .2rem; }
 .shelf-copy { white-space: pre-wrap; overflow-wrap: anywhere; }
 .shelf-feedback-form > button { justify-self: start; }
 .shelf-feedback-form ~ p { margin-top: .7rem; }

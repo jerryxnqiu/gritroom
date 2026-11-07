@@ -63,10 +63,10 @@ export function AddResourceDialog({ profileId, goal }: { profileId: string; goal
             <label className="field"><span>Title</span><input name="title" maxLength={140} required /></label>
             <label className="field"><span>Video or resource link (optional)</span><input name="url" type="url" placeholder="https://youtube.com/watch?v=…" maxLength={2000} /></label>
             <label className="field"><span>Notes (optional)</span>
-              <textarea name="notes" rows={3} maxLength={6000} placeholder="Extra context for analysis, or a transcript if captions are missing" />
+              <textarea name="notes" rows={3} maxLength={6000} placeholder="Optional context for a later Codex review" />
             </label>
             <label className="field"><span>Attach a file (optional)</span><input name="file" type="file" accept={materialTypes.join(",")} aria-describedby="resource-file-help" /></label>
-            <p id="resource-file-help" className="meta">PDF, JPG, PNG or WebP · up to 8 MB. Analyse resource reads YouTube captions, PDF page images (first 6 pages), or attached photos automatically.</p>
+            <p id="resource-file-help" className="meta">PDF, JPG, PNG or WebP · up to 8 MB. After saving, click Ask Codex so an agent can read D1/R2 and write the analysis back.</p>
             {error ? <p className="error" role="alert">{error}</p> : null}
             <div className="shelf-actions">
               <button type="submit" className="button">{pending ? "Saving…" : "Save resource"}</button>

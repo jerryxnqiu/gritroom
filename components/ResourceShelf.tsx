@@ -25,7 +25,7 @@ export async function ResourceShelf({ profile, goal, userId }: { profile: Parent
     <section className="panel family-panel" id="resource-shelf" aria-labelledby="resource-shelf-heading">
       <p className="eyebrow">03 / Practice inputs</p>
       <h2 id="resource-shelf-heading">Resource shelf</h2>
-      <p className="lede">The materials, practice evidence and feedback that guide future questions for {profile.nickname}.</p>
+      <p className="lede">Store coaching materials for {profile.nickname}, review them with Codex, and keep practice evidence and preferences for later generation.</p>
       <div className="shelf-toolbar">
         <nav className="shelf-actions" aria-label="Exam archive">
           {(["selective", "oc"] as const).map((archive) => (
