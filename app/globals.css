@@ -285,8 +285,34 @@ p { margin: 0; }
 
 .knowledge-format { margin-top: 1rem; }
 .knowledge-format a, .knowledge-detail a { color: var(--green); text-decoration: underline; text-underline-offset: .2em; }
-.knowledge-patterns .family-subsection { margin-top: .85rem; padding-top: .85rem; }
-.knowledge-detail { display: grid; gap: .55rem; margin-top: .65rem; line-height: 1.55; }
+.knowledge-patterns {
+  display: grid; gap: .35rem; margin: 1rem 0 0 1rem; padding: .45rem 0 .2rem .85rem;
+  border-left: 2px solid #d5e0cb;
+}
+.knowledge-pattern {
+  margin: 0; padding: .15rem 0; border: 0; border-radius: 8px;
+}
+.knowledge-pattern + .knowledge-pattern { border-top: 1px solid #e7eee0; }
+.knowledge-pattern > summary {
+  min-height: 40px; display: flex; align-items: center; gap: .45rem;
+  padding: .35rem .55rem; border-radius: 8px; cursor: pointer;
+  color: var(--green); font-size: .9rem; font-weight: 650; list-style: none;
+}
+.knowledge-pattern > summary::-webkit-details-marker { display: none; }
+.knowledge-pattern > summary::before {
+  content: ""; flex: 0 0 auto; width: 0; height: 0;
+  border-top: .28rem solid transparent; border-bottom: .28rem solid transparent;
+  border-left: .4rem solid var(--moss);
+}
+.knowledge-pattern[open] > summary::before {
+  border-left: .28rem solid transparent; border-right: .28rem solid transparent;
+  border-top: .4rem solid var(--moss); border-bottom: 0;
+}
+.knowledge-pattern > summary:hover { background: var(--pale); }
+.knowledge-detail {
+  display: grid; gap: .55rem; margin: .15rem 0 .55rem; padding: .65rem .75rem .75rem;
+  border-radius: 8px; background: #f7f9f3; line-height: 1.55;
+}
 .knowledge-detail .meta { margin: 0; }
 .knowledge-detail ul { padding-left: 1.2rem; }
 
@@ -316,9 +342,14 @@ p { margin: 0; }
 .shelf-item-links .shelf-delete:not(:disabled):hover {
   background: #f3ddd6; border-color: #d7a89d;
 }
+.shelf-nest {
+  margin: .85rem 0 0 1rem; padding: .35rem 0 .15rem .85rem;
+  border-left: 2px solid #d5e0cb;
+}
+.shelf-nest > .meta, .shelf-nest > .error, .shelf-nest > .notice { margin: .35rem 0 .55rem; }
 .shelf-items { display: grid; margin: 0; padding: 0; list-style: none; }
-.shelf-item { padding: .8rem 0; }
-.shelf-item + .shelf-item { border-top: 1px solid var(--line); }
+.shelf-item { padding: .7rem .15rem; border-radius: 8px; }
+.shelf-item + .shelf-item { border-top: 1px solid #e7eee0; }
 .shelf-item > div:first-child { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
 .shelf-item .meta { margin-top: .15rem; }
 .shelf-analysis { margin-top: .55rem; }

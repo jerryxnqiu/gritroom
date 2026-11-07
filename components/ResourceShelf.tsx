@@ -41,15 +41,19 @@ export async function ResourceShelf({ profile, goal, userId }: { profile: Parent
         <QuestionFoundations goal={goal} />
       </details>
 
-      <section className="family-subsection" aria-labelledby="shelf-coaching">
-        <h3 id="shelf-coaching">02 · Coaching reports &amp; videos</h3>
-        <ShelfMaterialList profileId={profile.id} materials={coaching} analyses={analyses.filter((item) => coaching.some((material) => material.id === item.materialId))} empty="No coaching reports or video links in this archive yet." />
-      </section>
+      <details className="family-subsection" open={coaching.length > 0}>
+        <summary id="shelf-coaching">02 · Coaching reports &amp; videos</summary>
+        <div className="shelf-nest">
+          <ShelfMaterialList profileId={profile.id} materials={coaching} analyses={analyses.filter((item) => coaching.some((material) => material.id === item.materialId))} empty="No coaching reports or video links in this archive yet." />
+        </div>
+      </details>
 
-      <section className="family-subsection" aria-labelledby="shelf-study">
-        <h3 id="shelf-study">03 · Extra study materials</h3>
-        <ShelfMaterialList profileId={profile.id} materials={study} analyses={analyses.filter((item) => study.some((material) => material.id === item.materialId))} empty="No extra study materials in this archive yet." />
-      </section>
+      <details className="family-subsection" open={study.length > 0}>
+        <summary id="shelf-study">03 · Extra study materials</summary>
+        <div className="shelf-nest">
+          <ShelfMaterialList profileId={profile.id} materials={study} analyses={analyses.filter((item) => study.some((material) => material.id === item.materialId))} empty="No extra study materials in this archive yet." />
+        </div>
+      </details>
 
       <section className="family-subsection shelf-anchor" id="practice-evidence" aria-labelledby="shelf-practice">
         <h3 id="shelf-practice">04 · Practice evidence</h3>

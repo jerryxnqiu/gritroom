@@ -16,9 +16,9 @@ export async function QuestionFoundations({ goal }: { goal: ExamGoal }) {
         </p>
       ) : null}
       {blueprints.length ? (
-        <div className="knowledge-patterns">
+        <div className="knowledge-patterns" aria-label="Reasoning patterns">
           {blueprints.map((blueprint) => (
-            <details key={blueprint.id} className="family-subsection">
+            <details key={blueprint.id} className="knowledge-pattern">
               <summary>{blueprint.title}</summary>
               <div className="knowledge-detail">
                 <p className="meta"><strong>{blueprint.skill}</strong> · Blueprint v{blueprint.version}</p>
