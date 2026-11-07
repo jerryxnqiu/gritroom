@@ -12,6 +12,7 @@ export type ShelfMaterial = {
   url: string | null;
   notes: string | null;
   fileName: string | null;
+  fileType: string | null;
   createdAt: string;
 };
 export type ShelfFeedback = { id: string; body: string; authorId: string; createdAt: string };
@@ -32,7 +33,8 @@ export function canOpenShelf(db: D1Database, profileId: string, userId: string) 
 export async function readShelf(db: D1Database, profileId: string, goal: ExamGoal, userId: string) {
   const [materials, feedback] = await Promise.all([
     db.prepare(
-      `SELECT m.id, m.kind, m.title, m.source_url AS url, m.notes, m.file_name AS fileName, m.created_at AS createdAt
+      `SELECT m.id, m.kind, m.title, m.source_url AS url, m.notes, m.file_name AS fileName,
+              m.file_type AS fileType, m.created_at AS createdAt
        FROM shelf_materials m JOIN profiles p ON p.id = m.profile_id
        WHERE m.profile_id = ? AND m.exam_goal = ? AND ${parentAccess}
        ORDER BY m.created_at DESC, m.id DESC`,

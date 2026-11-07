@@ -2,7 +2,7 @@
 export const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 export const DEEPSEEK_CHAT_URL = `${DEEPSEEK_BASE_URL}/chat/completions`;
 
-/** Fast default for everyday analysis. Served by DeepSeek-V4.1-Flash. */
+/** Fast default for everyday analysis. Served by DeepSeek-V4.1-Flash (vision capable). */
 export const DEEPSEEK_FLASH = "deepseek-flash";
 /** Stronger model for harder generation / review work. */
 export const DEEPSEEK_PRO = "deepseek-v4-pro";
@@ -10,7 +10,13 @@ export const DEEPSEEK_PRO = "deepseek-v4-pro";
 export const DEEPSEEK_MODEL = DEEPSEEK_FLASH;
 
 export type DeepseekModel = typeof DEEPSEEK_FLASH | typeof DEEPSEEK_PRO;
-export type DeepseekMessage = { role: "system" | "user" | "assistant"; content: string };
+export type DeepseekContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "original" | "auto" } };
+export type DeepseekMessage = {
+  role: "system" | "user" | "assistant";
+  content: string | DeepseekContentPart[];
+};
 
 export async function deepseekChat(
   apiKey: string,

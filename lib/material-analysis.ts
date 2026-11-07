@@ -1,6 +1,7 @@
-import { deepseekChat } from "./deepseek.ts";
+import { deepseekChat, type DeepseekContentPart } from "./deepseek.ts";
 import type { ExamGoal } from "./family.ts";
 import { createId } from "./ids.ts";
+import { type AnalysisPageImage, MAX_ANALYSIS_PAGES } from "./shelf-pages.ts";
 import { nowIso } from "./time.ts";
 import { fetchYouTubeTranscript, youtubeVideoId } from "./youtube-transcript.ts";
 
@@ -30,6 +31,8 @@ type MaterialRow = {
   url: string | null;
   notes: string | null;
   fileName: string | null;
+  fileType: string | null;
+  fileKey: string | null;
   examGoal: ExamGoal;
 };
 
@@ -76,13 +79,16 @@ export async function listMaterialAnalyses(db: D1Database, profileId: string, go
 
 export async function analyseMaterial(
   db: D1Database,
+  bucket: R2Bucket,
   profileId: string,
   materialId: string,
   userId: string,
   apiKey: string | null,
+  pageImages: AnalysisPageImage[] = [],
 ) {
   const material = await db.prepare(
-    `SELECT m.id, m.kind, m.title, m.source_url AS url, m.notes, m.file_name AS fileName, m.exam_goal AS examGoal
+    `SELECT m.id, m.kind, m.title, m.source_url AS url, m.notes, m.file_name AS fileName,
+            m.file_type AS fileType, m.file_key AS fileKey, m.exam_goal AS examGoal
      FROM shelf_materials m JOIN profiles p ON p.id = m.profile_id
      WHERE m.id = ? AND m.profile_id = ? AND ${parentAccess}`,
   ).bind(materialId, profileId, userId).first<MaterialRow>();
@@ -92,7 +98,10 @@ export async function analyseMaterial(
     return { ok: false as const, status: 503 as const, error: "DeepSeek is not configured on this Worker." };
   }
 
-  const source = await resolveSourceText(material);
+  const images = await collectImages(bucket, material, pageImages);
+  if (!images.ok) return { ok: false as const, status: images.status, error: images.error };
+
+  const source = await resolveSourceText(material, images.pages);
   if (!source.ok) {
     return { ok: false as const, status: source.status, error: source.error };
   }
@@ -108,6 +117,30 @@ export async function analyseMaterial(
   ).bind(analysisId, source.excerpt, userId, stamp, materialId, profileId, userId).run();
   if (!reserved.meta.changes) return { ok: false as const, status: 404 as const, error: "This resource is unavailable." };
 
+  const userContent: DeepseekContentPart[] = [
+    {
+      type: "text",
+      text: [
+        `Exam archive: ${material.examGoal}`,
+        `Resource type: ${material.kind}`,
+        `Title: ${material.title}`,
+        material.url ? `Link: ${material.url}` : null,
+        material.fileName ? `Attachment: ${material.fileName}` : null,
+        `Source kind: ${source.kind}`,
+        source.meta,
+        "Source text / context:",
+        source.excerpt,
+        images.pages.length
+          ? `The following ${images.pages.length} page image(s) are part of this resource. Read visible text, diagrams and coaching marks carefully.`
+          : null,
+      ].filter(Boolean).join("\n"),
+    },
+    ...images.pages.map((page) => ({
+      type: "image_url" as const,
+      image_url: { url: page.dataUrl, detail: "high" as const },
+    })),
+  ];
+
   const modelResult = await deepseekChat(apiKey, [
     {
       role: "system",
@@ -117,25 +150,13 @@ export async function analyseMaterial(
         "summary_en: short English summary of useful practice signals from the source.",
         "parent_zh: optional short Chinese parent reading; empty string if not useful.",
         "training_directions: concrete next practice directions, not invented missing questions.",
-        "evidence_limits: what the source does NOT prove (guessing scores, classmate percentages, unseen items, truncated video coverage).",
-        "If the source is a video transcript, treat it as spoken coaching content and extract methods, traps and practice focus.",
-        "Never invent specific exam questions that are not present in the source text.",
+        "evidence_limits: what the source does NOT prove (guessing scores, classmate percentages, unseen items, truncated pages or video).",
+        "If images are provided, treat them as the primary evidence and extract methods, traps and practice focus from visible content.",
+        "If the source is a video transcript, treat it as spoken coaching content.",
+        "Never invent specific exam questions that are not present in the source text or images.",
       ].join(" "),
     },
-    {
-      role: "user",
-      content: [
-        `Exam archive: ${material.examGoal}`,
-        `Resource type: ${material.kind}`,
-        `Title: ${material.title}`,
-        material.url ? `Link: ${material.url}` : null,
-        material.fileName ? `Attachment: ${material.fileName}` : null,
-        `Source kind: ${source.kind}`,
-        source.meta,
-        "Source text:",
-        source.excerpt,
-      ].filter(Boolean).join("\n"),
-    },
+    { role: "user", content: userContent },
   ]);
 
   const done = nowIso();
@@ -209,7 +230,39 @@ export async function analyseMaterial(
   };
 }
 
-async function resolveSourceText(material: MaterialRow) {
+async function collectImages(
+  bucket: R2Bucket,
+  material: MaterialRow,
+  pageImages: AnalysisPageImage[],
+) {
+  if (pageImages.length) {
+    if (pageImages.length > MAX_ANALYSIS_PAGES) {
+      return {
+        ok: false as const,
+        status: 400 as const,
+        error: `Analyse up to ${MAX_ANALYSIS_PAGES} PDF pages at a time. Split longer documents or choose the most relevant pages.`,
+      };
+    }
+    return { ok: true as const, pages: pageImages };
+  }
+
+  if (material.fileKey && material.fileType && isVisionImage(material.fileType)) {
+    const object = await bucket.get(material.fileKey);
+    if (!object) {
+      return { ok: false as const, status: 404 as const, error: "The attached image is unavailable." };
+    }
+    const bytes = new Uint8Array(await object.arrayBuffer());
+    if (bytes.byteLength > 8 * 1024 * 1024) {
+      return { ok: false as const, status: 413 as const, error: "Attached images for analysis must be 8 MB or smaller." };
+    }
+    const dataUrl = `data:${material.fileType};base64,${bytesToBase64(bytes)}`;
+    return { ok: true as const, pages: [{ page: 1, dataUrl }] };
+  }
+
+  return { ok: true as const, pages: [] as AnalysisPageImage[] };
+}
+
+async function resolveSourceText(material: MaterialRow, pages: AnalysisPageImage[]) {
   const notes = material.notes?.trim() ?? "";
   const video = material.url ? youtubeVideoId(material.url) : null;
 
@@ -254,6 +307,24 @@ async function resolveSourceText(material: MaterialRow) {
     };
   }
 
+  if (pages.length) {
+    const pageLabel = pages.map((page) => page.page).join(", ");
+    return {
+      ok: true as const,
+      excerpt: [
+        notes ? `Parent notes:\n${notes}` : null,
+        `Page images provided for analysis: ${pageLabel}.`,
+        material.fileType === "application/pdf" || material.fileName?.toLowerCase().endsWith(".pdf")
+          ? `At most ${MAX_ANALYSIS_PAGES} PDF pages are analysed per request.`
+          : null,
+      ].filter(Boolean).join("\n\n").slice(0, 8000),
+      kind: material.fileType === "application/pdf" || material.fileName?.toLowerCase().endsWith(".pdf")
+        ? "pdf page images"
+        : "attached image",
+      meta: `Image count: ${pages.length}`,
+    };
+  }
+
   if (notes) {
     return {
       ok: true as const,
@@ -263,11 +334,32 @@ async function resolveSourceText(material: MaterialRow) {
     };
   }
 
+  if (material.fileType === "application/pdf" || material.fileName?.toLowerCase().endsWith(".pdf")) {
+    return {
+      ok: false as const,
+      status: 400 as const,
+      error: `Prepare the first ${MAX_ANALYSIS_PAGES} PDF pages as images in the browser, then analyse again.`,
+    };
+  }
+
   return {
     ok: false as const,
     status: 400 as const,
-    error: "Add notes that describe this resource, or use a YouTube link with captions. PDF page-image analysis comes next.",
+    error: "Add notes, a YouTube link with captions, a PDF, or an image attachment to analyse.",
   };
+}
+
+function isVisionImage(type: string) {
+  return type === "image/jpeg" || type === "image/png" || type === "image/webp";
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
+  }
+  return btoa(binary);
 }
 
 function cleanText(value: unknown, max: number) {

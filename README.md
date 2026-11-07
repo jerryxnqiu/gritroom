@@ -40,8 +40,8 @@ Open **Parent room → Resource shelf** for a child. The archive defaults to the
 | Input | Current behaviour | Use in later practice |
 | --- | --- | --- |
 | Official exam information | Reviewed NSW format, worked examples and versioned authoring blueprints from migration `0004`. | Determines exam coverage, reasoning structure and how to verify an original answer. |
-| Coaching reports and videos | Add a title, YouTube link and optional notes/file. Click **Analyse resource**. YouTube captions are fetched automatically and sent to DeepSeek. | Successful analyses store English findings, optional Chinese parent reading, training directions and evidence limits in `material_analyses`, and copy a durable summary into `learning_evidence`. |
-| Extra study materials | Add a titled workbook page, image, PDF, link or notes, then analyse when notes describe the content. | Same analysis path as coaching materials. PDF page-image analysis is next; text notes are required for analysis today. |
+| Coaching reports and videos | Add a title, YouTube link and optional notes/file. Click **Analyse resource**. YouTube captions, PDF page images (first 6 pages in-browser) or attached photos are analysed with DeepSeek Flash vision. | Successful analyses store English findings, optional Chinese parent reading, training directions and evidence limits in `material_analyses`, and copy a durable summary into `learning_evidence`. |
+| Extra study materials | Add a titled workbook page, image, PDF, link or notes, then analyse. | Same analysis path as coaching materials. |
 | Practice evidence | Schema ready in `practice_sessions` / `practice_attempts`. Learner UI comes next. | Will store answer, correctness, time, confidence, draft notes and working files per question for summaries and generation. |
 | Feedback and question preferences | Parents can save observations and preferences. Authors and family administrators can withdraw them. | Active feedback is also copied into `learning_evidence` for later generation context. |
 

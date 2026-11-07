@@ -6,6 +6,7 @@ import { hasLearnerInvitation, isInstallationOwner, linkedLearner, listManagedFa
 import { acceptInvitation, childAccess, closeInvitation, issueInvitation, recipientInvitations, revokeGuardian } from "../lib/invitations.ts";
 import { analyseMaterial, listMaterialAnalyses } from "../lib/material-analysis.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
+import { parseAnalysisPages } from "../lib/shelf-pages.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
 const core = readFileSync(new URL("../migrations/0002_core_schema.sql", import.meta.url), "utf8");
@@ -173,6 +174,12 @@ test("youtube video ids are parsed from common watch urls", () => {
   assert.equal(youtubeVideoId("https://example.com/watch?v=dQw4w9WgXcQ"), null);
 });
 
+test("analysis page payloads accept up to six image data urls", () => {
+  const tiny = "data:image/jpeg;base64,/9j/4AAQ";
+  assert.equal(parseAnalysisPages([{ page: 1, dataUrl: tiny }, { page: 2, dataUrl: tiny }]).ok, true);
+  assert.equal(parseAnalysisPages(Array.from({ length: 7 }, (_, index) => ({ page: index + 1, dataUrl: tiny }))).ok, false);
+});
+
 test("shelf evidence is limited to the authorised child and chosen exam archive", async (t) => {
   const { sql, db } = fixture();
   t.after(() => sql.close());
@@ -191,7 +198,8 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
     sql.prepare("SELECT kind FROM learning_evidence WHERE ref_id = ?").get(feedbackId)?.kind,
     "parent_feedback",
   );
-  const blocked = await analyseMaterial(db, "p1", "report", "owner", "test-key");
+  const bucket = { get: async () => null, delete: async () => undefined } as Pick<R2Bucket, "get" | "delete"> as R2Bucket;
+  const blocked = await analyseMaterial(db, bucket, "p1", "report", "owner", "test-key");
   assert.equal(blocked.ok, false);
   if (!blocked.ok) assert.equal(blocked.status, 400);
   assert.equal((await listMaterialAnalyses(db, "p1", "selective", "owner")).length, 0);
@@ -206,11 +214,11 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.equal(await findMaterialFile(db, "p1", "report", "other"), null);
   assert.equal(await findMaterialFile(db, "p2", "report", "owner"), null);
   const deletedKeys: string[] = [];
-  const bucket = { delete: async (key: string) => { deletedKeys.push(key); } } as Pick<R2Bucket, "delete"> as R2Bucket;
-  assert.equal(await deleteMaterial(db, bucket, "p1", "report", "other"), false);
-  assert.equal(await deleteMaterial(db, bucket, "p2", "report", "owner"), false);
+  const deleteBucket = { delete: async (key: string) => { deletedKeys.push(key); } } as Pick<R2Bucket, "delete"> as R2Bucket;
+  assert.equal(await deleteMaterial(db, deleteBucket, "p1", "report", "other"), false);
+  assert.equal(await deleteMaterial(db, deleteBucket, "p2", "report", "owner"), false);
   assert.deepEqual(deletedKeys, []);
-  assert.equal(await deleteMaterial(db, bucket, "p1", "report", "guardian"), true);
+  assert.equal(await deleteMaterial(db, deleteBucket, "p1", "report", "guardian"), true);
   assert.deepEqual(deletedKeys, ["private/report"]);
   assert.equal((await readShelf(db, "p1", "selective", "owner")).materials.map((item) => item.id).join(","), "notes");
   assert.equal(await findMaterialFile(db, "p1", "report", "owner"), null);
