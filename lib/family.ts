@@ -46,23 +46,22 @@ export async function listManagedFamilies(db: D1Database, userId: string) {
   return results;
 }
 
-// Until a dedicated identity link is added, only an accepted learner invitation
-// for the verified email can connect an existing profile. The expiry limits
-// acceptance, not access after acceptance. An unaccepted invite is never a grant.
-export async function linkedLearner(db: D1Database, email: string) {
+export async function linkedLearner(db: D1Database, userId: string) {
   return db.prepare(
     `SELECT p.id, p.family_id AS familyId, p.nickname, p.exam_goal AS examGoal
-     FROM family_invites i JOIN profiles p ON p.id = i.profile_id AND p.family_id = i.family_id
-     WHERE i.email = ? AND i.role = 'learner' AND i.accepted_at IS NOT NULL AND i.revoked_at IS NULL
-     ORDER BY i.accepted_at DESC, i.id LIMIT 1`,
-  ).bind(email).first<Omit<ParentProfile, "familyName" | "canManage">>();
+     FROM learner_links l JOIN profiles p ON p.id = l.profile_id WHERE l.user_id = ?`,
+  ).bind(userId).first<Omit<ParentProfile, "familyName" | "canManage">>();
 }
 
 export async function hasLearnerInvitation(db: D1Database, email: string) {
   return Boolean(await db.prepare(
-    `SELECT 1 FROM family_invites i JOIN profiles p ON p.id = i.profile_id AND p.family_id = i.family_id
-     WHERE i.email = ? AND i.role = 'learner' AND i.revoked_at IS NULL
-       AND (i.accepted_at IS NOT NULL OR julianday(i.expires_at) > julianday('now')) LIMIT 1`,
+    "SELECT 1 FROM open_family_invites WHERE email = ? AND role = 'learner' LIMIT 1",
+  ).bind(email).first());
+}
+
+export async function hasOpenInvitations(db: D1Database, email: string) {
+  return Boolean(await db.prepare(
+    "SELECT 1 FROM open_family_invites WHERE email = ? LIMIT 1",
   ).bind(email).first());
 }
 

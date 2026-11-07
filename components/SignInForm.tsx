@@ -32,7 +32,7 @@ export function SignInForm({ entry }: { entry: EntryKind }) {
         if (!response.ok) {
           setError(result.error || "Could not sign in. Please try again.");
         } else if (verifying) {
-          router.replace(result.redirectTo === "/parent" ? "/parent" : "/learner");
+          router.replace(result.redirectTo === "/parent" || result.redirectTo === "/invitations" ? result.redirectTo : "/learner");
           router.refresh();
         } else {
           setSentTo(address);
@@ -68,13 +68,13 @@ export function SignInForm({ entry }: { entry: EntryKind }) {
         </>
       ) : (
         <label className="field">
-          <span>{entry === "parent" ? "Parent email" : "Approved family email"}</span>
+          <span>{entry === "parent" ? "Parent email" : "Learner email"}</span>
           <input
             autoComplete="email"
             inputMode="email"
             name="email"
             onChange={(event) => setEmail(event.target.value)}
-            placeholder={entry === "parent" ? "Your parent email address" : "Your family email address"}
+            placeholder={entry === "parent" ? "Your parent email address" : "Your invited email address"}
             type="email"
             value={email}
             maxLength={254}

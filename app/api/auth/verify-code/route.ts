@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       ok: true,
       entry: result.entry,
       needsOnboarding: result.needsOnboarding,
-      redirectTo: result.entry === "parent" ? "/parent" : "/learner",
+      redirectTo: result.hasInvitations ? "/invitations" : result.entry === "parent" ? "/parent" : "/learner",
     },
     {
       headers: {

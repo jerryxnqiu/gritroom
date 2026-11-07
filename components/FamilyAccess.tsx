@@ -1,5 +1,7 @@
 "use client";
 
+import { ChildAccessPanel } from "./ChildAccessPanel";
+import type { ChildAccess } from "@/lib/invitations";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { examLabel, type ExamGoal, type ManagedFamily, type ParentProfile } from "@/lib/family";
@@ -26,8 +28,8 @@ function ProfileFields({ nickname, goal, children }: ProfileFieldsProps) {
 }
 
 export function FamilyAccess({
-  profiles, selected, families,
-}: { profiles: ParentProfile[]; selected: ParentProfile | null; families: ManagedFamily[] }) {
+  profiles, selected, families, access,
+}: { profiles: ParentProfile[]; selected: ParentProfile | null; families: ManagedFamily[]; access: ChildAccess | null }) {
   const router = useRouter();
   const [status, setStatus] = useState<{ text: string; error?: boolean; form: "edit" | "add" }>();
   const [pending, startTransition] = useTransition();
@@ -99,6 +101,7 @@ export function FamilyAccess({
           <p className="meta">Each child has their own profile. Their exam goal guides their practice and materials.</p>
         </div>
       ) : null}
+      {selected && access ? <ChildAccessPanel key={selected.id} profileId={selected.id} access={access} /> : null}
       {families.length ? (
         <details className="family-subsection">
           <summary>{profiles.length ? "Add another child" : "Add your child"}</summary>

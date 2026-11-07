@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { env } from "cloudflare:workers";
 
@@ -6,8 +7,9 @@ import { FamilyBootstrap } from "@/components/FamilyBootstrap";
 import { ParentSettings } from "@/components/ParentSettings";
 import { RoomLayout } from "@/components/RoomLayout";
 import { getSession } from "@/lib/auth";
-import { examLabel, isInstallationOwner, listManagedFamilies, listParentProfiles } from "@/lib/family";
+import { examLabel, hasOpenInvitations, isInstallationOwner, listManagedFamilies, listParentProfiles } from "@/lib/family";
 import { getSessionTokenFromCookies } from "@/lib/http";
+import { childAccess } from "@/lib/invitations";
 
 const sections = [
   { title: "Family access", text: "Manage child profiles and exam goals." },
@@ -21,13 +23,16 @@ export default async function ParentPage({ searchParams }: { searchParams: Promi
   if (!session) redirect("/?entry=parent");
   if (session.entry !== "parent") redirect("/learner");
 
-  const [profiles, families, owner, params] = await Promise.all([
+  const [profiles, families, owner, hasInvites, params] = await Promise.all([
     listParentProfiles(env.DB, session.user_id),
     listManagedFamilies(env.DB, session.user_id),
     isInstallationOwner(env.DB, session.user_id),
+    hasOpenInvitations(env.DB, session.email),
     searchParams,
   ]);
   const selected = profiles.find((profile) => profile.id === params.child) ?? profiles[0] ?? null;
+
+  const access = selected?.canManage ? await childAccess(env.DB, selected.id, session.user_id) : null;
 
   return (
     <RoomLayout role="parent" name={selected?.nickname || "Your family"} badge={selected ? `${examLabel(selected.examGoal)} · Parent view` : "Parent view"}>
@@ -36,6 +41,7 @@ export default async function ParentPage({ searchParams }: { searchParams: Promi
         <h1>Parent room.</h1>
         <p className="lede">Set up your family and choose the right practice goal for each child.</p>
       </header>
+      {hasInvites ? <Link className="button secondary" href="/invitations">Review invitations</Link> : null}
       {selected ? (
         <>
           <div className="current-child"><span className="eyebrow">Current learner</span><strong>{selected.nickname}</strong><span className="pill">{examLabel(selected.examGoal)}</span></div>
@@ -53,7 +59,7 @@ export default async function ParentPage({ searchParams }: { searchParams: Promi
         </>
       ) : null}
       {selected || families.length
-        ? <FamilyAccess profiles={profiles} selected={selected} families={families} />
+        ? <FamilyAccess profiles={profiles} selected={selected} families={families} access={access} />
         : <FamilyBootstrap />}
       {owner ? <ParentSettings /> : null}
     </RoomLayout>

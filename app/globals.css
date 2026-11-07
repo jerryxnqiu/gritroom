@@ -264,3 +264,21 @@ p { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
 }
+
+.invite-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .8rem; }
+.invite-fields .button { white-space: nowrap; }
+.access-link-status { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; padding: .8rem; border-radius: 8px; background: var(--pale); }
+.access-link-status strong, .access-row strong, .invite-card strong { overflow-wrap: anywhere; }
+.access-list { display: grid; gap: .65rem; padding: 0; margin: .7rem 0 0; list-style: none; }
+.access-row { display: flex; align-items: center; justify-content: space-between; gap: .7rem 1rem; flex-wrap: wrap; padding: .75rem .85rem; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+.access-row > div { display: grid; min-width: 0; gap: .2rem; }
+.access-row .meta { margin: 0; }
+.family-subsection > .notice, .family-subsection > .error { margin-top: .75rem; }
+.invitation-inbox { max-width: 44rem; }
+.invite-card .lede { margin: .75rem 0 1rem; }
+.invite-goal { color: var(--muted); font-size: .85em; }
+.invitation-back { margin: 1rem 0; }
+@media (max-width: 600px) {
+  .invite-fields { grid-template-columns: minmax(0, 1fr); }
+  .invite-fields .button { justify-self: start; white-space: normal; }
+}

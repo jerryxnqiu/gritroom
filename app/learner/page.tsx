@@ -1,10 +1,11 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { env } from "cloudflare:workers";
 
 import { GrowthArtwork } from "@/components/Brand";
 import { RoomLayout } from "@/components/RoomLayout";
 import { getSession } from "@/lib/auth";
-import { examLabel, linkedLearner } from "@/lib/family";
+import { examLabel, hasOpenInvitations, linkedLearner } from "@/lib/family";
 import { getSessionTokenFromCookies } from "@/lib/http";
 
 export default async function LearnerPage() {
@@ -12,7 +13,10 @@ export default async function LearnerPage() {
   if (!session) redirect("/?entry=learner");
   if (session.entry !== "learner") redirect("/parent");
 
-  const profile = await linkedLearner(env.DB, session.email);
+  const [profile, hasInvites] = await Promise.all([
+    linkedLearner(env.DB, session.user_id),
+    hasOpenInvitations(env.DB, session.email),
+  ]);
 
   return (
     <RoomLayout role="learner" name={profile?.nickname || "Learner"} badge={profile ? `${examLabel(profile.examGoal)} · Personal practice` : "Your account"}>
@@ -21,6 +25,7 @@ export default async function LearnerPage() {
         <h1>{profile ? <>Ready for your next step,<br />{profile.nickname}<span className="accent-text">?</span></> : "Your practice room."}</h1>
         <p className="lede">{profile ? "You don’t have to get it all right. You just have to begin." : "Your learner profile isn’t connected to this email yet."}</p>
       </header>
+      {hasInvites ? <Link className="button secondary invitation-back" href="/invitations">Review invitations</Link> : null}
       <section className="learner-feature" aria-labelledby="learner-feature-heading">
         <div>
           <p className="eyebrow">{profile ? examLabel(profile.examGoal) + " preparation" : "Your private family room"}</p>

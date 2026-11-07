@@ -25,13 +25,20 @@ The local migration command writes to the same `.cloudflare/state` directory as 
 - Shared Gmail checks and test sends are installation-owner operations. A Cloudflare operator sets the `settings` row `installation_owner_user_id` to a JSON string containing the verified owner's internal user ID. Family creation never sets this value. Until configured the tools are hidden and their endpoints deny access.
 - Phase 1 uses the existing schema. It does not migrate or import older production data.
 
+## Phase 2: verified family invitations
+
+- In **Family access → Link your child’s email**, the family administrator sends a seven-day invitation for the selected child. The child uses their own email to request a sign-in code, reviews the sender and family, then accepts. The email contains a sign-in link, not an access credential.
+- **Invite another parent or guardian** grants access to the selected child only. Guardians cannot manage invitations. Removing a grant takes effect on the next request, including for an already signed-in guardian.
+- Accepting atomically writes the invitation status and relationship. A verified account and child profile can each have only one learner link. Neither a pending invitation nor typing an email can claim existing progress.
+- Mail failures leave no redeemable invitation. Cancel, expiry, decline and removal are separate actions. No access is granted by the login role tab.
+- Apply migration `0003_family_invitations.sql` before running this version. It preserves valid accepted links from phase 1. If legacy links conflict, the migration fails rather than choosing a different owner. It does not import the earlier Worker’s data.
+
 ## Next milestones
 
-1. Exact-recipient invitations, verified acceptance, learner linking, per-child guardian grants and revocation.
-2. Original Thinking Skills questions, diagnostic practice, resumable sessions and deterministic feedback.
-3. Timed papers, private working uploads, Resource shelf and progress.
-4. Evidence-based next steps, tutoring, parent feedback and the owner's deeper review.
-5. More question visuals and subjects.
+1. Original Thinking Skills questions, diagnostic practice, resumable sessions and deterministic feedback.
+2. Timed papers, private working uploads, Resource shelf and progress.
+3. Evidence-based next steps, tutoring, parent feedback and the owner's deeper review.
+4. Optional device codes, more question visuals and subjects.
 
 ## Production
 

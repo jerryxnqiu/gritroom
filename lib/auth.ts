@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 
 import { randomDigits, randomToken, sha256Hex } from "./crypto";
-import { hasLearnerInvitation, linkedLearner, listManagedFamilies, listParentProfiles } from "./family";
+import { hasLearnerInvitation, hasOpenInvitations, linkedLearner, listManagedFamilies, listParentProfiles } from "./family";
 import type { ExamGoal } from "./family";
 import { createId } from "./ids";
 import { sendEmail } from "./smtp";
@@ -22,7 +22,7 @@ export type SessionRow = {
 
 type AuthError = { ok: false; error: string; status: number };
 type ChallengeResult = { ok: true; message: string } | AuthError;
-type VerifyResult = { ok: true; token: string; entry: EntryKind; needsOnboarding: boolean } | AuthError;
+type VerifyResult = { ok: true; token: string; entry: EntryKind; needsOnboarding: boolean; hasInvitations: boolean } | AuthError;
 const CODE_TTL_MINUTES = 10;
 const SESSION_DAYS = 30;
 
@@ -33,6 +33,15 @@ async function parentScope(userId: string, preferredProfile?: string | null) {
   ]);
   const profile = profiles.find((item) => item.id === preferredProfile) ?? profiles[0];
   return { profile_id: profile?.id ?? null, family_id: profile?.familyId ?? families[0]?.id ?? null };
+}
+
+async function resolveRoom(userId: string, email: string, entry: EntryKind, preferredProfile?: string | null) {
+  const learner = await linkedLearner(env.DB, userId);
+  if (learner) return { entry: "learner" as const, profile_id: learner.id, family_id: learner.familyId };
+  const scope = await parentScope(userId, preferredProfile);
+  if (scope.family_id) return { entry: "parent" as const, ...scope };
+  const isLearner = entry === "learner" || await hasLearnerInvitation(env.DB, email);
+  return { entry: isLearner ? "learner" as const : "parent" as const, ...scope };
 }
 
 export async function requestSignInCode(input: {
@@ -142,18 +151,9 @@ export async function verifySignInCode(input: {
     .bind(input.email).first<{ id: string }>();
   if (!user) return { ok: false, error: "We couldn’t open your room. Please try again.", status: 500 };
 
-  let entry = input.entry;
-  let scope: { profile_id: string | null; family_id: string | null };
-  if (entry === "parent") {
-    scope = await parentScope(user.id);
-    if (!scope.family_id && await hasLearnerInvitation(env.DB, input.email)) entry = "learner";
-  } else {
-    scope = { profile_id: null, family_id: null };
-  }
-  if (entry === "learner") {
-    const learner = await linkedLearner(env.DB, input.email);
-    scope = { profile_id: learner?.id ?? null, family_id: learner?.familyId ?? null };
-  }
+  const scope = await resolveRoom(user.id, input.email, input.entry);
+  const { entry } = scope;
+  const hasInvitations = !scope.family_id && await hasOpenInvitations(env.DB, input.email);
 
   const token = randomToken();
   const tokenHash = await sha256Hex(token);
@@ -170,7 +170,7 @@ export async function verifySignInCode(input: {
     ).bind(createId("evt"), scope.family_id, user.id, scope.profile_id, JSON.stringify({ entry }), stamp),
   ]);
 
-  return { ok: true, token, entry, needsOnboarding: !scope.family_id };
+  return { ok: true, token, entry, needsOnboarding: !scope.family_id, hasInvitations };
 }
 
 export async function getSession(token: string | null): Promise<SessionRow | null> {
@@ -182,13 +182,7 @@ export async function getSession(token: string | null): Promise<SessionRow | nul
   ).bind(tokenHash).first<SessionRow>();
 
   if (!row || row.revoked_at || isExpired(row.expires_at)) return null;
-  if (row.entry === "learner") {
-    const learner = await linkedLearner(env.DB, row.email);
-    return { ...row, profile_id: learner?.id ?? null, family_id: learner?.familyId ?? null };
-  }
-
-  const scope = await parentScope(row.user_id, row.profile_id);
-  if (!scope.family_id && await hasLearnerInvitation(env.DB, row.email)) return null;
+  const scope = await resolveRoom(row.user_id, row.email, row.entry, row.profile_id);
   return { ...row, ...scope };
 }
 
@@ -210,12 +204,14 @@ export async function ensureOwnerFamily(userId: string, nickname: string, examGo
       `INSERT INTO families (id, name, installation_owner_user_id, created_at, updated_at)
        SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (
          SELECT 1 FROM families WHERE installation_owner_user_id = ?
+       ) AND NOT EXISTS (SELECT 1 FROM learner_links WHERE user_id = ?)
+       AND NOT EXISTS (
+         SELECT 1 FROM open_family_invites i JOIN users u ON u.email = i.email
+         WHERE u.id = ? AND i.role = 'learner'
        ) AND NOT EXISTS (
-         SELECT 1 FROM family_invites i JOIN users u ON u.email = i.email
-         WHERE u.id = ? AND i.role = 'learner' AND i.revoked_at IS NULL
-           AND (i.accepted_at IS NOT NULL OR julianday(i.expires_at) > julianday('now'))
+         SELECT 1 FROM guardian_grants g WHERE g.user_id = ? AND g.revoked_at IS NULL
        )`,
-    ).bind(familyId, `${nickname}’s family`, userId, stamp, stamp, userId, userId),
+    ).bind(familyId, `${nickname}’s family`, userId, stamp, stamp, userId, userId, userId, userId),
     env.DB.prepare(
       `INSERT INTO profiles (id, family_id, nickname, exam_goal, created_at, updated_at)
        SELECT ?, id, ?, ?, ?, ? FROM families WHERE id = ?`,
