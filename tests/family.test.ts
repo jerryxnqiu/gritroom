@@ -4,11 +4,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hasLearnerInvitation, isInstallationOwner, linkedLearner, listManagedFamilies, listParentProfiles } from "../lib/family.ts";
 import { acceptInvitation, childAccess, closeInvitation, issueInvitation, recipientInvitations, revokeGuardian } from "../lib/invitations.ts";
-import { analyseMaterial, listMaterialAnalyses } from "../lib/material-analysis.ts";
+import {
+  buildCodexMaterialBrief,
+  getMaterialForCodex,
+  listMaterialAnalyses,
+  parseCodexAnalysisInput,
+  saveCodexMaterialAnalysis,
+} from "../lib/material-analysis.ts";
 import { listPracticeEvidence, startPracticeSession, submitPracticeAttempt } from "../lib/practice.ts";
 import { PRACTICE_BANK } from "../lib/practice-bank.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
-import { parseAnalysisPages } from "../lib/shelf-pages.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
 const core = readFileSync(new URL("../migrations/0002_core_schema.sql", import.meta.url), "utf8");
@@ -176,12 +181,6 @@ test("youtube video ids are parsed from common watch urls", () => {
   assert.equal(youtubeVideoId("https://example.com/watch?v=dQw4w9WgXcQ"), null);
 });
 
-test("analysis page payloads accept up to six image data urls", () => {
-  const tiny = "data:image/jpeg;base64,/9j/4AAQ";
-  assert.equal(parseAnalysisPages([{ page: 1, dataUrl: tiny }, { page: 2, dataUrl: tiny }]).ok, true);
-  assert.equal(parseAnalysisPages(Array.from({ length: 7 }, (_, index) => ({ page: index + 1, dataUrl: tiny }))).ok, false);
-});
-
 test("shelf evidence is limited to the authorised child and chosen exam archive", async (t) => {
   const { sql, db } = fixture();
   t.after(() => sql.close());
@@ -200,11 +199,29 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
     sql.prepare("SELECT kind FROM learning_evidence WHERE ref_id = ?").get(feedbackId)?.kind,
     "parent_feedback",
   );
-  const bucket = { get: async () => null, delete: async () => undefined } as Pick<R2Bucket, "get" | "delete"> as R2Bucket;
-  const blocked = await analyseMaterial(db, bucket, "p1", "report", "owner", "test-key");
-  assert.equal(blocked.ok, false);
-  if (!blocked.ok) assert.equal(blocked.status, 400);
-  assert.equal((await listMaterialAnalyses(db, "p1", "selective", "owner")).length, 0);
+
+  const material = await getMaterialForCodex(db, "p1", "notes", "owner");
+  assert.ok(material);
+  const brief = buildCodexMaterialBrief(material, "p1", "owner");
+  assert.match(brief, /material_analyses/);
+  assert.match(brief, /gritroom-db/);
+  assert.match(brief, /learning_evidence/);
+  assert.equal("error" in parseCodexAnalysisInput({ json: "{" }), true);
+  const parsed = parseCodexAnalysisInput({
+    json: JSON.stringify({
+      summary_en: "Focus on necessary vs sufficient conditions.",
+      parent_zh: "注意必要与充分条件。",
+      training_directions: ["Contrast requirement with guarantee."],
+      evidence_limits: "Single coaching note; not a full diagnostic.",
+    }),
+  });
+  assert.equal("error" in parsed, false);
+  if ("error" in parsed) return;
+  const saved = await saveCodexMaterialAnalysis(db, "p1", "notes", "owner", parsed);
+  assert.equal(saved.ok, true);
+  assert.equal((await listMaterialAnalyses(db, "p1", "selective", "owner"))[0]?.summaryEn, parsed.summaryEn);
+  assert.equal(await saveCodexMaterialAnalysis(db, "p1", "notes", "other", parsed).then((result) => result.ok), false);
+
   assert.equal(await saveShelfFeedback(db, "p2", "oc", "guardian", "Out of scope."), null);
   assert.equal(await saveShelfFeedback(db, "p1", "oc", "other", "Out of scope."), null);
   assert.equal((await readShelf(db, "p1", "selective", "owner")).materials.length, 2);
@@ -244,7 +261,6 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.equal((await readShelf(db, "p1", "oc", "owner")).feedback.length, 0);
   assert.equal(sql.prepare("SELECT body FROM shelf_feedback WHERE id = ?").get(feedbackId)?.body, "Use longer passages.");
 });
-
 test("linked learners can practise and parents see attempt evidence", async (t) => {
   const { sql, db } = fixture();
   t.after(() => sql.close());

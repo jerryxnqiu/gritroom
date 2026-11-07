@@ -40,20 +40,34 @@ Open **Parent room → Resource shelf** for a child. The archive defaults to the
 | Input | Current behaviour | Use in later practice |
 | --- | --- | --- |
 | Official exam information | Reviewed NSW format, worked examples and versioned authoring blueprints from migration `0004`. | Determines exam coverage, reasoning structure and how to verify an original answer. |
-| Coaching reports and videos | Add a title, YouTube link and optional notes/file. Click **Analyse resource**. YouTube captions, PDF page images (first 6 pages in-browser) or attached photos are analysed with DeepSeek Flash vision. | Successful analyses store English findings, optional Chinese parent reading, training directions and evidence limits in `material_analyses`, and copy a summary into `learning_evidence`. Deleting the resource removes its analyses and those evidence copies. |
-| Extra study materials | Add a titled workbook page, image, PDF, link or notes, then analyse. | Same analysis path as coaching materials. |
-| Practice evidence | Learner room starts a resumable starting-point check (all checked bank items for the goal) or focused practice (5 items). Each answer stores option, correctness, time, confidence and draft notes in `practice_attempts`, with a summary in `learning_evidence`. Parent shelf **04 · Practice evidence** lists recent attempts. Working-file uploads come later. | Feeds summaries and later question generation. |
+| Coaching reports and videos | Add a title, YouTube link and optional notes/file. Click **Ask Codex** to copy a task that points at the remote D1 row and R2 object; Codex reads them and writes findings back to D1. | Findings store English summary, optional Chinese parent reading, training directions and evidence limits in `material_analyses`, plus a summary in `learning_evidence`. Deleting the resource removes its analyses and those evidence copies. |
+| Extra study materials | Same Codex path as coaching materials. | Same storage as coaching materials. |
+| Practice evidence | Learner room starts a resumable starting-point check (all checked bank items for the goal) or focused practice (5 items). Each answer stores option, correctness, time, confidence and draft notes in `practice_attempts`, with a summary in `learning_evidence`. Working-file uploads come later. | Feeds summaries and later question generation. |
 | Feedback and question preferences | Parents can save observations and preferences. Authors and family administrators can withdraw them. | Active feedback is also copied into `learning_evidence` for later generation context. |
+
+### Model roles
+
+| Role | Tool | Use |
+| --- | --- | --- |
+| Learner assistant | DeepSeek (`deepseek-api-key`) | In-practice chat for the child on a question; useful turns saved as evidence later. |
+| Material / deep review | Codex (desktop chat) | Coaching reports, videos, study files and owner deeper reviews; findings written back into the shelf. |
+
+### How to ask Codex to review a shelf material
+
+1. In **Parent room → Resource shelf**, click **Ask Codex** on the material (replaces the old Analyse button).
+2. Paste the copied task into a **Codex** chat that has this `gritroom` repo open (and wrangler logged into the gritroom Cloudflare account).
+3. Codex should follow the task: read `shelf_materials` on remote D1 (`gritroom-db`), fetch the R2 object from bucket `gritroom` when `file_key` is set, then insert `material_analyses` + `learning_evidence` on remote D1 with `model = 'codex'`.
+4. Refresh Parent room → Resource shelf to see **Codex reviewed**.
 
 Migration `0005_resource_shelf.sql` adds the private material index and feedback history. Migration `0006_learning_inputs.sql` adds analyses, learning evidence and practice attempt tables. Attachments are stored in R2 and downloaded through a parent-only route that checks current access to the child. Maximum 8 MB per PDF, JPG, PNG or WebP attachment.
 
 ## Next milestones
 
-1. Grow the checked original question bank (more items per blueprint) and add private working-file uploads on attempts.
-2. Build the learning loop. Use the current child's goal and latest evidence to choose a reviewed blueprint, use relevant material findings and active preferences to shape new questions, and independently verify the answer and distractors. Store blueprint versions and evidence references. Rebuild future recommendations when evidence changes and retain the question version in an existing attempt.
-3. Add timed papers, contextual tutoring and an owner-only deeper review that uses a frozen evidence snapshot. Save review findings as additional evidence.
-4. Add more question visuals and subjects.
+1. Build the learner DeepSeek assistant chat on practice questions and save useful dialogue as evidence.
+2. Grow the checked original question bank and add private working-file uploads on attempts.
+3. Build the learning loop from blueprints + Codex material findings + practice evidence + preferences.
+4. Add timed papers and an owner-only deeper review snapshot flow; more visuals and subjects later.
 
 ## Production
 
-The project is configured for Cloudflare. The existing `npm run deploy` command applies remote D1 migrations before deployment; do not use it for a local check. Verify the target D1 and R2 bindings, back up production data and review migrations separately before publishing. Keep `gmail-smtp-keys` (JSON text) and `deepseek-api-key` in Worker Secrets. DeepSeek calls use `https://api.deepseek.com` with model `deepseek-flash` by default (`deepseek-v4-pro` available for heavier work). Do not commit credentials or real learner data.
+The project is configured for Cloudflare. The existing `npm run deploy` command applies remote D1 migrations before deployment; do not use it for a local check. Verify the target D1 and R2 bindings, back up production data and review migrations separately before publishing. Keep `gmail-smtp-keys` (JSON text) and `deepseek-api-key` in Worker Secrets for the future learner assistant. Do not commit credentials or real learner data.

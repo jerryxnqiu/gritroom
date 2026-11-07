@@ -1,15 +1,16 @@
-import { deepseekChat, type DeepseekContentPart } from "./deepseek.ts";
 import type { ExamGoal } from "./family.ts";
 import { createId } from "./ids.ts";
-import { type AnalysisPageImage, MAX_ANALYSIS_PAGES } from "./shelf-pages.ts";
 import { nowIso } from "./time.ts";
-import { fetchYouTubeTranscript, youtubeVideoId } from "./youtube-transcript.ts";
 
 const parentAccess = `EXISTS (
   SELECT 1 FROM guardian_grants g WHERE g.family_id = p.family_id AND g.user_id = ?
     AND g.revoked_at IS NULL
     AND (g.profile_id = p.id OR (g.profile_id IS NULL AND g.role IN ('owner', 'admin')))
 )`;
+
+export const CODEX_D1_NAME = "gritroom-db";
+export const CODEX_D1_ID = "bd30feba-b7bc-456a-9a71-600c1941d608";
+export const CODEX_R2_BUCKET = "gritroom";
 
 export type MaterialAnalysis = {
   id: string;
@@ -24,16 +25,26 @@ export type MaterialAnalysis = {
   completedAt: string | null;
 };
 
+export type CodexAnalysisInput = {
+  summaryEn: string;
+  parentZh: string;
+  trainingDirections: string[];
+  evidenceLimits: string;
+  sourceExcerpt?: string;
+};
+
 type MaterialRow = {
   id: string;
   kind: string;
   title: string;
   url: string | null;
   notes: string | null;
+  fileKey: string | null;
   fileName: string | null;
   fileType: string | null;
-  fileKey: string | null;
   examGoal: ExamGoal;
+  nickname: string;
+  createdByUserId: string;
 };
 
 export async function listMaterialAnalyses(db: D1Database, profileId: string, goal: ExamGoal, userId: string) {
@@ -77,147 +88,191 @@ export async function listMaterialAnalyses(db: D1Database, profileId: string, go
   })) satisfies MaterialAnalysis[];
 }
 
-export async function analyseMaterial(
+export async function getMaterialForCodex(
   db: D1Database,
-  bucket: R2Bucket,
   profileId: string,
   materialId: string,
   userId: string,
-  apiKey: string | null,
-  pageImages: AnalysisPageImage[] = [],
 ) {
-  const material = await db.prepare(
-    `SELECT m.id, m.kind, m.title, m.source_url AS url, m.notes, m.file_name AS fileName,
-            m.file_type AS fileType, m.file_key AS fileKey, m.exam_goal AS examGoal
+  return db.prepare(
+    `SELECT m.id, m.kind, m.title, m.source_url AS url, m.notes, m.file_key AS fileKey,
+            m.file_name AS fileName, m.file_type AS fileType, m.exam_goal AS examGoal,
+            m.created_by_user_id AS createdByUserId, p.nickname
      FROM shelf_materials m JOIN profiles p ON p.id = m.profile_id
      WHERE m.id = ? AND m.profile_id = ? AND ${parentAccess}`,
   ).bind(materialId, profileId, userId).first<MaterialRow>();
+}
+
+/**
+ * Agent task for Codex: read this material from remote D1/R2 and write findings back to D1.
+ * Parents click one shelf button to copy this into a Codex chat in the gritroom repo.
+ */
+export function buildCodexMaterialBrief(
+  material: MaterialRow,
+  profileId: string,
+  actorUserId: string,
+) {
+  const analysisId = createId("anl");
+  const evidenceId = createId("evd");
+  const stamp = nowIso();
+
+  return [
+    "GritRoom Codex material analysis",
+    "",
+    "You are working in the local gritroom repo. Analyse this shelf material yourself.",
+    "Read from remote D1 / R2 with wrangler. Write findings straight back to remote D1.",
+    "Do not invent exam questions unsupported by the source. Separate facts from assumptions.",
+    "",
+    "## Scope",
+    `- profile_id: ${profileId}`,
+    `- learner: ${material.nickname}`,
+    `- exam_goal: ${material.examGoal}`,
+    `- material_id: ${material.id}`,
+    `- kind: ${material.kind}`,
+    `- title: ${material.title}`,
+    material.url ? `- source_url: ${material.url}` : "- source_url: (none)",
+    material.notes?.trim() ? `- notes: ${material.notes.trim()}` : "- notes: (none)",
+    material.fileName ? `- file_name: ${material.fileName}` : "- file_name: (none)",
+    material.fileType ? `- file_type: ${material.fileType}` : "- file_type: (none)",
+    material.fileKey ? `- r2_key: ${material.fileKey}` : "- r2_key: (none — text/link only)",
+    `- created_by_user_id: ${material.createdByUserId}`,
+    `- actor_user_id (save as created_by): ${actorUserId}`,
+    "",
+    "## Where to read",
+    `- D1 database name: ${CODEX_D1_NAME}`,
+    `- D1 database id: ${CODEX_D1_ID}`,
+    `- wrangler D1 config: wrangler.d1.jsonc`,
+    `- R2 bucket: ${CODEX_R2_BUCKET}`,
+    "",
+    "Read the material row:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, profile_id, exam_goal, kind, title, source_url, notes, file_key, file_name, file_type, created_by_user_id FROM shelf_materials WHERE id = '${material.id}' AND profile_id = '${profileId}';"`,
+    "```",
+    material.fileKey
+      ? [
+          "",
+          "Download the private file from R2 (save under /tmp for reading):",
+          "```sh",
+          `npx wrangler r2 object get ${CODEX_R2_BUCKET}/${material.fileKey} --file /tmp/${material.fileName || material.id} --remote`,
+          "```",
+        ].join("\n")
+      : "",
+    "",
+    "## What to produce",
+    "- summary_en: English practice signals from the source",
+    "- parent_zh: optional Chinese parent reading, or empty",
+    "- training_directions: up to 5 concrete next practice directions (JSON array string)",
+    "- evidence_limits: what this source does NOT prove",
+    "- source_excerpt: short excerpt/notes used (max 8000 chars)",
+    "",
+    "## Where to save (remote D1)",
+    "Insert one succeeded analysis and one learning_evidence row. Use these ids/timestamps unless collisions force new ones:",
+    `- analysis id: ${analysisId}`,
+    `- evidence id: ${evidenceId}`,
+    `- completed_at / created_at: ${stamp}`,
+    `- model: codex`,
+    "",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO material_analyses (id, material_id, profile_id, exam_goal, status, summary_en, parent_zh, training_directions_json, evidence_limits, source_excerpt, model, created_by_user_id, created_at, completed_at) VALUES ('${analysisId}', '${material.id}', '${profileId}', '${material.examGoal}', 'succeeded', 'SUMMARY_EN', NULL, '[\\"DIRECTION\\"]', 'LIMITS', 'EXCERPT', 'codex', '${actorUserId}', '${stamp}', '${stamp}'); INSERT INTO learning_evidence (id, profile_id, exam_goal, kind, ref_id, summary, created_at) VALUES ('${evidenceId}', '${profileId}', '${material.examGoal}', 'material_analysis', '${analysisId}', 'SUMMARY_EN', '${stamp}');"`,
+    "```",
+    "",
+    "Replace SUMMARY_EN / DIRECTION / LIMITS / EXCERPT (and parent_zh NULL if unused) with real values.",
+    "Escape SQL quotes. Keep summary_en and evidence_limits non-empty.",
+    "After writing, confirm with:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, status, model, substr(summary_en,1,120) AS summary FROM material_analyses WHERE material_id = '${material.id}' ORDER BY created_at DESC LIMIT 1;"`,
+    "```",
+    "",
+    "Then tell the parent to refresh Parent room → Resource shelf.",
+  ].filter((line) => line !== "").join("\n");
+}
+
+export function parseCodexAnalysisInput(value: unknown): CodexAnalysisInput | { error: string } {
+  if (!value || typeof value !== "object") return { error: "Send Codex findings as JSON." };
+  const body = value as Record<string, unknown>;
+
+  let source: Record<string, unknown> = body;
+  if (typeof body.json === "string" && body.json.trim()) {
+    try {
+      const parsed = JSON.parse(body.json) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return { error: "Codex output must be one JSON object." };
+      }
+      source = parsed as Record<string, unknown>;
+    } catch {
+      return { error: "Codex output is not valid JSON." };
+    }
+  }
+
+  const summaryEn = cleanText(source.summary_en ?? source.summaryEn, 4000);
+  const parentZh = cleanText(source.parent_zh ?? source.parentZh, 2000);
+  const evidenceLimits = cleanText(source.evidence_limits ?? source.evidenceLimits, 2000);
+  const rawDirections = source.training_directions ?? source.trainingDirections;
+  const trainingDirections = Array.isArray(rawDirections)
+    ? rawDirections.map((item) => cleanText(item, 240)).filter(Boolean).slice(0, 5)
+    : [];
+  const sourceExcerpt = cleanText(source.source_excerpt ?? source.sourceExcerpt, 8000);
+
+  if (!summaryEn) return { error: "summary_en is required." };
+  if (!evidenceLimits) return { error: "evidence_limits is required." };
+
+  return {
+    summaryEn,
+    parentZh,
+    trainingDirections,
+    evidenceLimits,
+    sourceExcerpt: sourceExcerpt || undefined,
+  };
+}
+
+/** Optional HTTP write-back if an agent prefers the API over wrangler SQL. */
+export async function saveCodexMaterialAnalysis(
+  db: D1Database,
+  profileId: string,
+  materialId: string,
+  userId: string,
+  input: CodexAnalysisInput,
+) {
+  const material = await getMaterialForCodex(db, profileId, materialId, userId);
   if (!material) return { ok: false as const, status: 404 as const, error: "This resource is unavailable." };
 
-  if (!apiKey) {
-    return { ok: false as const, status: 503 as const, error: "DeepSeek is not configured on this Worker." };
-  }
-
-  const images = await collectImages(bucket, material, pageImages);
-  if (!images.ok) return { ok: false as const, status: images.status, error: images.error };
-
-  const source = await resolveSourceText(material, images.pages);
-  if (!source.ok) {
-    return { ok: false as const, status: source.status, error: source.error };
-  }
-
   const analysisId = createId("anl");
-  const stamp = nowIso();
-  const reserved = await db.prepare(
-    `INSERT INTO material_analyses
-       (id, material_id, profile_id, exam_goal, status, source_excerpt, created_by_user_id, created_at)
-     SELECT ?, m.id, m.profile_id, m.exam_goal, 'running', ?, ?, ?
-     FROM shelf_materials m JOIN profiles p ON p.id = m.profile_id
-     WHERE m.id = ? AND m.profile_id = ? AND ${parentAccess}`,
-  ).bind(analysisId, source.excerpt, userId, stamp, materialId, profileId, userId).run();
-  if (!reserved.meta.changes) return { ok: false as const, status: 404 as const, error: "This resource is unavailable." };
-
-  const userContent: DeepseekContentPart[] = [
-    {
-      type: "text",
-      text: [
-        `Exam archive: ${material.examGoal}`,
-        `Resource type: ${material.kind}`,
-        `Title: ${material.title}`,
-        material.url ? `Link: ${material.url}` : null,
-        material.fileName ? `Attachment: ${material.fileName}` : null,
-        `Source kind: ${source.kind}`,
-        source.meta,
-        "Source text / context:",
-        source.excerpt,
-        images.pages.length
-          ? `The following ${images.pages.length} page image(s) are part of this resource. Read visible text, diagrams and coaching marks carefully.`
-          : null,
-      ].filter(Boolean).join("\n"),
-    },
-    ...images.pages.map((page) => ({
-      type: "image_url" as const,
-      // low keeps coaching PDFs under request limits while still reading text/marks
-      image_url: { url: page.dataUrl, detail: "low" as const },
-    })),
-  ];
-
-  const modelResult = await deepseekChat(apiKey, [
-    {
-      role: "system",
-      content: [
-        "You analyse Selective/OC Thinking Skills coaching materials for a private family learning room.",
-        "Return one JSON object with keys: summary_en, parent_zh, training_directions (string array, max 5), evidence_limits.",
-        "summary_en: short English summary of useful practice signals from the source.",
-        "parent_zh: optional short Chinese parent reading; empty string if not useful.",
-        "training_directions: concrete next practice directions, not invented missing questions.",
-        "evidence_limits: what the source does NOT prove (guessing scores, classmate percentages, unseen items, truncated pages or video).",
-        "If images are provided, treat them as the primary evidence and extract methods, traps and practice focus from visible content.",
-        "If the source is a video transcript, treat it as spoken coaching content.",
-        "Never invent specific exam questions that are not present in the source text or images.",
-      ].join(" "),
-    },
-    { role: "user", content: userContent },
-  ], {
-    // Vision + forced json_object has returned empty assistant content on coaching PDFs.
-    // Ask for JSON in the prompt and parse it; deepseekChat still retries if needed.
-    jsonObject: images.pages.length === 0,
-    maxTokens: 2200,
-  });
-
-  const done = nowIso();
-  if (!modelResult.ok) {
-    await db.prepare(
-      `UPDATE material_analyses SET status = 'failed', error = ?, model = ?, completed_at = ?
-       WHERE id = ? AND status = 'running'`,
-    ).bind(modelResult.error, modelResult.model, done, analysisId).run();
-    return { ok: false as const, status: 502 as const, error: modelResult.error };
-  }
-
-  let parsed: {
-    summary_en?: unknown;
-    parent_zh?: unknown;
-    training_directions?: unknown;
-    evidence_limits?: unknown;
-  };
-  try {
-    parsed = JSON.parse(modelResult.content) as typeof parsed;
-  } catch {
-    await db.prepare(
-      `UPDATE material_analyses SET status = 'failed', error = ?, model = ?, completed_at = ?
-       WHERE id = ? AND status = 'running'`,
-    ).bind("The AI service returned an unreadable analysis.", modelResult.model, done, analysisId).run();
-    return { ok: false as const, status: 502 as const, error: "The AI service returned an unreadable analysis." };
-  }
-
-  const summaryEn = cleanText(parsed.summary_en, 4000);
-  const parentZh = cleanText(parsed.parent_zh, 2000) || null;
-  const evidenceLimits = cleanText(parsed.evidence_limits, 2000);
-  const directions = Array.isArray(parsed.training_directions)
-    ? parsed.training_directions.map((item) => cleanText(item, 240)).filter(Boolean).slice(0, 5)
-    : [];
-
-  if (!summaryEn || !evidenceLimits) {
-    await db.prepare(
-      `UPDATE material_analyses SET status = 'failed', error = ?, model = ?, completed_at = ?
-       WHERE id = ? AND status = 'running'`,
-    ).bind("The AI analysis was incomplete.", modelResult.model, done, analysisId).run();
-    return { ok: false as const, status: 502 as const, error: "The AI analysis was incomplete." };
-  }
-
   const evidenceId = createId("evd");
-  await db.batch([
-    db.prepare(
-      `UPDATE material_analyses
-       SET status = 'succeeded', summary_en = ?, parent_zh = ?, training_directions_json = ?,
-           evidence_limits = ?, model = ?, completed_at = ?
-       WHERE id = ? AND status = 'running'`,
-    ).bind(summaryEn, parentZh, JSON.stringify(directions), evidenceLimits, modelResult.model, done, analysisId),
-    db.prepare(
-      `INSERT INTO learning_evidence (id, profile_id, exam_goal, kind, ref_id, summary, created_at)
-       VALUES (?, ?, ?, 'material_analysis', ?, ?, ?)`,
-    ).bind(evidenceId, profileId, material.examGoal, analysisId, summaryEn, done),
-  ]);
+  const stamp = nowIso();
+  const excerpt = (input.sourceExcerpt
+    || material.notes?.trim()
+    || `Codex review of ${material.title}`).slice(0, 8000);
+
+  try {
+    await db.batch([
+      db.prepare(
+        `INSERT INTO material_analyses
+           (id, material_id, profile_id, exam_goal, status, summary_en, parent_zh,
+            training_directions_json, evidence_limits, source_excerpt, model,
+            created_by_user_id, created_at, completed_at)
+         VALUES (?, ?, ?, ?, 'succeeded', ?, ?, ?, ?, ?, 'codex', ?, ?, ?)`,
+      ).bind(
+        analysisId,
+        materialId,
+        profileId,
+        material.examGoal,
+        input.summaryEn,
+        input.parentZh || null,
+        JSON.stringify(input.trainingDirections),
+        input.evidenceLimits,
+        excerpt,
+        userId,
+        stamp,
+        stamp,
+      ),
+      db.prepare(
+        `INSERT INTO learning_evidence (id, profile_id, exam_goal, kind, ref_id, summary, created_at)
+         VALUES (?, ?, ?, 'material_analysis', ?, ?, ?)`,
+      ).bind(evidenceId, profileId, material.examGoal, analysisId, input.summaryEn, stamp),
+    ]);
+  } catch {
+    return { ok: false as const, status: 503 as const, error: "Could not save Codex findings. Try again." };
+  }
 
   return {
     ok: true as const,
@@ -225,147 +280,15 @@ export async function analyseMaterial(
       id: analysisId,
       materialId,
       status: "succeeded" as const,
-      summaryEn,
-      parentZh,
-      trainingDirections: directions,
-      evidenceLimits,
+      summaryEn: input.summaryEn,
+      parentZh: input.parentZh || null,
+      trainingDirections: input.trainingDirections,
+      evidenceLimits: input.evidenceLimits,
       error: null,
       createdAt: stamp,
-      completedAt: done,
-    },
+      completedAt: stamp,
+    } satisfies MaterialAnalysis,
   };
-}
-
-async function collectImages(
-  bucket: R2Bucket,
-  material: MaterialRow,
-  pageImages: AnalysisPageImage[],
-) {
-  if (pageImages.length) {
-    if (pageImages.length > MAX_ANALYSIS_PAGES) {
-      return {
-        ok: false as const,
-        status: 400 as const,
-        error: `Analyse up to ${MAX_ANALYSIS_PAGES} PDF pages at a time. Split longer documents or choose the most relevant pages.`,
-      };
-    }
-    return { ok: true as const, pages: pageImages };
-  }
-
-  if (material.fileKey && material.fileType && isVisionImage(material.fileType)) {
-    const object = await bucket.get(material.fileKey);
-    if (!object) {
-      return { ok: false as const, status: 404 as const, error: "The attached image is unavailable." };
-    }
-    const bytes = new Uint8Array(await object.arrayBuffer());
-    if (bytes.byteLength > 8 * 1024 * 1024) {
-      return { ok: false as const, status: 413 as const, error: "Attached images for analysis must be 8 MB or smaller." };
-    }
-    const dataUrl = `data:${material.fileType};base64,${bytesToBase64(bytes)}`;
-    return { ok: true as const, pages: [{ page: 1, dataUrl }] };
-  }
-
-  return { ok: true as const, pages: [] as AnalysisPageImage[] };
-}
-
-async function resolveSourceText(material: MaterialRow, pages: AnalysisPageImage[]) {
-  const notes = material.notes?.trim() ?? "";
-  const video = material.url ? youtubeVideoId(material.url) : null;
-
-  if (video && material.url) {
-    const transcript = await fetchYouTubeTranscript(material.url);
-    if (!transcript.ok) {
-      if (notes) {
-        return {
-          ok: true as const,
-          excerpt: notes.slice(0, 7500),
-          kind: "parent notes (video captions unavailable)",
-          meta: `Caption error: ${transcript.error}`,
-        };
-      }
-      return { ok: false as const, status: 422 as const, error: transcript.error };
-    }
-    const excerpt = [
-      notes ? `Parent notes:\n${notes}` : null,
-      `YouTube transcript (${transcript.language}${transcript.autoGenerated ? ", auto-generated" : ""}${transcript.truncated ? ", truncated" : ""}):\n${transcript.text}`,
-    ].filter(Boolean).join("\n\n").slice(0, 8000);
-    return {
-      ok: true as const,
-      excerpt,
-      kind: "youtube transcript",
-      meta: `Caption language: ${transcript.language}; auto-generated: ${transcript.autoGenerated ? "yes" : "no"}; truncated: ${transcript.truncated ? "yes" : "no"}`,
-    };
-  }
-
-  if (material.url && (material.kind === "coaching_video" || /\.(mp4|mov|webm)(\?|$)/i.test(material.url))) {
-    if (notes) {
-      return {
-        ok: true as const,
-        excerpt: notes.slice(0, 7500),
-        kind: "parent notes (non-YouTube video)",
-        meta: "Direct video file analysis is not available yet. Parent notes were used.",
-      };
-    }
-    return {
-      ok: false as const,
-      status: 422 as const,
-      error: "Video analysis currently reads YouTube captions automatically. Use a YouTube link, or add a transcript in notes.",
-    };
-  }
-
-  if (pages.length) {
-    const pageLabel = pages.map((page) => page.page).join(", ");
-    return {
-      ok: true as const,
-      excerpt: [
-        notes ? `Parent notes:\n${notes}` : null,
-        `Page images provided for analysis: ${pageLabel}.`,
-        material.fileType === "application/pdf" || material.fileName?.toLowerCase().endsWith(".pdf")
-          ? `At most ${MAX_ANALYSIS_PAGES} PDF pages are analysed per request.`
-          : null,
-      ].filter(Boolean).join("\n\n").slice(0, 8000),
-      kind: material.fileType === "application/pdf" || material.fileName?.toLowerCase().endsWith(".pdf")
-        ? "pdf page images"
-        : "attached image",
-      meta: `Image count: ${pages.length}`,
-    };
-  }
-
-  if (notes) {
-    return {
-      ok: true as const,
-      excerpt: notes.slice(0, 7500),
-      kind: "parent notes",
-      meta: material.fileName ? `Attachment on file: ${material.fileName}` : "Text notes only",
-    };
-  }
-
-  if (material.fileType === "application/pdf" || material.fileName?.toLowerCase().endsWith(".pdf")) {
-    return {
-      ok: false as const,
-      status: 400 as const,
-      error: `Prepare the first ${MAX_ANALYSIS_PAGES} PDF pages as images in the browser, then analyse again.`,
-    };
-  }
-
-  return {
-    ok: false as const,
-    status: 400 as const,
-    error: "Add notes, a YouTube link with captions, a PDF, or an image attachment to analyse.",
-  };
-}
-
-function isVisionImage(type: string) {
-  return type === "image/jpeg" || type === "image/png" || type === "image/webp";
-}
-
-function bytesToBase64(bytes: Uint8Array) {
-  let binary = "";
-  const chunk = 0x8000;
-  for (let index = 0; index < bytes.length; index += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
-  }
-  return btoa(binary);
 }
 
 function cleanText(value: unknown, max: number) {
