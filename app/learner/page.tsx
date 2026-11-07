@@ -3,10 +3,12 @@ import { redirect } from "next/navigation";
 import { env } from "cloudflare:workers";
 
 import { GrowthArtwork } from "@/components/Brand";
+import { LearnerPractice } from "@/components/LearnerPractice";
 import { RoomLayout } from "@/components/RoomLayout";
 import { getSession } from "@/lib/auth";
 import { examLabel, hasOpenInvitations, linkedLearner } from "@/lib/family";
 import { getSessionTokenFromCookies } from "@/lib/http";
+import { activePracticeSession, getPracticeSession } from "@/lib/practice";
 
 export default async function LearnerPage() {
   const session = await getSession(await getSessionTokenFromCookies());
@@ -18,6 +20,13 @@ export default async function LearnerPage() {
     hasOpenInvitations(env.DB, session.email),
   ]);
 
+  const active = profile
+    ? await activePracticeSession(env.DB, profile.id, profile.examGoal)
+    : null;
+  const practice = active
+    ? await getPracticeSession(env.DB, active.id, session.user_id)
+    : null;
+
   return (
     <RoomLayout role="learner" name={profile?.nickname || "Learner"} badge={profile ? `${examLabel(profile.examGoal)} · Personal practice` : "Your account"}>
       <header className="room-heading">
@@ -26,14 +35,21 @@ export default async function LearnerPage() {
         <p className="lede">{profile ? "You don’t have to get it all right. You just have to begin." : "Your learner profile isn’t connected to this email yet."}</p>
       </header>
       {hasInvites ? <Link className="button secondary invitation-back" href="/invitations">Review invitations</Link> : null}
-      <section className="learner-feature" aria-labelledby="learner-feature-heading">
-        <div>
-          <p className="eyebrow">{profile ? examLabel(profile.examGoal) + " preparation" : "Your private family room"}</p>
-          <h2 id="learner-feature-heading">A little practice.<br />Stronger skills.</h2>
-          <p>{profile ? "Your Thinking Skills practice will appear here when it’s ready." : "Once your family connects your profile, this is where your practice and feedback will appear."}</p>
-        </div>
-        <GrowthArtwork className="learner-illustration" />
-      </section>
+      {profile ? (
+        <LearnerPractice
+          initialSession={practice}
+          profile={{ id: profile.id, examGoal: profile.examGoal, nickname: profile.nickname }}
+        />
+      ) : (
+        <section className="learner-feature" aria-labelledby="learner-feature-heading">
+          <div>
+            <p className="eyebrow">Your private family room</p>
+            <h2 id="learner-feature-heading">A little practice.<br />Stronger skills.</h2>
+            <p>Once your family connects your profile, this is where your practice and feedback will appear.</p>
+          </div>
+          <GrowthArtwork className="learner-illustration" />
+        </section>
+      )}
     </RoomLayout>
   );
 }

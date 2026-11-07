@@ -360,6 +360,37 @@ p { margin: 0; }
 .shelf-feedback-form > button { justify-self: start; }
 .shelf-feedback-form ~ p { margin-top: .7rem; }
 .shelf-anchor { scroll-margin-top: 1rem; }
+.practice-panel { margin-top: 1.2rem; }
+.practice-panel .actions { margin-top: 1rem; }
+.practice-panel .notice, .practice-panel .error { margin-top: .85rem; }
+.practice-prompt { margin: .85rem 0 1rem; font-size: 1.05rem; line-height: 1.65; max-width: 62ch; }
+.practice-options { margin: 0; padding: 0; border: 0; display: grid; gap: .55rem; }
+.practice-options .field { margin-bottom: .15rem; }
+.practice-option {
+  display: grid; grid-template-columns: auto auto 1fr; gap: .7rem; align-items: start;
+  padding: .75rem .85rem; border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+  cursor: pointer;
+}
+.practice-option input { position: absolute; opacity: 0; pointer-events: none; }
+.practice-option.is-selected, .practice-option:has(input:checked) {
+  border-color: #a8bf95; background: var(--pale);
+}
+.practice-key {
+  display: inline-grid; place-items: center; width: 1.7rem; height: 1.7rem;
+  border-radius: 6px; background: #e2ecd3; color: var(--green); font-size: .8rem; font-weight: 700;
+}
+.practice-option input:focus-visible + .practice-key {
+  outline: 3px solid var(--gold); outline-offset: 2px;
+}
+.practice-summary { display: grid; gap: .55rem; margin: 1rem 0 0; padding: 0; list-style: none; }
+.practice-summary li {
+  display: grid; gap: .15rem; padding: .7rem .85rem; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--panel);
+}
+.practice-ok { color: var(--green); }
+.practice-miss { color: var(--danger); }
+.practice-evidence .shelf-notes { margin-top: .45rem; padding: .65rem .75rem; border-radius: 8px; background: #f7f9f3; }
+.practice-panel input[type="range"] { width: min(100%, 18rem); accent-color: var(--moss); }
 .shelf-dialog { position: fixed; inset: 0; margin: auto; width: min(34rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.25rem; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--ink); }
 .shelf-dialog::backdrop { background: #182c26a6; }
 .shelf-dialog fieldset { margin-top: 1rem; }
