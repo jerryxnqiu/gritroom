@@ -2,6 +2,7 @@ import Link from "next/link";
 import { env } from "cloudflare:workers";
 
 import { examLabel, type ExamGoal, type ParentProfile } from "@/lib/family";
+import { listMaterialAnalyses } from "@/lib/material-analysis";
 import { readShelf } from "@/lib/resource-shelf";
 import { AddResourceDialog } from "./AddResourceDialog";
 import { QuestionFoundations } from "./QuestionFoundations";
@@ -9,8 +10,13 @@ import { ShelfFeedbackForm } from "./ShelfFeedbackForm";
 import { ShelfMaterialList } from "./ShelfMaterialList";
 
 export async function ResourceShelf({ profile, goal, userId }: { profile: ParentProfile; goal: ExamGoal; userId: string }) {
-  const { materials, feedback } = await readShelf(env.DB, profile.id, goal, userId);
+  const [{ materials, feedback }, analyses] = await Promise.all([
+    readShelf(env.DB, profile.id, goal, userId),
+    listMaterialAnalyses(env.DB, profile.id, goal, userId),
+  ]);
   const scope = `${profile.id}:${goal}`;
+  const coaching = materials.filter((item) => item.kind !== "study_material");
+  const study = materials.filter((item) => item.kind === "study_material");
 
   return (
     <section className="panel family-panel" id="resource-shelf" aria-labelledby="resource-shelf-heading">
@@ -37,17 +43,17 @@ export async function ResourceShelf({ profile, goal, userId }: { profile: Parent
 
       <section className="family-subsection" aria-labelledby="shelf-coaching">
         <h3 id="shelf-coaching">02 · Coaching reports &amp; videos</h3>
-        <ShelfMaterialList profileId={profile.id} materials={materials.filter((item) => item.kind !== "study_material")} empty="No coaching reports or video links in this archive yet." />
+        <ShelfMaterialList profileId={profile.id} materials={coaching} analyses={analyses.filter((item) => coaching.some((material) => material.id === item.materialId))} empty="No coaching reports or video links in this archive yet." />
       </section>
 
       <section className="family-subsection" aria-labelledby="shelf-study">
         <h3 id="shelf-study">03 · Extra study materials</h3>
-        <ShelfMaterialList profileId={profile.id} materials={materials.filter((item) => item.kind === "study_material")} empty="No extra study materials in this archive yet." />
+        <ShelfMaterialList profileId={profile.id} materials={study} analyses={analyses.filter((item) => study.some((material) => material.id === item.materialId))} empty="No extra study materials in this archive yet." />
       </section>
 
       <section className="family-subsection shelf-anchor" id="practice-evidence" aria-labelledby="shelf-practice">
         <h3 id="shelf-practice">04 · Practice evidence</h3>
-        <p className="meta">Saved answers, time per question and any working shared by the learner will appear here once practice is available for this archive.</p>
+        <p className="meta">Per-question answers, time, confidence, drafts and working will be saved here once learner practice is live. Those records, together with material analyses above, will feed daily summaries and new question generation.</p>
       </section>
 
       <section className="family-subsection shelf-anchor" id="parent-feedback" aria-labelledby="shelf-feedback">

@@ -40,12 +40,12 @@ Open **Parent room → Resource shelf** for a child. The archive defaults to the
 | Input | Current behaviour | Use in later practice |
 | --- | --- | --- |
 | Official exam information | Reviewed NSW format, worked examples and versioned authoring blueprints from migration `0004`. | Determines exam coverage, reasoning structure and how to verify an original answer. |
-| Coaching reports and videos | Add a title, link, optional notes or transcript, and a PDF or image. | Summaries inform what to verify with new practice. A saved video link needs notes, a transcript or images before its content can inform practice. |
-| Extra study materials | Add a titled workbook page, image, PDF, link or notes. | Use the worked method and practice style as references when writing original questions. |
-| Practice evidence | The shelf reserves a section for records from the upcoming learner practice flow. | Save the exam goal and versioned question with answer, outcome, time and confidence. Associate method notes, working files and coaching messages with the attempt. |
-| Feedback and question preferences | Parents can save observations and preferences. Authors and family administrators can withdraw them. | Use active feedback to adjust style, length and language. Keep it separate from scored evidence. |
+| Coaching reports and videos | Add a title, YouTube link and optional notes/file. Click **Analyse resource**. YouTube captions are fetched automatically and sent to DeepSeek. | Successful analyses store English findings, optional Chinese parent reading, training directions and evidence limits in `material_analyses`, and copy a durable summary into `learning_evidence`. |
+| Extra study materials | Add a titled workbook page, image, PDF, link or notes, then analyse when notes describe the content. | Same analysis path as coaching materials. PDF page-image analysis is next; text notes are required for analysis today. |
+| Practice evidence | Schema ready in `practice_sessions` / `practice_attempts`. Learner UI comes next. | Will store answer, correctness, time, confidence, draft notes and working files per question for summaries and generation. |
+| Feedback and question preferences | Parents can save observations and preferences. Authors and family administrators can withdraw them. | Active feedback is also copied into `learning_evidence` for later generation context. |
 
-Migration `0005_resource_shelf.sql` adds the private material index and feedback history. Attachments are stored in R2 and downloaded through a parent-only route that checks current access to the child. Maximum 8 MB per PDF, JPG, PNG or WebP attachment. Saving a link, file or note records the resource for later use.
+Migration `0005_resource_shelf.sql` adds the private material index and feedback history. Migration `0006_learning_inputs.sql` adds analyses, learning evidence and practice attempt tables. Attachments are stored in R2 and downloaded through a parent-only route that checks current access to the child. Maximum 8 MB per PDF, JPG, PNG or WebP attachment.
 
 ## Next milestones
 
@@ -56,4 +56,4 @@ Migration `0005_resource_shelf.sql` adds the private material index and feedback
 
 ## Production
 
-The project is configured for Cloudflare. The existing `npm run deploy` command applies remote D1 migrations before deployment; do not use it for a local check. Verify the target D1 and R2 bindings, back up production data and review migrations separately before publishing. Keep `gmail-smtp-keys` (JSON text) and `deepseek-api-key` in Worker Secrets. Do not commit credentials or real learner data.
+The project is configured for Cloudflare. The existing `npm run deploy` command applies remote D1 migrations before deployment; do not use it for a local check. Verify the target D1 and R2 bindings, back up production data and review migrations separately before publishing. Keep `gmail-smtp-keys` (JSON text) and `deepseek-api-key` in Worker Secrets. DeepSeek calls use `https://api.deepseek.com` with model `deepseek-flash` by default (`deepseek-v4-pro` available for heavier work). Do not commit credentials or real learner data.

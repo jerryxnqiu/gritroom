@@ -4,7 +4,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hasLearnerInvitation, isInstallationOwner, linkedLearner, listManagedFamilies, listParentProfiles } from "../lib/family.ts";
 import { acceptInvitation, childAccess, closeInvitation, issueInvitation, recipientInvitations, revokeGuardian } from "../lib/invitations.ts";
+import { analyseMaterial, listMaterialAnalyses } from "../lib/material-analysis.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
+import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
 const core = readFileSync(new URL("../migrations/0002_core_schema.sql", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../migrations/0003_family_invitations.sql", import.meta.url), "utf8");
@@ -164,19 +166,38 @@ test("creating another family does not grant access to installation mail tools",
   assert.equal(await isInstallationOwner(db, "other"), false);
 });
 
+test("youtube video ids are parsed from common watch urls", () => {
+  assert.equal(youtubeVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ"), "dQw4w9WgXcQ");
+  assert.equal(youtubeVideoId("https://youtu.be/dQw4w9WgXcQ?t=12"), "dQw4w9WgXcQ");
+  assert.equal(youtubeVideoId("https://www.youtube.com/shorts/dQw4w9WgXcQ"), "dQw4w9WgXcQ");
+  assert.equal(youtubeVideoId("https://example.com/watch?v=dQw4w9WgXcQ"), null);
+});
+
 test("shelf evidence is limited to the authorised child and chosen exam archive", async (t) => {
   const { sql, db } = fixture();
   t.after(() => sql.close());
   sql.exec(readFileSync(new URL("../migrations/0005_resource_shelf.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0004_thinking_knowledge.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
   sql.exec(`
     INSERT INTO shelf_materials(id,profile_id,exam_goal,kind,title,file_key,file_name,file_type,created_by_user_id,created_at)
     VALUES('report','p1','selective','coaching_report','Report','private/report','report.pdf','application/pdf','owner',datetime('now'));
+    INSERT INTO shelf_materials(id,profile_id,exam_goal,kind,title,notes,created_by_user_id,created_at)
+    VALUES('notes','p1','selective','coaching_report','Notes only','Child mixes necessary and sufficient conditions.','owner',datetime('now'));
   `);
   const feedbackId = await saveShelfFeedback(db, "p1", "oc", "guardian", "Use longer passages.");
   assert.ok(feedbackId);
+  assert.equal(
+    sql.prepare("SELECT kind FROM learning_evidence WHERE ref_id = ?").get(feedbackId)?.kind,
+    "parent_feedback",
+  );
+  const blocked = await analyseMaterial(db, "p1", "report", "owner", "test-key");
+  assert.equal(blocked.ok, false);
+  if (!blocked.ok) assert.equal(blocked.status, 400);
+  assert.equal((await listMaterialAnalyses(db, "p1", "selective", "owner")).length, 0);
   assert.equal(await saveShelfFeedback(db, "p2", "oc", "guardian", "Out of scope."), null);
   assert.equal(await saveShelfFeedback(db, "p1", "oc", "other", "Out of scope."), null);
-  assert.equal((await readShelf(db, "p1", "selective", "owner")).materials.length, 1);
+  assert.equal((await readShelf(db, "p1", "selective", "owner")).materials.length, 2);
   assert.equal((await readShelf(db, "p1", "selective", "guardian")).feedback.length, 0);
   assert.equal((await readShelf(db, "p1", "oc", "guardian")).feedback[0]?.id, feedbackId);
   assert.equal((await readShelf(db, "p1", "oc", "other")).feedback.length, 0);
@@ -191,7 +212,7 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.deepEqual(deletedKeys, []);
   assert.equal(await deleteMaterial(db, bucket, "p1", "report", "guardian"), true);
   assert.deepEqual(deletedKeys, ["private/report"]);
-  assert.equal((await readShelf(db, "p1", "selective", "owner")).materials.length, 0);
+  assert.equal((await readShelf(db, "p1", "selective", "owner")).materials.map((item) => item.id).join(","), "notes");
   assert.equal(await findMaterialFile(db, "p1", "report", "owner"), null);
   assert.equal(await withdrawShelfFeedback(db, "p1", feedbackId, "other"), false);
   sql.exec("UPDATE guardian_grants SET revoked_at = datetime('now') WHERE id = 'g2'");

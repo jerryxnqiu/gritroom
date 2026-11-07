@@ -294,14 +294,17 @@ p { margin: 0; }
 .shelf-toolbar { align-items: center; }
 .shelf-actions, .shelf-item-links { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
 .shelf-item-links a, .shelf-item-links .text-button {
-  color: var(--green); text-decoration: underline; text-underline-offset: .2em; font-size: .85rem;
+  color: var(--green); text-decoration: underline; text-underline-offset: .2em; font-size: .85rem; padding: 0;
 }
-.shelf-item-links .shelf-delete { color: var(--danger); padding: 0; }
+.shelf-item-links .shelf-delete { color: var(--danger); }
 .shelf-items { display: grid; margin: 0; padding: 0; list-style: none; }
 .shelf-item { padding: .8rem 0; }
 .shelf-item + .shelf-item { border-top: 1px solid var(--line); }
 .shelf-item > div:first-child { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
 .shelf-item .meta { margin-top: .15rem; }
+.shelf-analysis { margin-top: .55rem; }
+.shelf-directions { margin: .45rem 0 0; padding-left: 1.1rem; color: var(--ink); font-size: .86rem; line-height: 1.55; }
+.shelf-directions li + li { margin-top: .25rem; }
 .shelf-notes, .shelf-feedback-form { margin-top: .7rem; }
 .shelf-copy { white-space: pre-wrap; overflow-wrap: anywhere; }
 .shelf-feedback-form > button { justify-self: start; }

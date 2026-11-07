@@ -61,12 +61,12 @@ export function AddResourceDialog({ profileId, goal }: { profileId: string; goal
               </label>
             </div>
             <label className="field"><span>Title</span><input name="title" maxLength={140} required /></label>
-            <label className="field"><span>Video or resource link (optional)</span><input name="url" type="url" placeholder="https://…" maxLength={2000} /></label>
-            <label className="field"><span>Notes or transcript excerpt (optional)</span>
-              <textarea name="notes" rows={3} maxLength={6000} placeholder="What does this resource cover?" />
+            <label className="field"><span>Video or resource link (optional)</span><input name="url" type="url" placeholder="https://youtube.com/watch?v=…" maxLength={2000} /></label>
+            <label className="field"><span>Notes (optional)</span>
+              <textarea name="notes" rows={3} maxLength={6000} placeholder="Extra context for analysis, or a transcript if captions are missing" />
             </label>
             <label className="field"><span>Attach a file (optional)</span><input name="file" type="file" accept={materialTypes.join(",")} aria-describedby="resource-file-help" /></label>
-            <p id="resource-file-help" className="meta">PDF, JPG, PNG or WebP · up to 8 MB. For a video, add a link and any transcript or notes you want used later.</p>
+            <p id="resource-file-help" className="meta">PDF, JPG, PNG or WebP · up to 8 MB. YouTube coaching videos are analysed from their captions automatically when you click Analyse resource.</p>
             {error ? <p className="error" role="alert">{error}</p> : null}
             <div className="shelf-actions">
               <button type="submit" className="button">{pending ? "Saving…" : "Save resource"}</button>

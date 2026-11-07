@@ -90,11 +90,17 @@ export async function deleteMaterial(db: D1Database, bucket: R2Bucket, profileId
 
 export async function saveShelfFeedback(db: D1Database, profileId: string, goal: ExamGoal, userId: string, body: string) {
   const id = createId("fdb");
+  const stamp = nowIso();
   const result = await db.prepare(
     `INSERT INTO shelf_feedback (id, profile_id, exam_goal, body, created_by_user_id, created_at)
      SELECT ?, p.id, ?, ?, ?, ? FROM profiles p WHERE p.id = ? AND ${parentAccess}`,
-  ).bind(id, goal, body, userId, nowIso(), profileId, userId).run();
-  return result.meta.changes ? id : null;
+  ).bind(id, goal, body, userId, stamp, profileId, userId).run();
+  if (!result.meta.changes) return null;
+  await db.prepare(
+    `INSERT INTO learning_evidence (id, profile_id, exam_goal, kind, ref_id, summary, created_at)
+     VALUES (?, ?, ?, 'parent_feedback', ?, ?, ?)`,
+  ).bind(createId("evd"), profileId, goal, id, body.slice(0, 4000), stamp).run();
+  return id;
 }
 
 export async function withdrawShelfFeedback(db: D1Database, profileId: string, feedbackId: string, userId: string) {
