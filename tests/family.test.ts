@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { hasLearnerInvitation, isInstallationOwner, linkedLearner, listManagedFamilies, listParentProfiles } from "../lib/family.ts";
 import { acceptInvitation, childAccess, closeInvitation, issueInvitation, recipientInvitations, revokeGuardian } from "../lib/invitations.ts";
 import { analyseMaterial, listMaterialAnalyses } from "../lib/material-analysis.ts";
+import { listPracticeEvidence, startPracticeSession, submitPracticeAttempt } from "../lib/practice.ts";
+import { PRACTICE_BANK } from "../lib/practice-bank.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
 import { parseAnalysisPages } from "../lib/shelf-pages.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
@@ -228,4 +230,59 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.equal(await withdrawShelfFeedback(db, "p1", feedbackId, "owner"), true);
   assert.equal((await readShelf(db, "p1", "oc", "owner")).feedback.length, 0);
   assert.equal(sql.prepare("SELECT body FROM shelf_feedback WHERE id = ?").get(feedbackId)?.body, "Use longer passages.");
+});
+
+test("linked learners can practise and parents see attempt evidence", async (t) => {
+  const { sql, db } = fixture();
+  t.after(() => sql.close());
+  sql.exec(readFileSync(new URL("../migrations/0004_thinking_knowledge.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0005_resource_shelf.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
+  const invite = await issueInvitation(
+    db,
+    actor("owner"),
+    { profileId: "p1", email: actor("learner").email, role: "learner" },
+    accepted,
+  );
+  assert.ok(invite.ok);
+  assert.equal((await acceptInvitation(db, actor("learner"), invite.id)).ok, true);
+
+  assert.equal((await startPracticeSession(db, "other", "daily")).ok, false);
+  const started = await startPracticeSession(db, "learner", "daily");
+  assert.equal(started.ok, true);
+  if (!started.ok) return;
+  assert.equal(started.session.status, "active");
+  assert.ok(started.session.attempts.length >= 1 && started.session.attempts.length <= 5);
+  assert.equal(started.session.attempts[0]?.correctOption, null);
+
+  const resumed = await startPracticeSession(db, "learner", "diagnostic");
+  assert.equal(resumed.ok, true);
+  if (!resumed.ok) return;
+  assert.equal(resumed.session.id, started.session.id);
+
+  const first = started.session.attempts[0];
+  assert.ok(first);
+  const bank = PRACTICE_BANK.find((item) => item.prompt === first.prompt);
+  assert.ok(bank);
+  const saved = await submitPracticeAttempt(db, "learner", started.session.id, {
+    attemptId: first.id,
+    selectedOption: bank.correctOption,
+    confidence: 4,
+    timeMs: 12_000,
+    draftNotes: "Checked the rule direction.",
+  });
+  assert.equal(saved.ok, true);
+  if (!saved.ok) return;
+  assert.equal(saved.attempt.isCorrect, true);
+  assert.equal(saved.attempt.correctOption, bank.correctOption);
+  assert.equal(
+    sql.prepare("SELECT kind FROM learning_evidence WHERE ref_id = ?").get(first.id)?.kind,
+    "attempt",
+  );
+  assert.equal((await listPracticeEvidence(db, "p1", "selective", "other")).length, 0);
+  const evidence = await listPracticeEvidence(db, "p1", "selective", "owner");
+  assert.equal(evidence.length, 1);
+  assert.equal(evidence[0]?.draftNotes, "Checked the rule direction.");
+  assert.equal(evidence[0]?.isCorrect, true);
+  assert.equal((await listPracticeEvidence(db, "p1", "oc", "owner")).length, 0);
 });

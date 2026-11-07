@@ -42,14 +42,14 @@ Open **Parent room → Resource shelf** for a child. The archive defaults to the
 | Official exam information | Reviewed NSW format, worked examples and versioned authoring blueprints from migration `0004`. | Determines exam coverage, reasoning structure and how to verify an original answer. |
 | Coaching reports and videos | Add a title, YouTube link and optional notes/file. Click **Analyse resource**. YouTube captions, PDF page images (first 6 pages in-browser) or attached photos are analysed with DeepSeek Flash vision. | Successful analyses store English findings, optional Chinese parent reading, training directions and evidence limits in `material_analyses`, and copy a durable summary into `learning_evidence`. |
 | Extra study materials | Add a titled workbook page, image, PDF, link or notes, then analyse. | Same analysis path as coaching materials. |
-| Practice evidence | Schema ready in `practice_sessions` / `practice_attempts`. Learner UI comes next. | Will store answer, correctness, time, confidence, draft notes and working files per question for summaries and generation. |
+| Practice evidence | Learner room starts a resumable starting-point check (all checked bank items for the goal) or focused practice (5 items). Each answer stores option, correctness, time, confidence and draft notes in `practice_attempts`, with a summary in `learning_evidence`. Parent shelf **04 · Practice evidence** lists recent attempts. Working-file uploads come later. | Feeds summaries and later question generation. |
 | Feedback and question preferences | Parents can save observations and preferences. Authors and family administrators can withdraw them. | Active feedback is also copied into `learning_evidence` for later generation context. |
 
 Migration `0005_resource_shelf.sql` adds the private material index and feedback history. Migration `0006_learning_inputs.sql` adds analyses, learning evidence and practice attempt tables. Attachments are stored in R2 and downloaded through a parent-only route that checks current access to the child. Maximum 8 MB per PDF, JPG, PNG or WebP attachment.
 
 ## Next milestones
 
-1. Build the checked original question bank and resumable diagnostic. Save and display the learner's question-by-question evidence, including private working uploads.
+1. Grow the checked original question bank (more items per blueprint) and add private working-file uploads on attempts.
 2. Build the learning loop. Use the current child's goal and latest evidence to choose a reviewed blueprint, use relevant material findings and active preferences to shape new questions, and independently verify the answer and distractors. Store blueprint versions and evidence references. Rebuild future recommendations when evidence changes and retain the question version in an existing attempt.
 3. Add timed papers, contextual tutoring and an owner-only deeper review that uses a frozen evidence snapshot. Save review findings as additional evidence.
 4. Add more question visuals and subjects.

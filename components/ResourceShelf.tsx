@@ -3,16 +3,19 @@ import { env } from "cloudflare:workers";
 
 import { examLabel, type ExamGoal, type ParentProfile } from "@/lib/family";
 import { listMaterialAnalyses } from "@/lib/material-analysis";
+import { listPracticeEvidence } from "@/lib/practice";
 import { readShelf } from "@/lib/resource-shelf";
 import { AddResourceDialog } from "./AddResourceDialog";
+import { PracticeEvidence } from "./PracticeEvidence";
 import { QuestionFoundations } from "./QuestionFoundations";
 import { ShelfFeedbackForm } from "./ShelfFeedbackForm";
 import { ShelfMaterialList } from "./ShelfMaterialList";
 
 export async function ResourceShelf({ profile, goal, userId }: { profile: ParentProfile; goal: ExamGoal; userId: string }) {
-  const [{ materials, feedback }, analyses] = await Promise.all([
+  const [{ materials, feedback }, analyses, evidence] = await Promise.all([
     readShelf(env.DB, profile.id, goal, userId),
     listMaterialAnalyses(env.DB, profile.id, goal, userId),
+    listPracticeEvidence(env.DB, profile.id, goal, userId),
   ]);
   const scope = `${profile.id}:${goal}`;
   const coaching = materials.filter((item) => item.kind !== "study_material");
@@ -57,7 +60,8 @@ export async function ResourceShelf({ profile, goal, userId }: { profile: Parent
 
       <section className="family-subsection shelf-anchor" id="practice-evidence" aria-labelledby="shelf-practice">
         <h3 id="shelf-practice">04 · Practice evidence</h3>
-        <p className="meta">Per-question answers, time, confidence, drafts and working will be saved here once learner practice is live. Those records, together with material analyses above, will feed daily summaries and new question generation.</p>
+        <p className="meta">Per-question answers, time, confidence and draft notes from {profile.nickname}’s learner room. Together with material analyses above, these records will feed daily summaries and new question generation.</p>
+        <PracticeEvidence items={evidence} />
       </section>
 
       <section className="family-subsection shelf-anchor" id="parent-feedback" aria-labelledby="shelf-feedback">
