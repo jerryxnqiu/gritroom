@@ -42,7 +42,7 @@ Open **Parent room → Resource shelf** for a child. The archive defaults to the
 | Official exam information | Reviewed NSW format, worked examples and versioned authoring blueprints from migration `0004`. | Determines exam coverage, reasoning structure and how to verify an original answer. |
 | Coaching reports and videos | Add a title, YouTube link and optional notes/file. Click **Ask Codex** to copy a task that points at the remote D1 row and R2 object; Codex reads them and writes findings back to D1. | Findings store English summary, optional Chinese parent reading, training directions and evidence limits in `material_analyses`, plus a summary in `learning_evidence`. Deleting the resource removes its analyses and those evidence copies. |
 | Extra study materials | Same Codex path as coaching materials. | Same storage as coaching materials. |
-| Practice evidence | Learner room starts a resumable starting-point check (all checked bank items for the goal) or focused practice (5 items). Each answer stores option, correctness, time, confidence and draft notes in `practice_attempts`, with a summary in `learning_evidence`. Working-file uploads come later. | Feeds summaries and later question generation. |
+| Practice evidence | Learner room starts a resumable starting-point check (all active D1 bank items for the goal) or focused practice (5 items). Questions live in `practice_questions` (optional R2 `image_key` for figures). Each attempt snapshots prompt, options, correct answer, question id/version and image key in `practice_attempts`, plus a summary in `learning_evidence`. | Feeds summaries and later bank refreshes / generation. |
 | Feedback and question preferences | Parents can save observations and preferences. Authors and family administrators can withdraw them. | Active feedback is also copied into `learning_evidence` for later generation context. |
 
 ### Model roles
@@ -59,14 +59,13 @@ Open **Parent room → Resource shelf** for a child. The archive defaults to the
 3. Codex should follow the task: read `shelf_materials` on remote D1 (`gritroom-db`), fetch the R2 object from bucket `gritroom` when `file_key` is set, then insert `material_analyses` + `learning_evidence` on remote D1 with `model = 'codex'`.
 4. Refresh Parent room → Resource shelf to see **Codex reviewed**.
 
-Migration `0005_resource_shelf.sql` adds the private material index and feedback history. Migration `0006_learning_inputs.sql` adds analyses, learning evidence and practice attempt tables. Attachments are stored in R2 and downloaded through a parent-only route that checks current access to the child. Maximum 8 MB per PDF, JPG, PNG or WebP attachment.
+Migration `0005_resource_shelf.sql` adds the private material index and feedback history. Migration `0006_learning_inputs.sql` adds analyses, learning evidence and practice attempt tables. Migration `0007_practice_questions.sql` adds the versioned D1 question bank (seeded from the original starter items) and attempt snapshot columns for question id/version and figure `image_key`. Attachments and future question figures are stored in R2. Maximum 8 MB per PDF, JPG, PNG or WebP attachment.
 
 ## Next milestones
 
 1. Build the learner DeepSeek assistant chat on practice questions and save useful dialogue as evidence.
-2. Grow the checked original question bank and add private working-file uploads on attempts.
-3. Build the learning loop from blueprints + Codex material findings + practice evidence + preferences.
-4. Add timed papers and an owner-only deeper review snapshot flow; more visuals and subjects later.
+2. Refresh `practice_questions` in D1 (via Codex) from blueprints + material analyses; add figures to R2 when needed. Working-file uploads on attempts later.
+3. Build the learning loop and timed papers from the D1 bank; owner deeper review snapshot flow; more subjects later.
 
 ## Production
 

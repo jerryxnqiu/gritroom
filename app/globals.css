@@ -379,6 +379,11 @@ p { margin: 0; }
 .practice-panel .actions { margin-top: 1rem; }
 .practice-panel .notice, .practice-panel .error { margin-top: .85rem; }
 .practice-prompt { margin: .85rem 0 1rem; font-size: 1.05rem; line-height: 1.65; max-width: 62ch; }
+.practice-figure { margin: .75rem 0; }
+.practice-figure img {
+  display: block; max-width: min(100%, 28rem); height: auto;
+  border: 1px solid var(--line); border-radius: 10px; background: #f7f9f3;
+}
 .practice-options { margin: 0; padding: 0; border: 0; display: grid; gap: .55rem; }
 .practice-options .field { margin-bottom: .15rem; }
 .practice-option {

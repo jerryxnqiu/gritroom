@@ -154,6 +154,14 @@ export function LearnerPractice({
       </p>
       <h2 id="practice-heading">{current?.blueprintTitle || "Your next question"}</h2>
       {current?.skill ? <p className="meta">{current.skill}</p> : null}
+      {current?.imageKey ? (
+        <p className="practice-figure">
+          <img
+            src={`/api/practice/attempts/${encodeURIComponent(current.id)}/image`}
+            alt="Question figure"
+          />
+        </p>
+      ) : null}
       <p className="practice-prompt">{current?.prompt}</p>
       <fieldset className="practice-options" disabled={pending || Boolean(review)}>
         <legend className="field"><span>Choose an answer</span></legend>

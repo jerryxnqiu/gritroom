@@ -21,6 +21,11 @@ export function PracticeEvidence({ items }: { items: PracticeEvidenceItem[] }) {
       {items.map((item) => (
         <li key={item.id} className="shelf-item">
           <div>
+            {item.imageKey ? (
+              <p className="practice-figure">
+                <img src={`/api/practice/attempts/${encodeURIComponent(item.id)}/image`} alt="Question figure" />
+              </p>
+            ) : null}
             <p className="shelf-copy">{item.prompt}</p>
             <p className="meta">
               <strong className={item.isCorrect ? "practice-ok" : "practice-miss"}>
