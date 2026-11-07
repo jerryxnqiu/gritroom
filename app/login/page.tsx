@@ -1,38 +1,30 @@
 import Link from "next/link";
-
+import { EntryLayout } from "@/components/EntryLayout";
 import { SignInForm } from "@/components/SignInForm";
 
 type SearchParams = Promise<{ entry?: string }>;
 
 export default async function LoginPage({ searchParams }: { searchParams: SearchParams }) {
-  const params = await searchParams;
-  const entry = params.entry === "learner" ? "learner" : "parent";
+  const { entry: requestedEntry } = await searchParams;
+  const entry = requestedEntry === "parent" ? "parent" : "learner";
 
   return (
-    <main className="shell">
-      <section className="hero">
-        <p className="eyebrow">Sign in</p>
-        <h1 className="brand" style={{ fontSize: "clamp(2.2rem, 6vw, 3.4rem)" }}>
-          {entry === "learner" ? "Learner entry" : "Parent entry"}
-        </h1>
-        <p className="lede">
-          Email a one-time code to your own address. The role button chooses the entry screen; access still depends on
-          family relationships.
-        </p>
-      </section>
-
-      <div className="tabs">
-        <Link className={`tab ${entry === "learner" ? "active" : ""}`} href="/login?entry=learner">
-          Learner
-        </Link>
-        <Link className={`tab ${entry === "parent" ? "active" : ""}`} href="/login?entry=parent">
-          Parent
-        </Link>
-      </div>
-
-      <section className="card" style={{ maxWidth: 480 }}>
-        <SignInForm entry={entry} />
-      </section>
-    </main>
+    <EntryLayout>
+      <p className="eyebrow">Welcome back</p>
+      <h1 id="entry-heading">Step into GritRoom.</h1>
+      <p className="lede">A quiet space to work on your next small win.</p>
+      <nav className="entry-tabs" aria-label="Sign-in options">
+        <Link href="/login?entry=learner" aria-current={entry === "learner" ? "page" : undefined}>I’m learning</Link>
+        <Link href="/login?entry=parent" aria-current={entry === "parent" ? "page" : undefined}>Parent access</Link>
+      </nav>
+      <p className="entry-method">Email code</p>
+      <SignInForm key={entry} entry={entry} />
+      <details className="entry-help">
+        <summary>How do I sign in?</summary>
+        <p>Enter your own email address. We’ll send a six-digit code to that inbox. Your email password is never needed.</p>
+        <p>{entry === "learner" ? "You can only open a learner profile connected to your verified email." : "After verifying your email, you can open a family room you’re authorised to manage or set up your own."}</p>
+      </details>
+      <p className="entry-privacy">Your answers and working stay in your family’s private room.</p>
+    </EntryLayout>
   );
 }

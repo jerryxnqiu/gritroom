@@ -1,77 +1,61 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { env } from "cloudflare:workers";
 
+import { FamilyAccess } from "@/components/FamilyAccess";
 import { FamilyBootstrap } from "@/components/FamilyBootstrap";
-import { LogoutButton } from "@/components/LogoutButton";
 import { ParentSettings } from "@/components/ParentSettings";
+import { RoomLayout } from "@/components/RoomLayout";
 import { getSession } from "@/lib/auth";
+import { examLabel, isInstallationOwner, listManagedFamilies, listParentProfiles } from "@/lib/family";
 import { getSessionTokenFromCookies } from "@/lib/http";
 
-export default async function ParentPage() {
-  const session = await getSession(await getSessionTokenFromCookies());
-  if (!session || session.entry !== "parent") {
-    redirect("/login?entry=parent");
-  }
+const sections = [
+  { title: "Family access", text: "Manage child profiles and exam goals." },
+  { title: "Parent feedback", text: "Observations and question preferences." },
+  { title: "Resource shelf", text: "Reports, videos, photos and documents." },
+  { title: "Progress & feedback", text: "Answers, working and next steps." },
+];
 
-  const profile = session.family_id
-    ? await env.DB.prepare(
-        `SELECT nickname, exam_goal FROM profiles WHERE family_id = ? ORDER BY created_at ASC LIMIT 1`,
-      )
-        .bind(session.family_id)
-        .first<{ nickname: string; exam_goal: string }>()
-    : null;
+export default async function ParentPage({ searchParams }: { searchParams: Promise<{ child?: string }> }) {
+  const session = await getSession(await getSessionTokenFromCookies());
+  if (!session) redirect("/login?entry=parent");
+  if (session.entry !== "parent") redirect("/learner");
+
+  const [profiles, families, owner, params] = await Promise.all([
+    listParentProfiles(env.DB, session.user_id),
+    listManagedFamilies(env.DB, session.user_id),
+    isInstallationOwner(env.DB, session.user_id),
+    searchParams,
+  ]);
+  const selected = profiles.find((profile) => profile.id === params.child) ?? profiles[0] ?? null;
 
   return (
-    <main className="shell">
-      <header className="room-header">
-        <div>
-          <p className="eyebrow">Parent room</p>
-          <h1>{profile ? `${profile.nickname} · ${profile.exam_goal.toUpperCase()}` : "Set up your family"}</h1>
-          <p className="meta">Signed in as {session.email}</p>
-        </div>
-        <LogoutButton />
+    <RoomLayout role="parent" name={selected?.nickname || "Your family"} badge={selected ? `${examLabel(selected.examGoal)} · Parent view` : "Parent view"}>
+      <header className="room-heading parent-heading">
+        <p className="eyebrow">The view behind the practice</p>
+        <h1>Parent room.</h1>
+        <p className="lede">Set up your family and choose the right practice goal for each child.</p>
       </header>
-
-      {!profile ? <FamilyBootstrap /> : null}
-
-      {profile ? (
+      {selected ? (
         <>
-          <section className="quick-grid">
-            <div className="quick-link">
-              <strong>01 Family access</strong>
-              <span>Child profiles, exam goals, email invites, guardians, and optional device codes.</span>
-            </div>
-            <div className="quick-link">
-              <strong>02 Parent feedback</strong>
-              <span>Save observations and practice preferences for future lessons.</span>
-            </div>
-            <div className="quick-link">
-              <strong>03 Resource shelf</strong>
-              <span>Add coaching reports, videos, photos, PDFs, and notes for the current goal.</span>
-            </div>
-            <div className="quick-link">
-              <strong>04 Progress & feedback</strong>
-              <span>Review practice evidence, timing, drafts, and recommendation reasons.</span>
-            </div>
-          </section>
-
-          <section className="panel">
-            <h2>How practice becomes progress</h2>
-            <p className="lede">
-              Answers, confidence, timing, drafts, and your notes become evidence. GritRoom uses that evidence to
-              explain the next lesson. Detailed practice flows land in the next build phase.
-            </p>
-            <div className="actions">
-              <Link className="secondary" href="/learner" style={{ display: "inline-block", padding: "0.85rem 1.15rem" }}>
-                Open learner room
-              </Link>
-            </div>
-          </section>
+          <div className="current-child"><span className="eyebrow">Current learner</span><strong>{selected.nickname}</strong><span className="pill">{examLabel(selected.examGoal)}</span></div>
+          <div className="parent-steps" aria-label="Parent room sections">
+            {sections.map((section, index) => index === 0 ? (
+              <a className="step-card step-link" key={section.title} href="#family-access">
+                <span className="eyebrow">01</span><strong>{section.title}</strong><span>{section.text}</span><small>Open family access <span aria-hidden="true">↘</span></small>
+              </a>
+            ) : (
+              <div className="step-card" key={section.title}>
+                <span className="eyebrow">0{index + 1}</span><strong>{section.title}</strong><span>{section.text}</span><small>Coming later</small>
+              </div>
+            ))}
+          </div>
         </>
       ) : null}
-
-      <ParentSettings />
-    </main>
+      {selected || families.length
+        ? <FamilyAccess profiles={profiles} selected={selected} families={families} />
+        : <FamilyBootstrap />}
+      {owner ? <ParentSettings /> : null}
+    </RoomLayout>
   );
 }

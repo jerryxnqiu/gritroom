@@ -1,43 +1,20 @@
 import { ensureOwnerFamily, getSession } from "@/lib/auth";
+import { parseProfileInput } from "@/lib/family";
 import { getSessionTokenFromCookies, json, readJson } from "@/lib/http";
-import { env } from "cloudflare:workers";
-import { nowIso } from "@/lib/time";
-import { sha256Hex } from "@/lib/crypto";
 
 export async function POST(request: Request) {
-  const token = await getSessionTokenFromCookies();
-  const session = await getSession(token);
+  const session = await getSession(await getSessionTokenFromCookies());
   if (!session || session.entry !== "parent") {
     return json({ error: "Parent sign-in required." }, { status: 401 });
   }
-
-  const body = await readJson<{ nickname?: string; examGoal?: "selective" | "oc" }>(request);
-  const nickname = (body?.nickname ?? "").trim();
-  const examGoal = body?.examGoal === "oc" ? "oc" : body?.examGoal === "selective" ? "selective" : null;
-
-  if (!nickname || nickname.length > 40 || !examGoal) {
-    return json({ error: "Provide a child’s nickname and exam goal (Selective or OC)." }, { status: 400 });
+  if (session.family_id) {
+    return json({ error: "Your family room is already set up." }, { status: 409 });
   }
 
-  const familyId = await ensureOwnerFamily(session.user_id, session.email, nickname, examGoal);
-  const profile = await env.DB.prepare(
-    `SELECT id, nickname, exam_goal FROM profiles WHERE family_id = ? ORDER BY created_at ASC LIMIT 1`,
-  )
-    .bind(familyId)
-    .first<{ id: string; nickname: string; exam_goal: string }>();
+  const input = parseProfileInput(await readJson(request));
+  if (!input) return json({ error: "Enter a child’s nickname and choose Selective or OC." }, { status: 400 });
 
-  if (token && profile) {
-    const tokenHash = await sha256Hex(token);
-    await env.DB.prepare(
-      `UPDATE login_sessions SET family_id = ?, profile_id = ?, last_seen_at = ? WHERE token_hash = ?`,
-    )
-      .bind(familyId, profile.id, nowIso(), tokenHash)
-      .run();
-  }
-
-  return json({
-    ok: true,
-    familyId,
-    profile,
-  });
+  const familyId = await ensureOwnerFamily(session.user_id, input.nickname, input.examGoal);
+  if (!familyId) return json({ error: "You cannot create a family room from this account." }, { status: 403 });
+  return json({ ok: true });
 }

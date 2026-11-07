@@ -22,7 +22,6 @@ export async function POST(request: Request) {
   }
 
   return json({
-    message: result.neutralMessage,
-    debugCode: result.debugCode,
+    message: result.message,
   });
 }

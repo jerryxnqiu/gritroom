@@ -5,7 +5,7 @@ export async function POST(request: Request) {
   const body = await readJson<{ email?: string; entry?: EntryKind; code?: string }>(request);
   const email = normalizeEmail(body?.email ?? "");
   const entry = body?.entry === "learner" ? "learner" : body?.entry === "parent" ? "parent" : null;
-  const code = (body?.code ?? "").replace(/\s+/g, "");
+  const code = typeof body?.code === "string" ? body.code.replace(/\s+/g, "") : "";
 
   if (!entry || !isValidEmail(email) || !/^\d{6}$/.test(code)) {
     return json({ error: "Enter your email and the 6-digit code." }, { status: 400 });

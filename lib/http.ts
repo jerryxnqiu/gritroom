@@ -5,14 +5,17 @@ export const SESSION_COOKIE = "gritroom_session";
 export function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json; charset=utf-8");
+  headers.set("cache-control", "no-store");
   return new Response(JSON.stringify(data), { ...init, headers });
 }
 
 export function clientIp(request: Request): string | null {
-  return request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  return request.headers.get("cf-connecting-ip");
 }
 
 export async function readJson<T>(request: Request): Promise<T | null> {
+  const origin = request.headers.get("origin");
+  if (origin && origin !== new URL(request.url).origin) return null;
   try {
     return (await request.json()) as T;
   } catch {
@@ -20,12 +23,12 @@ export async function readJson<T>(request: Request): Promise<T | null> {
   }
 }
 
-export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
+export function normalizeEmail(email: unknown): string {
+  return typeof email === "string" ? email.trim().toLowerCase() : "";
 }
 
 export function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 export async function getSessionTokenFromCookies(): Promise<string | null> {

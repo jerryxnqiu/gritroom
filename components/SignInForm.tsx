@@ -1,111 +1,103 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 
 type EntryKind = "learner" | "parent";
 
 export function SignInForm({ entry }: { entry: EntryKind }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [sentTo, setSentTo] = useState("");
   const [code, setCode] = useState("");
-  const [step, setStep] = useState<"email" | "code">("email");
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [debugCode, setDebugCode] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
-  function requestCode() {
-    setError(null);
-    setMessage(null);
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const address = sentTo || email.trim();
+    if (pending || !address || (sentTo && code.length !== 6)) return;
+    setError("");
+    setMessage("");
     startTransition(async () => {
-      const response = await fetch("/api/auth/request-code", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, entry }),
-      });
-      const data = (await response.json()) as { message?: string; error?: string; debugCode?: string };
-      if (!response.ok) {
-        setError(data.error ?? "Could not request a code.");
-        return;
+      try {
+        const verifying = Boolean(sentTo);
+        const response = await fetch(verifying ? "/api/auth/verify-code" : "/api/auth/request-code", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(verifying ? { email: address, entry, code } : { email: address, entry }),
+        });
+        const result = await response.json() as { message?: string; error?: string; redirectTo?: string };
+        if (!response.ok) {
+          setError(result.error || "Could not sign in. Please try again.");
+        } else if (verifying) {
+          router.replace(result.redirectTo === "/parent" ? "/parent" : "/learner");
+          router.refresh();
+        } else {
+          setSentTo(address);
+          setCode("");
+          setMessage(result.message || "Check your inbox for a sign-in code.");
+        }
+      } catch {
+        setError("Could not reach GritRoom. Check your connection and try again.");
       }
-      setMessage(data.message ?? "Check your email for a sign-in code.");
-      setDebugCode(data.debugCode ?? null);
-      setStep("code");
-    });
-  }
-
-  function verifyCode() {
-    setError(null);
-    startTransition(async () => {
-      const response = await fetch("/api/auth/verify-code", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, entry, code }),
-      });
-      const data = (await response.json()) as {
-        error?: string;
-        redirectTo?: string;
-        needsOnboarding?: boolean;
-      };
-      if (!response.ok) {
-        setError(data.error ?? "Could not verify that code.");
-        return;
-      }
-      router.push(data.redirectTo ?? (entry === "parent" ? "/parent" : "/learner"));
-      router.refresh();
     });
   }
 
   return (
-    <div className="stack-form">
-      <label className="field">
-        <span>Email</span>
-        <input
-          autoComplete="email"
-          inputMode="email"
-          name="email"
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@example.com"
-          type="email"
-          value={email}
-        />
-      </label>
-
-      {step === "code" ? (
+    <form className="stack-form sign-in-form" onSubmit={submit} aria-busy={pending}>
+      {sentTo ? (
+        <>
+          <p className="sign-in-address">Code sent to <strong>{sentTo}</strong></p>
+          <label className="field">
+            <span>Six-digit email code</span>
+            <input
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              name="code"
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="Enter your code"
+              type="text"
+              value={code}
+              pattern="[0-9]{6}"
+              required
+              autoFocus
+            />
+          </label>
+        </>
+      ) : (
         <label className="field">
-          <span>Email code</span>
+          <span>{entry === "parent" ? "Parent email" : "Your email"}</span>
           <input
-            autoComplete="one-time-code"
-            inputMode="numeric"
-            name="code"
-            onChange={(event) => setCode(event.target.value)}
-            placeholder="6-digit code"
-            value={code}
+            autoComplete="email"
+            inputMode="email"
+            name="email"
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="Your email address"
+            type="email"
+            value={email}
+            maxLength={254}
+            required
           />
         </label>
+      )}
+      {message ? <p className="notice" role="status">{message}</p> : null}
+      {error ? <p className="error" role="alert">{error}</p> : null}
+      <button className="button entry-submit" disabled={pending || (sentTo ? code.length !== 6 : !email.trim())} type="submit">
+        {pending ? (sentTo ? "Opening your room…" : "Sending your code…") : (sentTo ? "Enter my room" : "Email me a sign-in code")}
+        <span aria-hidden="true">→</span>
+      </button>
+      {sentTo ? (
+        <button
+          className="text-button"
+          disabled={pending}
+          type="button"
+          onClick={() => { setSentTo(""); setCode(""); setMessage(""); setError(""); }}
+        >
+          Use another email or request a new code
+        </button>
       ) : null}
-
-      {message ? <p className="notice">{message}</p> : null}
-      {debugCode ? <p className="notice subtle">Local debug code: {debugCode}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-
-      <div className="actions">
-        {step === "email" ? (
-          <button disabled={pending || !email} onClick={requestCode} type="button">
-            Email me a sign-in code
-          </button>
-        ) : (
-          <>
-            <button disabled={pending || code.length < 6} onClick={verifyCode} type="button">
-              Sign in
-            </button>
-            <button className="secondary" disabled={pending} onClick={requestCode} type="button">
-              Resend code
-            </button>
-          </>
-        )}
-      </div>
-    </div>
+    </form>
   );
 }
