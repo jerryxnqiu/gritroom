@@ -24,6 +24,10 @@ export default defineConfig({
         id: "bd30feba-b7bc-456a-9a71-600c1941d608",
       }),
       BUCKET: bindings.r2({ name: "gritroom" }),
+      // Values live in Worker Secrets — not in git.
+      // Dashboard names must match these binding keys exactly.
+      "gmail-smtp-keys": bindings.secret(),
+      "deepseek-api-key": bindings.secret(),
     },
   }),
 });

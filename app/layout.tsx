@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Gritroom",
-  description: "Next.js on Cloudflare Workers with D1 and R2",
+  title: "GritRoom",
+  description: "A family learning space for Selective and OC Thinking Skills practice.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
