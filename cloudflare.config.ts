@@ -20,7 +20,6 @@ export default defineConfig({
     env: {
       ASSETS: bindings.assets(),
       DB: bindings.d1({
-        name: "gritroom-db",
         id: "bd30feba-b7bc-456a-9a71-600c1941d608",
       }),
       BUCKET: bindings.r2({ name: "gritroom" }),
