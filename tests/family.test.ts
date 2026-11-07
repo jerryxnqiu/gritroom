@@ -220,8 +220,21 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.equal(await deleteMaterial(db, deleteBucket, "p1", "report", "other"), false);
   assert.equal(await deleteMaterial(db, deleteBucket, "p2", "report", "owner"), false);
   assert.deepEqual(deletedKeys, []);
+  sql.exec(`
+    INSERT INTO material_analyses(
+      id, material_id, profile_id, exam_goal, status, summary_en, evidence_limits,
+      source_excerpt, created_by_user_id, created_at, completed_at
+    ) VALUES (
+      'an1', 'report', 'p1', 'selective', 'succeeded', 'Needs necessary vs sufficient practice.',
+      'Notes only.', 'Child mixes necessary and sufficient conditions.', 'owner', datetime('now'), datetime('now')
+    );
+    INSERT INTO learning_evidence(id, profile_id, exam_goal, kind, ref_id, summary, created_at)
+    VALUES ('ev-an1', 'p1', 'selective', 'material_analysis', 'an1', 'Needs necessary vs sufficient practice.', datetime('now'));
+  `);
   assert.equal(await deleteMaterial(db, deleteBucket, "p1", "report", "guardian"), true);
   assert.deepEqual(deletedKeys, ["private/report"]);
+  assert.equal(sql.prepare("SELECT id FROM material_analyses WHERE material_id = 'report'").get(), undefined);
+  assert.equal(sql.prepare("SELECT id FROM learning_evidence WHERE id = 'ev-an1'").get(), undefined);
   assert.equal((await readShelf(db, "p1", "selective", "owner")).materials.map((item) => item.id).join(","), "notes");
   assert.equal(await findMaterialFile(db, "p1", "report", "owner"), null);
   assert.equal(await withdrawShelfFeedback(db, "p1", feedbackId, "other"), false);

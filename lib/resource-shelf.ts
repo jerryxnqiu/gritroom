@@ -78,15 +78,27 @@ export function findMaterialFile(db: D1Database, profileId: string, materialId: 
 }
 
 export async function deleteMaterial(db: D1Database, bucket: R2Bucket, profileId: string, materialId: string, userId: string) {
-  const removed = await db.prepare(
-    `DELETE FROM shelf_materials
-     WHERE id = ? AND profile_id = ? AND EXISTS (
-       SELECT 1 FROM profiles p WHERE p.id = shelf_materials.profile_id AND ${parentAccess}
-     )
-     RETURNING file_key AS key`,
+  const allowed = await db.prepare(
+    `SELECT m.file_key AS key FROM shelf_materials m
+     JOIN profiles p ON p.id = m.profile_id
+     WHERE m.id = ? AND m.profile_id = ? AND ${parentAccess}`,
   ).bind(materialId, profileId, userId).first<{ key: string | null }>();
-  if (!removed) return false;
-  if (removed.key) await bucket.delete(removed.key);
+  if (!allowed) return false;
+
+  // Drop shelf row, its analyses, and generation copies that pointed at those analyses.
+  await db.batch([
+    db.prepare(
+      `DELETE FROM learning_evidence
+       WHERE kind = 'material_analysis'
+         AND ref_id IN (SELECT id FROM material_analyses WHERE material_id = ?)`,
+    ).bind(materialId),
+    db.prepare(`DELETE FROM material_analyses WHERE material_id = ?`).bind(materialId),
+    db.prepare(
+      `DELETE FROM shelf_materials WHERE id = ? AND profile_id = ?`,
+    ).bind(materialId, profileId),
+  ]);
+
+  if (allowed.key) await bucket.delete(allowed.key);
   return true;
 }
 
