@@ -23,7 +23,7 @@ a { color: inherit; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: wait; opacity: .62; }
-a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+a:focus-visible, button:focus-visible, summary:focus-visible {
   outline: 3px solid var(--gold);
   outline-offset: 3px;
 }
@@ -52,8 +52,28 @@ p { margin: 0; }
 .stack-form { display: grid; gap: 1rem; }
 .field { display: grid; gap: .45rem; min-width: 0; color: var(--ink); }
 .field > span { font-size: .85rem; font-weight: 600; }
-.field input, .field select { width: 100%; min-height: 46px; border: 1px solid #d2ddcc; border-radius: 8px; padding: .65rem .85rem; background: var(--panel); color: var(--ink); font-size: 16px; }
+.field input, .field select {
+  width: 100%; min-height: 46px; border: 1px solid #d2ddcc; border-radius: 8px;
+  padding: .65rem .85rem; background: var(--panel); color: var(--ink); font-size: 16px;
+  outline: none; box-shadow: none; transition: border-color .15s ease, box-shadow .15s ease;
+}
 .field input::placeholder { color: #728076; opacity: 1; }
+.field input:focus, .field select:focus,
+.field input:focus-visible, .field select:focus-visible {
+  border-color: var(--moss);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--moss) 28%, transparent);
+}
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:hover,
+.field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink);
+  box-shadow: 0 0 0 1000px var(--panel) inset;
+  transition: background-color 99999s ease-out;
+}
+.field input:-webkit-autofill:focus {
+  border-color: var(--moss);
+  box-shadow: 0 0 0 1000px var(--panel) inset, 0 0 0 3px color-mix(in srgb, var(--moss) 28%, transparent);
+}
 .notice, .error { border-radius: 8px; padding: .7rem .85rem; font-size: .84rem; line-height: 1.55; overflow-wrap: anywhere; }
 .notice { background: var(--pale); color: var(--green); }
 .error { background: #f8eae6; color: var(--danger); }
