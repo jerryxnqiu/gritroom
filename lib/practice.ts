@@ -1,18 +1,32 @@
 import type { ExamGoal } from "./family";
 import { createId } from "./ids.ts";
-import { questionsForBlueprints, type BankQuestion, type PracticeOptionKey } from "./practice-bank.ts";
 import { thinkingKnowledge } from "./thinking-knowledge.ts";
 import { nowIso } from "./time.ts";
 
 export type PracticeMode = "diagnostic" | "daily";
+export type PracticeOptionKey = "A" | "B" | "C" | "D";
+
+export type PracticeQuestion = {
+  id: string;
+  version: number;
+  blueprintId: string;
+  blueprintVersion: number;
+  prompt: string;
+  optionsJson: string;
+  correctOption: string;
+  imageKey: string | null;
+};
 
 export type PracticeAttemptView = {
   id: string;
+  questionId: string | null;
+  questionVersion: number | null;
   blueprintId: string | null;
   blueprintTitle: string | null;
   skill: string | null;
   prompt: string;
   options: Record<string, string>;
+  imageKey: string | null;
   selectedOption: string | null;
   correctOption: string | null;
   isCorrect: boolean | null;
@@ -39,6 +53,7 @@ export type PracticeEvidenceItem = {
   sessionId: string;
   mode: string;
   prompt: string;
+  imageKey: string | null;
   blueprintTitle: string | null;
   skill: string | null;
   selectedOption: string;
@@ -59,12 +74,15 @@ const parentAccess = `EXISTS (
 type AttemptRow = {
   id: string;
   sessionId: string;
+  questionId: string | null;
+  questionVersion: number | null;
   blueprintId: string | null;
   blueprintVersion: number | null;
   blueprintTitle: string | null;
   skill: string | null;
   prompt: string;
   optionsJson: string;
+  imageKey: string | null;
   correctOption: string;
   selectedOption: string | null;
   isCorrect: number | null;
@@ -88,11 +106,14 @@ function parseOptions(json: string) {
 function toAttemptView(row: AttemptRow, revealAnswer: boolean): PracticeAttemptView {
   return {
     id: row.id,
+    questionId: row.questionId,
+    questionVersion: row.questionVersion,
     blueprintId: row.blueprintId,
     blueprintTitle: row.blueprintTitle,
     skill: row.skill,
     prompt: row.prompt,
     options: parseOptions(row.optionsJson),
+    imageKey: row.imageKey,
     selectedOption: row.selectedOption,
     correctOption: revealAnswer || row.finalizedAt ? row.correctOption : null,
     isCorrect: row.isCorrect === null ? null : Boolean(row.isCorrect),
@@ -104,7 +125,7 @@ function toAttemptView(row: AttemptRow, revealAnswer: boolean): PracticeAttemptV
   };
 }
 
-function pickQuestions(bank: BankQuestion[], mode: PracticeMode) {
+function pickQuestions(bank: PracticeQuestion[], mode: PracticeMode) {
   if (!bank.length) return [];
   if (mode === "diagnostic") return bank;
   const copy = [...bank];
@@ -130,13 +151,34 @@ export async function activePracticeSession(db: D1Database, profileId: string, e
   ).bind(profileId, examGoal).first<{ id: string }>();
 }
 
+/** Latest active bank items whose blueprints apply to the exam goal. */
+export async function loadActivePracticeQuestions(db: D1Database, blueprintIds: string[]) {
+  if (!blueprintIds.length) return [] as PracticeQuestion[];
+  const placeholders = blueprintIds.map(() => "?").join(", ");
+  const { results } = await db.prepare(
+    `SELECT q.id, q.version, q.blueprint_id AS blueprintId, q.blueprint_version AS blueprintVersion,
+            q.prompt, q.options_json AS optionsJson, q.correct_option AS correctOption,
+            q.image_key AS imageKey
+     FROM practice_questions q
+     WHERE q.status = 'active'
+       AND q.blueprint_id IN (${placeholders})
+       AND q.version = (
+         SELECT MAX(other.version) FROM practice_questions other
+         WHERE other.id = q.id AND other.status = 'active'
+       )
+     ORDER BY q.blueprint_id, q.id`,
+  ).bind(...blueprintIds).all<PracticeQuestion>();
+  return results;
+}
+
 async function loadAttempts(db: D1Database, sessionId: string) {
   const { results } = await db.prepare(
-    `SELECT a.id, a.session_id AS sessionId, a.blueprint_id AS blueprintId, a.blueprint_version AS blueprintVersion,
+    `SELECT a.id, a.session_id AS sessionId, a.question_id AS questionId, a.question_version AS questionVersion,
+            a.blueprint_id AS blueprintId, a.blueprint_version AS blueprintVersion,
             b.title AS blueprintTitle, b.skill, a.question_prompt AS prompt, a.options_json AS optionsJson,
-            a.correct_option AS correctOption, a.selected_option AS selectedOption, a.is_correct AS isCorrect,
-            a.confidence, a.time_ms AS timeMs, a.draft_notes AS draftNotes, a.finalized_at AS finalizedAt,
-            a.created_at AS createdAt
+            a.image_key AS imageKey, a.correct_option AS correctOption, a.selected_option AS selectedOption,
+            a.is_correct AS isCorrect, a.confidence, a.time_ms AS timeMs, a.draft_notes AS draftNotes,
+            a.finalized_at AS finalizedAt, a.created_at AS createdAt
      FROM practice_attempts a
      LEFT JOIN thinking_blueprints b ON b.id = a.blueprint_id AND b.version = a.blueprint_version
      WHERE a.session_id = ?
@@ -184,7 +226,7 @@ export async function startPracticeSession(
   }
 
   const { blueprints } = await thinkingKnowledge(db, profile.examGoal);
-  const bank = questionsForBlueprints(blueprints.map((item) => item.id));
+  const bank = await loadActivePracticeQuestions(db, blueprints.map((item) => item.id));
   const questions = pickQuestions(bank, mode);
   if (!questions.length) {
     return { ok: false, status: 503, error: "Practice questions for this exam goal are not ready yet." };
@@ -202,19 +244,23 @@ export async function startPracticeSession(
         const stamp = new Date(Date.parse(startedAt) + index).toISOString();
         return db.prepare(
           `INSERT INTO practice_attempts
-             (id, session_id, profile_id, exam_goal, blueprint_id, blueprint_version,
-              question_prompt, options_json, correct_option, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, session_id, profile_id, exam_goal, question_id, question_version,
+              blueprint_id, blueprint_version, question_prompt, options_json, correct_option,
+              image_key, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           createId("pat"),
           sessionId,
           profile.id,
           profile.examGoal,
+          question.id,
+          question.version,
           question.blueprintId,
           question.blueprintVersion,
           question.prompt,
-          JSON.stringify(question.options),
+          question.optionsJson,
           question.correctOption,
+          question.imageKey,
           stamp,
         );
       }),
@@ -307,6 +353,28 @@ export async function submitPracticeAttempt(
   return { ok: true, session: next, attempt };
 }
 
+export async function findAttemptImage(
+  db: D1Database,
+  attemptId: string,
+  userId: string,
+  entry: "learner" | "parent",
+) {
+  if (entry === "learner") {
+    return db.prepare(
+      `SELECT a.image_key AS key
+       FROM practice_attempts a
+       JOIN learner_links l ON l.profile_id = a.profile_id AND l.user_id = ?
+       WHERE a.id = ? AND a.image_key IS NOT NULL`,
+    ).bind(userId, attemptId).first<{ key: string }>();
+  }
+  return db.prepare(
+    `SELECT a.image_key AS key
+     FROM practice_attempts a
+     JOIN profiles p ON p.id = a.profile_id
+     WHERE a.id = ? AND a.image_key IS NOT NULL AND ${parentAccess}`,
+  ).bind(attemptId, userId).first<{ key: string }>();
+}
+
 export async function listPracticeEvidence(
   db: D1Database,
   profileId: string,
@@ -314,7 +382,7 @@ export async function listPracticeEvidence(
   userId: string,
 ) {
   const { results } = await db.prepare(
-    `SELECT a.id, a.session_id AS sessionId, s.mode, a.question_prompt AS prompt,
+    `SELECT a.id, a.session_id AS sessionId, s.mode, a.question_prompt AS prompt, a.image_key AS imageKey,
             b.title AS blueprintTitle, b.skill, a.selected_option AS selectedOption,
             a.correct_option AS correctOption, a.is_correct AS isCorrect, a.confidence,
             a.time_ms AS timeMs, a.draft_notes AS draftNotes, a.finalized_at AS finalizedAt
@@ -337,6 +405,7 @@ export async function listPracticeEvidence(
     sessionId: row.sessionId,
     mode: row.mode || "daily",
     prompt: row.prompt,
+    imageKey: row.imageKey,
     blueprintTitle: row.blueprintTitle,
     skill: row.skill,
     selectedOption: row.selectedOption,

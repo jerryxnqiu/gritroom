@@ -12,7 +12,6 @@ import {
   saveCodexMaterialAnalysis,
 } from "../lib/material-analysis.ts";
 import { listPracticeEvidence, startPracticeSession, submitPracticeAttempt } from "../lib/practice.ts";
-import { PRACTICE_BANK } from "../lib/practice-bank.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
@@ -267,6 +266,7 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   sql.exec(readFileSync(new URL("../migrations/0004_thinking_knowledge.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0005_resource_shelf.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0007_practice_questions.sql", import.meta.url), "utf8"));
   const invite = await issueInvitation(
     db,
     actor("owner"),
@@ -291,7 +291,9 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
 
   const first = started.session.attempts[0];
   assert.ok(first);
-  const bank = PRACTICE_BANK.find((item) => item.prompt === first.prompt);
+  const bank = sql.prepare(
+    "SELECT correct_option AS correctOption FROM practice_questions WHERE prompt = ? AND status = 'active'",
+  ).get(first.prompt) as { correctOption: string } | undefined;
   assert.ok(bank);
   const saved = await submitPracticeAttempt(db, "learner", started.session.id, {
     attemptId: first.id,
