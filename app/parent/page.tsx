@@ -18,7 +18,7 @@ const sections = [
 
 export default async function ParentPage({ searchParams }: { searchParams: Promise<{ child?: string }> }) {
   const session = await getSession(await getSessionTokenFromCookies());
-  if (!session) redirect("/login?entry=parent");
+  if (!session) redirect("/?entry=parent");
   if (session.entry !== "parent") redirect("/learner");
 
   const [profiles, families, owner, params] = await Promise.all([

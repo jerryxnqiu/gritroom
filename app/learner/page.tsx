@@ -9,7 +9,7 @@ import { getSessionTokenFromCookies } from "@/lib/http";
 
 export default async function LearnerPage() {
   const session = await getSession(await getSessionTokenFromCookies());
-  if (!session) redirect("/login?entry=learner");
+  if (!session) redirect("/?entry=learner");
   if (session.entry !== "learner") redirect("/parent");
 
   const profile = await linkedLearner(env.DB, session.email);
