@@ -293,7 +293,10 @@ p { margin: 0; }
 .shelf-toolbar, .shelf-item { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: .7rem 1.1rem; }
 .shelf-toolbar { align-items: center; }
 .shelf-actions, .shelf-item-links { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
-.shelf-item-links a { color: var(--green); text-decoration: underline; text-underline-offset: .2em; font-size: .85rem; }
+.shelf-item-links a, .shelf-item-links .text-button {
+  color: var(--green); text-decoration: underline; text-underline-offset: .2em; font-size: .85rem;
+}
+.shelf-item-links .shelf-delete { color: var(--danger); padding: 0; }
 .shelf-items { display: grid; margin: 0; padding: 0; list-style: none; }
 .shelf-item { padding: .8rem 0; }
 .shelf-item + .shelf-item { border-top: 1px solid var(--line); }

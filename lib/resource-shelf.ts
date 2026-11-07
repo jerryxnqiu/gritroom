@@ -75,6 +75,19 @@ export function findMaterialFile(db: D1Database, profileId: string, materialId: 
   ).bind(profileId, materialId, userId).first<{ key: string; name: string; type: string }>();
 }
 
+export async function deleteMaterial(db: D1Database, bucket: R2Bucket, profileId: string, materialId: string, userId: string) {
+  const removed = await db.prepare(
+    `DELETE FROM shelf_materials
+     WHERE id = ? AND profile_id = ? AND EXISTS (
+       SELECT 1 FROM profiles p WHERE p.id = shelf_materials.profile_id AND ${parentAccess}
+     )
+     RETURNING file_key AS key`,
+  ).bind(materialId, profileId, userId).first<{ key: string | null }>();
+  if (!removed) return false;
+  if (removed.key) await bucket.delete(removed.key);
+  return true;
+}
+
 export async function saveShelfFeedback(db: D1Database, profileId: string, goal: ExamGoal, userId: string, body: string) {
   const id = createId("fdb");
   const result = await db.prepare(

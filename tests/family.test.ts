@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hasLearnerInvitation, isInstallationOwner, linkedLearner, listManagedFamilies, listParentProfiles } from "../lib/family.ts";
 import { acceptInvitation, childAccess, closeInvitation, issueInvitation, recipientInvitations, revokeGuardian } from "../lib/invitations.ts";
-import { canOpenShelf, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
+import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
 
 const core = readFileSync(new URL("../migrations/0002_core_schema.sql", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../migrations/0003_family_invitations.sql", import.meta.url), "utf8");
@@ -184,10 +184,18 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.equal((await findMaterialFile(db, "p1", "report", "guardian"))?.name, "report.pdf");
   assert.equal(await findMaterialFile(db, "p1", "report", "other"), null);
   assert.equal(await findMaterialFile(db, "p2", "report", "owner"), null);
+  const deletedKeys: string[] = [];
+  const bucket = { delete: async (key: string) => { deletedKeys.push(key); } } as Pick<R2Bucket, "delete"> as R2Bucket;
+  assert.equal(await deleteMaterial(db, bucket, "p1", "report", "other"), false);
+  assert.equal(await deleteMaterial(db, bucket, "p2", "report", "owner"), false);
+  assert.deepEqual(deletedKeys, []);
+  assert.equal(await deleteMaterial(db, bucket, "p1", "report", "guardian"), true);
+  assert.deepEqual(deletedKeys, ["private/report"]);
+  assert.equal((await readShelf(db, "p1", "selective", "owner")).materials.length, 0);
+  assert.equal(await findMaterialFile(db, "p1", "report", "owner"), null);
   assert.equal(await withdrawShelfFeedback(db, "p1", feedbackId, "other"), false);
   sql.exec("UPDATE guardian_grants SET revoked_at = datetime('now') WHERE id = 'g2'");
   assert.equal(await canOpenShelf(db, "p1", "guardian"), null);
-  assert.equal(await findMaterialFile(db, "p1", "report", "guardian"), null);
   assert.equal(await withdrawShelfFeedback(db, "p1", feedbackId, "owner"), true);
   assert.equal((await readShelf(db, "p1", "oc", "owner")).feedback.length, 0);
   assert.equal(sql.prepare("SELECT body FROM shelf_feedback WHERE id = ?").get(feedbackId)?.body, "Use longer passages.");

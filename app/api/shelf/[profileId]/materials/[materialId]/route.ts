@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 
 import { getSession } from "@/lib/auth";
 import { getSessionTokenFromCookies, json } from "@/lib/http";
-import { findMaterialFile } from "@/lib/resource-shelf";
+import { deleteMaterial, findMaterialFile } from "@/lib/resource-shelf";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ profileId: string; materialId: string }> }) {
   const session = await getSession(await getSessionTokenFromCookies());
@@ -23,4 +23,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pro
       "X-Content-Type-Options": "nosniff",
     },
   });
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ profileId: string; materialId: string }> }) {
+  const session = await getSession(await getSessionTokenFromCookies());
+  if (!session || session.entry !== "parent") return json({ error: "Parent sign-in required." }, { status: 401 });
+
+  const origin = request.headers.get("origin");
+  if (origin && origin !== new URL(request.url).origin) return json({ error: "Invalid request origin." }, { status: 403 });
+
+  const { profileId, materialId } = await params;
+  try {
+    return await deleteMaterial(env.DB, env.BUCKET, profileId, materialId, session.user_id)
+      ? json({ ok: true })
+      : json({ error: "This resource is unavailable." }, { status: 404 });
+  } catch {
+    return json({ error: "We couldn’t delete the resource. Try again." }, { status: 503 });
+  }
 }
