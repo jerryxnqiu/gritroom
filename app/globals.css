@@ -362,6 +362,10 @@ p { margin: 0; }
 .shelf-item > div:first-child { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
 .shelf-item .meta { margin-top: .15rem; }
 .shelf-analysis { margin-top: .55rem; }
+.shelf-analysis-nested {
+  margin: .75rem 0 0 1rem; padding: .15rem 0 .15rem .85rem;
+  border-left: 2px solid #d5e0cb;
+}
 .shelf-directions { margin: .45rem 0 0; padding-left: 1.1rem; color: var(--ink); font-size: .86rem; line-height: 1.55; }
 .shelf-directions li + li { margin-top: .25rem; }
 .shelf-notes, .shelf-feedback-form, .shelf-codex-form { margin-top: .7rem; }

@@ -100,15 +100,13 @@ export function ShelfMaterialList({
                     ) : null}
                     {analysis.evidenceLimits ? <p className="meta">Limits: {analysis.evidenceLimits}</p> : null}
                     {analysis.parentZh ? (
-                      <details className="shelf-notes">
+                      <details className="shelf-notes shelf-analysis-nested">
                         <summary>Parent analysis (Chinese)</summary>
                         <p className="shelf-copy">{analysis.parentZh}</p>
                       </details>
                     ) : null}
                   </details>
-                ) : (
-                  <p className="meta">Click Ask Codex to analyse. Paste the copied task into a Codex chat in this repo so it can read D1/R2 and write findings back.</p>
-                )}
+                ) : null}
               </div>
               <div className="shelf-item-links">
                 {material.url ? <a href={material.url} target="_blank" rel="noopener noreferrer">Open link <span aria-hidden="true">↗</span></a> : null}
