@@ -68,13 +68,13 @@ export function SignInForm({ entry }: { entry: EntryKind }) {
         </>
       ) : (
         <label className="field">
-          <span>{entry === "parent" ? "Parent email" : "Your email"}</span>
+          <span>{entry === "parent" ? "Parent email" : "Approved family email"}</span>
           <input
             autoComplete="email"
             inputMode="email"
             name="email"
             onChange={(event) => setEmail(event.target.value)}
-            placeholder="Your email address"
+            placeholder={entry === "parent" ? "Your parent email address" : "Your family email address"}
             type="email"
             value={email}
             maxLength={254}
