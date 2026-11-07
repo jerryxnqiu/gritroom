@@ -33,18 +33,26 @@ The local migration command writes to the same `.cloudflare/state` directory as 
 - Mail failures leave no redeemable invitation. Cancel, expiry, decline and removal are separate actions. No access is granted by the login role tab.
 - Apply migration `0003_family_invitations.sql` before running this version. It preserves valid accepted links from phase 1. If legacy links conflict, the migration fails rather than choosing a different owner. It does not import the earlier Worker’s data.
 
-## Thinking Skills knowledge library
+## Resource shelf
 
-Migration `0004_thinking_knowledge.sql` adds the public references and versioned authoring blueprints used by **Parent room → Resource shelf**. It records the NSW exam format and item-level references to the department’s worked explanations. Each blueprint specifies the method, the structure of an original question, and how to verify its answer. The selection follows the child’s exam goal.
+Open **Parent room → Resource shelf** for a child. The archive defaults to their current exam goal. Switch between **Selective** and **OC** to browse or add resources for either goal without changing the child's profile. Each child's archive is private to the parents or guardians authorised for that profile.
 
-For future questions, retain the blueprint ID and version, the exam goal and the validation result. Use the source reference to understand the reasoning, and create the scenario, diagrams, answer and distractors independently. Review new blueprints against source examples before adding them to the catalogue. Keep family reports and learner performance in their authorised private scope.
+| Input | Current behaviour | Use in later practice |
+| --- | --- | --- |
+| Official exam information | Reviewed NSW format, worked examples and versioned authoring blueprints from migration `0004`. | Determines exam coverage, reasoning structure and how to verify an original answer. |
+| Coaching reports and videos | Add a title, link, optional notes or transcript, and a PDF or image. | Summaries inform what to verify with new practice. A saved video link needs notes, a transcript or images before its content can inform practice. |
+| Extra study materials | Add a titled workbook page, image, PDF, link or notes. | Use the worked method and practice style as references when writing original questions. |
+| Practice evidence | The shelf reserves a section for records from the upcoming learner practice flow. | Save the exam goal and versioned question with answer, outcome, time and confidence. Associate method notes, working files and coaching messages with the attempt. |
+| Feedback and question preferences | Parents can save observations and preferences. Authors and family administrators can withdraw them. | Use active feedback to adjust style, length and language. Keep it separate from scored evidence. |
+
+Migration `0005_resource_shelf.sql` adds the private material index and feedback history. Attachments are stored in R2 and downloaded through a parent-only route that checks current access to the child. Maximum 8 MB per PDF, JPG, PNG or WebP attachment. Saving a link, file or note records the resource for later use.
 
 ## Next milestones
 
-1. Build the checked original question bank, then assemble diagnostic practice with resumable sessions and deterministic feedback.
-2. Timed papers, private working uploads, Resource shelf and progress.
-3. Evidence-based next steps, tutoring, parent feedback and the owner's deeper review.
-4. Optional device codes, more question visuals and subjects.
+1. Build the checked original question bank and resumable diagnostic. Save and display the learner's question-by-question evidence, including private working uploads.
+2. Build the learning loop. Use the current child's goal and latest evidence to choose a reviewed blueprint, use relevant material findings and active preferences to shape new questions, and independently verify the answer and distractors. Store blueprint versions and evidence references. Rebuild future recommendations when evidence changes and retain the question version in an existing attempt.
+3. Add timed papers, contextual tutoring and an owner-only deeper review that uses a frozen evidence snapshot. Save review findings as additional evidence.
+4. Add more question visuals and subjects.
 
 ## Production
 

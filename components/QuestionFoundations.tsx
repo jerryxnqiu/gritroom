@@ -7,10 +7,8 @@ export async function QuestionFoundations({ goal }: { goal: ExamGoal }) {
   const { format, blueprints } = await thinkingKnowledge(env.DB, goal);
 
   return (
-    <section className="panel family-panel" id="resource-shelf" aria-labelledby="question-foundations">
-      <p className="eyebrow">03 / Resource shelf</p>
-      <h2 id="question-foundations">Question foundations</h2>
-      <p className="lede">See the references and reasoning methods we use to design original {examLabel(goal)} Thinking Skills practice.</p>
+    <div>
+      <p className="meta">Official sources and reasoning methods for original {examLabel(goal)} Thinking Skills practice.</p>
       {format ? (
         <p className="meta knowledge-format">
           <strong>Official format</strong> · {format.questionCount} questions, {format.minutes} minutes, {format.optionCount} options per question.{" "}
@@ -39,6 +37,6 @@ export async function QuestionFoundations({ goal }: { goal: ExamGoal }) {
           ))}
         </div>
       ) : <p className="meta">Question foundations for this exam goal will appear here after review.</p>}
-    </section>
+    </div>
   );
 }

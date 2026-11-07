@@ -4,6 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hasLearnerInvitation, isInstallationOwner, linkedLearner, listManagedFamilies, listParentProfiles } from "../lib/family.ts";
 import { acceptInvitation, childAccess, closeInvitation, issueInvitation, recipientInvitations, revokeGuardian } from "../lib/invitations.ts";
+import { canOpenShelf, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
 
 const core = readFileSync(new URL("../migrations/0002_core_schema.sql", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../migrations/0003_family_invitations.sql", import.meta.url), "utf8");
@@ -161,4 +162,33 @@ test("creating another family does not grant access to installation mail tools",
   sql.exec(`INSERT INTO settings(key, value_json) VALUES ('installation_owner_user_id','"owner"')`);
   assert.equal(await isInstallationOwner(db, "owner"), true);
   assert.equal(await isInstallationOwner(db, "other"), false);
+});
+
+test("shelf evidence is limited to the authorised child and chosen exam archive", async (t) => {
+  const { sql, db } = fixture();
+  t.after(() => sql.close());
+  sql.exec(readFileSync(new URL("../migrations/0005_resource_shelf.sql", import.meta.url), "utf8"));
+  sql.exec(`
+    INSERT INTO shelf_materials(id,profile_id,exam_goal,kind,title,file_key,file_name,file_type,created_by_user_id,created_at)
+    VALUES('report','p1','selective','coaching_report','Report','private/report','report.pdf','application/pdf','owner',datetime('now'));
+  `);
+  const feedbackId = await saveShelfFeedback(db, "p1", "oc", "guardian", "Use longer passages.");
+  assert.ok(feedbackId);
+  assert.equal(await saveShelfFeedback(db, "p2", "oc", "guardian", "Out of scope."), null);
+  assert.equal(await saveShelfFeedback(db, "p1", "oc", "other", "Out of scope."), null);
+  assert.equal((await readShelf(db, "p1", "selective", "owner")).materials.length, 1);
+  assert.equal((await readShelf(db, "p1", "selective", "guardian")).feedback.length, 0);
+  assert.equal((await readShelf(db, "p1", "oc", "guardian")).feedback[0]?.id, feedbackId);
+  assert.equal((await readShelf(db, "p1", "oc", "other")).feedback.length, 0);
+  assert.equal((await readShelf(db, "p2", "oc", "owner")).feedback.length, 0);
+  assert.equal((await findMaterialFile(db, "p1", "report", "guardian"))?.name, "report.pdf");
+  assert.equal(await findMaterialFile(db, "p1", "report", "other"), null);
+  assert.equal(await findMaterialFile(db, "p2", "report", "owner"), null);
+  assert.equal(await withdrawShelfFeedback(db, "p1", feedbackId, "other"), false);
+  sql.exec("UPDATE guardian_grants SET revoked_at = datetime('now') WHERE id = 'g2'");
+  assert.equal(await canOpenShelf(db, "p1", "guardian"), null);
+  assert.equal(await findMaterialFile(db, "p1", "report", "guardian"), null);
+  assert.equal(await withdrawShelfFeedback(db, "p1", feedbackId, "owner"), true);
+  assert.equal((await readShelf(db, "p1", "oc", "owner")).feedback.length, 0);
+  assert.equal(sql.prepare("SELECT body FROM shelf_feedback WHERE id = ?").get(feedbackId)?.body, "Use longer passages.");
 });

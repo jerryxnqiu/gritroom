@@ -5,21 +5,22 @@ import { env } from "cloudflare:workers";
 import { FamilyAccess } from "@/components/FamilyAccess";
 import { FamilyBootstrap } from "@/components/FamilyBootstrap";
 import { ParentSettings } from "@/components/ParentSettings";
-import { QuestionFoundations } from "@/components/QuestionFoundations";
+import { ResourceShelf } from "@/components/ResourceShelf";
 import { RoomLayout } from "@/components/RoomLayout";
 import { getSession } from "@/lib/auth";
 import { examLabel, hasOpenInvitations, isInstallationOwner, listManagedFamilies, listParentProfiles } from "@/lib/family";
 import { getSessionTokenFromCookies } from "@/lib/http";
 import { childAccess } from "@/lib/invitations";
+import { shelfGoal } from "@/lib/shelf-fields";
 
 const sections = [
   { title: "Family access", text: "Manage child profiles and exam goals.", href: "#family-access", action: "Open family access" },
-  { title: "Parent feedback", text: "Observations and question preferences." },
-  { title: "Resource shelf", text: "Sources and methods behind practice questions.", href: "#resource-shelf", action: "View question foundations" },
-  { title: "Progress & feedback", text: "Answers, working and next steps." },
+  { title: "Parent feedback", text: "Observations and question preferences.", href: "#parent-feedback", action: "Share feedback" },
+  { title: "Resource shelf", text: "Official sources, reports and study materials.", href: "#resource-shelf", action: "Open resource shelf" },
+  { title: "Progress & feedback", text: "Answers, working and next steps.", href: "#practice-evidence", action: "View practice evidence" },
 ];
 
-export default async function ParentPage({ searchParams }: { searchParams: Promise<{ child?: string }> }) {
+export default async function ParentPage({ searchParams }: { searchParams: Promise<{ child?: string; shelfGoal?: string }> }) {
   const session = await getSession(await getSessionTokenFromCookies());
   if (!session) redirect("/?entry=parent");
   if (session.entry !== "parent") redirect("/learner");
@@ -47,14 +48,10 @@ export default async function ParentPage({ searchParams }: { searchParams: Promi
         <>
           <div className="current-child"><span className="eyebrow">Current learner</span><strong>{selected.nickname}</strong><span className="pill">{examLabel(selected.examGoal)}</span></div>
           <div className="parent-steps" aria-label="Parent room sections">
-            {sections.map((section, index) => section.href ? (
+            {sections.map((section, index) => (
               <a className="step-card step-link" key={section.title} href={section.href}>
                 <span className="eyebrow">0{index + 1}</span><strong>{section.title}</strong><span>{section.text}</span><small>{section.action} <span aria-hidden="true">↘</span></small>
               </a>
-            ) : (
-              <div className="step-card" key={section.title}>
-                <span className="eyebrow">0{index + 1}</span><strong>{section.title}</strong><span>{section.text}</span><small>Coming later</small>
-              </div>
             ))}
           </div>
         </>
@@ -62,7 +59,7 @@ export default async function ParentPage({ searchParams }: { searchParams: Promi
       {selected || families.length
         ? <FamilyAccess profiles={profiles} selected={selected} families={families} access={access} />
         : <FamilyBootstrap />}
-      {selected ? <QuestionFoundations goal={selected.examGoal} /> : null}
+      {selected ? <ResourceShelf profile={selected} goal={shelfGoal(params.shelfGoal) ?? selected.examGoal} userId={session.user_id} /> : null}
       {owner ? <ParentSettings /> : null}
     </RoomLayout>
   );
