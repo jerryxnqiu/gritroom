@@ -282,3 +282,10 @@ p { margin: 0; }
   .invite-fields { grid-template-columns: minmax(0, 1fr); }
   .invite-fields .button { justify-self: start; white-space: normal; }
 }
+
+.knowledge-format { margin-top: 1rem; }
+.knowledge-format a, .knowledge-detail a { color: var(--green); text-decoration: underline; text-underline-offset: .2em; }
+.knowledge-patterns .family-subsection { margin-top: .85rem; padding-top: .85rem; }
+.knowledge-detail { display: grid; gap: .55rem; margin-top: .65rem; line-height: 1.55; }
+.knowledge-detail .meta { margin: 0; }
+.knowledge-detail ul { padding-left: 1.2rem; }

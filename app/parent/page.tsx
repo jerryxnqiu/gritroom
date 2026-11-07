@@ -5,6 +5,7 @@ import { env } from "cloudflare:workers";
 import { FamilyAccess } from "@/components/FamilyAccess";
 import { FamilyBootstrap } from "@/components/FamilyBootstrap";
 import { ParentSettings } from "@/components/ParentSettings";
+import { QuestionFoundations } from "@/components/QuestionFoundations";
 import { RoomLayout } from "@/components/RoomLayout";
 import { getSession } from "@/lib/auth";
 import { examLabel, hasOpenInvitations, isInstallationOwner, listManagedFamilies, listParentProfiles } from "@/lib/family";
@@ -12,9 +13,9 @@ import { getSessionTokenFromCookies } from "@/lib/http";
 import { childAccess } from "@/lib/invitations";
 
 const sections = [
-  { title: "Family access", text: "Manage child profiles and exam goals." },
+  { title: "Family access", text: "Manage child profiles and exam goals.", href: "#family-access", action: "Open family access" },
   { title: "Parent feedback", text: "Observations and question preferences." },
-  { title: "Resource shelf", text: "Reports, videos, photos and documents." },
+  { title: "Resource shelf", text: "Sources and methods behind practice questions.", href: "#resource-shelf", action: "View question foundations" },
   { title: "Progress & feedback", text: "Answers, working and next steps." },
 ];
 
@@ -46,9 +47,9 @@ export default async function ParentPage({ searchParams }: { searchParams: Promi
         <>
           <div className="current-child"><span className="eyebrow">Current learner</span><strong>{selected.nickname}</strong><span className="pill">{examLabel(selected.examGoal)}</span></div>
           <div className="parent-steps" aria-label="Parent room sections">
-            {sections.map((section, index) => index === 0 ? (
-              <a className="step-card step-link" key={section.title} href="#family-access">
-                <span className="eyebrow">01</span><strong>{section.title}</strong><span>{section.text}</span><small>Open family access <span aria-hidden="true">↘</span></small>
+            {sections.map((section, index) => section.href ? (
+              <a className="step-card step-link" key={section.title} href={section.href}>
+                <span className="eyebrow">0{index + 1}</span><strong>{section.title}</strong><span>{section.text}</span><small>{section.action} <span aria-hidden="true">↘</span></small>
               </a>
             ) : (
               <div className="step-card" key={section.title}>
@@ -61,6 +62,7 @@ export default async function ParentPage({ searchParams }: { searchParams: Promi
       {selected || families.length
         ? <FamilyAccess profiles={profiles} selected={selected} families={families} access={access} />
         : <FamilyBootstrap />}
+      {selected ? <QuestionFoundations goal={selected.examGoal} /> : null}
       {owner ? <ParentSettings /> : null}
     </RoomLayout>
   );

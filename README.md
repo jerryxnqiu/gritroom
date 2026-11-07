@@ -33,9 +33,15 @@ The local migration command writes to the same `.cloudflare/state` directory as 
 - Mail failures leave no redeemable invitation. Cancel, expiry, decline and removal are separate actions. No access is granted by the login role tab.
 - Apply migration `0003_family_invitations.sql` before running this version. It preserves valid accepted links from phase 1. If legacy links conflict, the migration fails rather than choosing a different owner. It does not import the earlier Worker’s data.
 
+## Thinking Skills knowledge library
+
+Migration `0004_thinking_knowledge.sql` adds the public references and versioned authoring blueprints used by **Parent room → Resource shelf**. It records the NSW exam format and item-level references to the department’s worked explanations. Each blueprint specifies the method, the structure of an original question, and how to verify its answer. The selection follows the child’s exam goal.
+
+For future questions, retain the blueprint ID and version, the exam goal and the validation result. Use the source reference to understand the reasoning, and create the scenario, diagrams, answer and distractors independently. Review new blueprints against source examples before adding them to the catalogue. Keep family reports and learner performance in their authorised private scope.
+
 ## Next milestones
 
-1. Original Thinking Skills questions, diagnostic practice, resumable sessions and deterministic feedback.
+1. Build the checked original question bank, then assemble diagnostic practice with resumable sessions and deterministic feedback.
 2. Timed papers, private working uploads, Resource shelf and progress.
 3. Evidence-based next steps, tutoring, parent feedback and the owner's deeper review.
 4. Optional device codes, more question visuals and subjects.
