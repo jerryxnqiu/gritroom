@@ -226,6 +226,11 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   });
   assert.match(bankBrief, /practice_questions/);
   assert.match(bankBrief, /Practice questions from miscellaneous sources/);
+  assert.match(bankBrief, /CRITICAL style models/);
+  assert.match(bankBrief, /at least half/);
+  assert.match(bankBrief, /at least 60 active items/);
+  assert.match(bankBrief, /40 for a standard timed paper/);
+  assert.match(bankBrief, /20 for focused/);
   assert.match(bankBrief, /learning_evidence/);
   assert.match(bankBrief, /practice_attempts/);
   assert.match(bankBrief, /shelf_feedback/);
