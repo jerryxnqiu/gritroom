@@ -34,9 +34,10 @@ export function LearnerPractice({
   const answered = session?.attempts.filter((item) => item.finalizedAt) ?? [];
   const total = session?.attempts.length ?? 0;
   const left = session?.attempts.filter((item) => !item.finalizedAt).length ?? 0;
-  const index = review
-    ? session!.attempts.findIndex((item) => item.id === review.id)
-    : answered.length;
+  // Position in this practice set (not a fresh "1 of N" restart counter).
+  const questionNumber = current && session
+    ? session.attempts.findIndex((item) => item.id === current.id) + 1
+    : answered.length + 1;
   const canStartMore = remainingCount > 0 && !active;
   // Stay on the question screen while reviewing the last answer, even after the session completes.
   const inQuestion = phase === "question" && Boolean(current) && (active || Boolean(review));
@@ -143,7 +144,10 @@ export function LearnerPractice({
     return (
       <section className="panel practice-panel" aria-labelledby="practice-heading" aria-busy={pending}>
         <p className="eyebrow">
-          {session!.mode === "diagnostic" ? "Starting-point check" : "Focused practice"} · Question {index + 1} of {total}
+          {session!.mode === "diagnostic" ? "Starting-point check" : "Focused practice"}
+          {" · "}
+          Question {questionNumber} of {total}
+          {left > 0 ? ` · ${left} left in this set` : ""}
         </p>
         <h2 id="practice-heading">{current?.blueprintTitle || "Your next question"}</h2>
         {current?.skill ? <p className="meta">{current.skill}</p> : null}
@@ -249,8 +253,8 @@ export function LearnerPractice({
         <h2 id="practice-heading">Continue where you left off.</h2>
         <p className="lede">
           {answered.length === 0
-            ? `This practice has ${total} question${total === 1 ? "" : "s"} ready. Your progress stays saved if you leave and come back.`
-            : `You have answered ${answered.length} of ${total}. ${left} left in this practice — not a brand-new set.`}
+            ? `This practice still has all ${total} question${total === 1 ? "" : "s"} waiting — none are saved yet. Your progress stays saved once you answer.`
+            : `Saved progress: ${answered.length} of ${total} done. Next up is question ${answered.length + 1} of ${total} (${left} left). You will not repeat the ones already saved.`}
         </p>
         <div className="actions">
           <button type="button" className="button" disabled={pending} onClick={() => { setStatus(undefined); setPhase("question"); }}>
