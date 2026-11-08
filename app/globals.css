@@ -173,6 +173,13 @@ p { margin: 0; }
 .room-nav { display: grid; gap: .55rem; }
 .room-nav .eyebrow { padding-inline: .7rem; }
 .room-nav a { display: flex; align-items: center; min-height: 46px; gap: .7rem; padding: .7rem; border-radius: 9px; background: var(--pale); color: var(--green); font-size: .86rem; font-weight: 650; text-decoration: none; }
+.room-nav a.is-current, .room-nav a[aria-current="page"] { background: #e2ecd3; box-shadow: inset 0 0 0 1px #b7cba8; }
+.practice-section-nav {
+  display: none;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin: 0 0 1rem;
+}
 .room-motto { margin-top: auto; color: #637c59; font: 600 1.45rem/1.16 var(--font-display); letter-spacing: -.03em; }
 .room-account { display: flex; min-width: 0; align-items: center; gap: .55rem; border-top: 1px solid var(--line); padding-top: .8rem; }
 .room-avatar { display: grid; place-items: center; flex: 0 0 32px; height: 32px; background: #ede9db; color: #665e46; border-radius: 50%; font-family: var(--font-display); }
@@ -237,6 +244,7 @@ p { margin: 0; }
   .room-sidebar { position: static; height: auto; flex-direction: row; align-items: center; justify-content: space-between; gap: .7rem; padding: .75rem 1rem; border-right: 0; border-bottom: 1px solid var(--line); }
   .room-account { padding: 0; border: 0; }
   .room-nav, .room-motto, .room-identity, .room-avatar { display: none; }
+  .practice-section-nav { display: flex; }
   .room-breadcrumb { min-height: 48px; }
   .room-content { padding-top: 1.5rem; }
 }

@@ -4,6 +4,7 @@ import { env } from "cloudflare:workers";
 
 import { GrowthArtwork } from "@/components/Brand";
 import { LearnerPractice } from "@/components/LearnerPractice";
+import { LearnerRoomShell } from "@/components/LearnerRoomShell";
 import { RoomLayout } from "@/components/RoomLayout";
 import { getSession } from "@/lib/auth";
 import { examLabel, hasOpenInvitations, linkedLearner } from "@/lib/family";
@@ -30,8 +31,10 @@ export default async function LearnerPage() {
     ])
     : [null, 0];
 
-  return (
-    <RoomLayout role="learner" name={profile?.nickname || "Learner"} badge={profile ? `${examLabel(profile.examGoal)} · Personal practice` : "Your account"}>
+  const name = profile?.nickname || "Learner";
+  const badge = profile ? `${examLabel(profile.examGoal)} · Personal practice` : "Your account";
+  const body = (
+    <>
       <header className="room-heading">
         <p className="eyebrow">Make a little room for progress</p>
         <h1>{profile ? <>Ready for your next step,<br />{profile.nickname}<span className="accent-text">?</span></> : "Your practice room."}</h1>
@@ -54,6 +57,21 @@ export default async function LearnerPage() {
           <GrowthArtwork className="learner-illustration" />
         </section>
       )}
-    </RoomLayout>
+    </>
   );
+
+  const initialSection = practice?.status === "active"
+    ? (practice.mode === "timed" ? "timed" : "practice")
+    : practice
+      ? "results"
+      : "practice";
+
+  if (profile) {
+    return (
+      <LearnerRoomShell name={name} badge={badge} initialSection={initialSection}>
+        {body}
+      </LearnerRoomShell>
+    );
+  }
+  return <RoomLayout role="learner" name={name} badge={badge}>{body}</RoomLayout>;
 }
