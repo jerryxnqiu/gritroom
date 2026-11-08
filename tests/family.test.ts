@@ -355,8 +355,9 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   assert.equal((await listPracticeEvidence(db, "p1", "selective", "other")).length, 0);
   const evidence = await listPracticeEvidence(db, "p1", "selective", "owner");
   assert.equal(evidence.length, 1);
-  assert.equal(evidence[0]?.draftNotes, "Checked the rule direction.");
-  assert.equal(evidence[0]?.isCorrect, true);
+  assert.equal(evidence[0]?.attempts[0]?.draftNotes, "Checked the rule direction.");
+  assert.equal(evidence[0]?.attempts[0]?.isCorrect, true);
+  assert.equal(evidence[0]?.correct, 1);
   assert.equal((await listPracticeEvidence(db, "p1", "oc", "owner")).length, 0);
 
   // Finish remaining open attempts so the session completes, then latest should still surface it.
