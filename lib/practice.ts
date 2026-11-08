@@ -70,6 +70,18 @@ export type PracticeEvidenceItem = {
   finalizedAt: string;
 };
 
+export type PracticeEvidenceSession = {
+  id: string;
+  mode: string;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  total: number;
+  correct: number;
+  incorrect: number;
+  attempts: PracticeEvidenceItem[];
+};
+
 const parentAccess = `EXISTS (
   SELECT 1 FROM guardian_grants g WHERE g.family_id = p.family_id AND g.user_id = ?
     AND g.revoked_at IS NULL
@@ -456,13 +468,44 @@ export async function findAttemptImage(
   ).bind(attemptId, userId).first<{ key: string }>();
 }
 
+const EVIDENCE_SESSION_LIMIT = 20;
+
 export async function listPracticeEvidence(
   db: D1Database,
   profileId: string,
   examGoal: ExamGoal,
   userId: string,
+  options?: { sessionLimit?: number; sessionOffset?: number },
 ) {
-  const { results } = await db.prepare(
+  const limit = Math.min(Math.max(options?.sessionLimit ?? EVIDENCE_SESSION_LIMIT, 1), 50);
+  const offset = Math.max(options?.sessionOffset ?? 0, 0);
+
+  const sessions = await db.prepare(
+    `SELECT s.id, s.mode, s.status, s.started_at AS startedAt, s.completed_at AS completedAt,
+            COUNT(a.id) AS total,
+            SUM(CASE WHEN a.is_correct = 1 THEN 1 ELSE 0 END) AS correctCount
+     FROM practice_sessions s
+     JOIN profiles p ON p.id = s.profile_id
+     JOIN practice_attempts a ON a.session_id = s.id AND a.finalized_at IS NOT NULL
+     WHERE s.profile_id = ? AND s.exam_goal = ? AND ${parentAccess}
+     GROUP BY s.id
+     ORDER BY COALESCE(s.completed_at, s.started_at) DESC, s.id DESC
+     LIMIT ? OFFSET ?`,
+  ).bind(profileId, examGoal, userId, limit, offset).all<{
+    id: string;
+    mode: string;
+    status: string;
+    startedAt: string;
+    completedAt: string | null;
+    total: number;
+    correctCount: number;
+  }>();
+
+  if (!sessions.results.length) return [] as PracticeEvidenceSession[];
+
+  const ids = sessions.results.map((item) => item.id);
+  const placeholders = ids.map(() => "?").join(", ");
+  const { results: attemptRows } = await db.prepare(
     `SELECT a.id, a.session_id AS sessionId, s.mode, a.question_prompt AS prompt, a.image_key AS imageKey,
             b.title AS blueprintTitle, b.skill, a.selected_option AS selectedOption,
             a.correct_option AS correctOption, a.is_correct AS isCorrect, a.confidence,
@@ -471,36 +514,57 @@ export async function listPracticeEvidence(
             a.finalized_at AS finalizedAt
      FROM practice_attempts a
      JOIN practice_sessions s ON s.id = a.session_id
-     JOIN profiles p ON p.id = a.profile_id
      LEFT JOIN thinking_blueprints b ON b.id = a.blueprint_id AND b.version = a.blueprint_version
-     WHERE a.profile_id = ? AND a.exam_goal = ? AND a.finalized_at IS NOT NULL AND ${parentAccess}
-     ORDER BY a.finalized_at DESC, a.id DESC
-     LIMIT 40`,
-  ).bind(profileId, examGoal, userId).all<AttemptRow & {
+     WHERE a.session_id IN (${placeholders}) AND a.finalized_at IS NOT NULL
+     ORDER BY a.created_at, a.id`,
+  ).bind(...ids).all<AttemptRow & {
     selectedOption: string;
     correctOption: string;
     isCorrect: number;
     finalizedAt: string;
   }>();
 
-  return results.map((row): PracticeEvidenceItem => ({
-    id: row.id,
-    sessionId: row.sessionId,
-    mode: row.mode || "daily",
-    prompt: row.prompt,
-    imageKey: row.imageKey,
-    blueprintTitle: row.blueprintTitle,
-    skill: row.skill,
-    selectedOption: row.selectedOption,
-    correctOption: row.correctOption,
-    isCorrect: Boolean(row.isCorrect),
-    confidence: row.confidence,
-    timeMs: row.timeMs,
-    draftNotes: row.draftNotes,
-    explanationEn: row.explanationEn,
-    attemptReviewEn: row.attemptReviewEn,
-    finalizedAt: row.finalizedAt,
-  }));
+  const bySession = new Map<string, PracticeEvidenceItem[]>();
+  for (const row of attemptRows) {
+    const item: PracticeEvidenceItem = {
+      id: row.id,
+      sessionId: row.sessionId,
+      mode: row.mode || "daily",
+      prompt: row.prompt,
+      imageKey: row.imageKey,
+      blueprintTitle: row.blueprintTitle,
+      skill: row.skill,
+      selectedOption: row.selectedOption,
+      correctOption: row.correctOption,
+      isCorrect: Boolean(row.isCorrect),
+      confidence: row.confidence,
+      timeMs: row.timeMs,
+      draftNotes: row.draftNotes,
+      explanationEn: row.explanationEn,
+      attemptReviewEn: row.attemptReviewEn,
+      finalizedAt: row.finalizedAt,
+    };
+    const list = bySession.get(row.sessionId) ?? [];
+    list.push(item);
+    bySession.set(row.sessionId, list);
+  }
+
+  return sessions.results.map((session): PracticeEvidenceSession => {
+    const attempts = bySession.get(session.id) ?? [];
+    const total = Number(session.total);
+    const correct = Number(session.correctCount);
+    return {
+      id: session.id,
+      mode: session.mode,
+      status: session.status,
+      startedAt: session.startedAt,
+      completedAt: session.completedAt,
+      total,
+      correct,
+      incorrect: Math.max(0, total - correct),
+      attempts,
+    };
+  });
 }
 
 /** Incorrect attempts still missing a personalised Codex review (this child + archive). */

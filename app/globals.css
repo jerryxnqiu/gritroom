@@ -414,6 +414,25 @@ p { margin: 0; }
 }
 .practice-ok { color: var(--green); }
 .practice-miss { color: var(--danger); }
+.practice-evidence { display: grid; gap: .85rem; }
+.practice-evidence-filters { display: flex; flex-wrap: wrap; gap: .45rem; }
+.practice-evidence-sessions { display: grid; gap: .55rem; }
+.practice-evidence-session {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: .15rem .85rem .55rem;
+  background: #fcfdf9;
+}
+.practice-evidence-session > summary {
+  display: grid;
+  gap: .15rem;
+  padding: .7rem 0 .55rem;
+  list-style: none;
+}
+.practice-evidence-session > summary::-webkit-details-marker { display: none; }
+.practice-evidence-session-title { color: var(--ink); font-weight: 650; }
+.practice-evidence-session .shelf-items { margin-top: .15rem; }
+.practice-evidence-attempt { padding-left: 0; padding-right: 0; }
 .practice-evidence .shelf-notes { margin-top: .45rem; padding: .65rem .75rem; border-radius: 8px; background: #f7f9f3; }
 .practice-panel input[type="range"] { width: min(100%, 18rem); accent-color: var(--moss); }
 .shelf-dialog { position: fixed; inset: 0; margin: auto; width: min(34rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.25rem; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--ink); }

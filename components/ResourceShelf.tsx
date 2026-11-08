@@ -71,8 +71,10 @@ export async function ResourceShelf({ profile, goal, userId }: { profile: Parent
       <details className="family-subsection shelf-anchor" id="practice-evidence" open={evidence.length > 0}>
         <summary id="shelf-practice">04 · Practice evidence</summary>
         <div className="shelf-nest">
-          <p className="meta">Per-question answers, time, confidence and draft notes from {profile.nickname}’s learner room. Together with material analyses above, these records feed the practice-bank task.</p>
-          <PracticeEvidence items={evidence} />
+          <p className="meta">
+            Practice sessions from {profile.nickname}’s learner room, grouped for scanning. Default view shows incorrect answers first; open a session for the detail that feeds the practice-bank task.
+          </p>
+          <PracticeEvidence sessions={evidence} />
         </div>
       </details>
 

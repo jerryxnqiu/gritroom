@@ -286,6 +286,11 @@ export function LearnerPractice({
                 {item.isCorrect ? "Correct" : "Not yet"} · {item.selectedOption}
               </strong>
               {item.blueprintTitle ? <span className="meta">{item.blueprintTitle}</span> : null}
+              {!item.isCorrect && (item.attemptReviewEn || item.explanationEn) ? (
+                <p className="shelf-copy practice-review-body">
+                  {item.attemptReviewEn || item.explanationEn}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>
