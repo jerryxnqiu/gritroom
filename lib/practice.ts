@@ -3,8 +3,15 @@ import { createId } from "./ids.ts";
 import { thinkingKnowledge } from "./thinking-knowledge.ts";
 import { nowIso } from "./time.ts";
 
-export type PracticeMode = "diagnostic" | "daily";
+export type PracticeMode = "diagnostic" | "daily" | "timed";
 export type PracticeOptionKey = "A" | "B" | "C" | "D";
+
+/** Official paper length / minutes for a timed Thinking Skills set. */
+export function timedPaperSpec(goal: ExamGoal) {
+  return goal === "oc"
+    ? { questions: 30, minutes: 30, label: "30-question timed paper" }
+    : { questions: 40, minutes: 40, label: "40-question timed paper" };
+}
 
 export type PracticeQuestion = {
   id: string;
@@ -146,15 +153,23 @@ function toAttemptView(row: AttemptRow, revealAnswer: boolean): PracticeAttemptV
   };
 }
 
-function pickQuestions(bank: PracticeQuestion[], mode: PracticeMode) {
-  if (!bank.length) return [];
-  if (mode === "diagnostic") return bank;
+function shuffleQuestions(bank: PracticeQuestion[]) {
   const copy = [...bank];
   for (let index = copy.length - 1; index > 0; index -= 1) {
     const swap = Math.floor(Math.random() * (index + 1));
     [copy[index], copy[swap]] = [copy[swap], copy[index]];
   }
-  return copy.slice(0, Math.min(5, copy.length));
+  return copy;
+}
+
+function pickQuestions(bank: PracticeQuestion[], mode: PracticeMode, goal: ExamGoal) {
+  if (!bank.length) return [];
+  if (mode === "diagnostic") return bank;
+  const shuffled = shuffleQuestions(bank);
+  if (mode === "timed") {
+    return shuffled.slice(0, timedPaperSpec(goal).questions);
+  }
+  return shuffled.slice(0, Math.min(5, shuffled.length));
 }
 
 export async function learnerProfile(db: D1Database, userId: string) {
@@ -322,7 +337,17 @@ export async function startPracticeSession(
       error: "You have finished every practice question available right now. Ask your family to refresh the practice bank for new ones.",
     };
   }
-  const questions = pickQuestions(unused, mode);
+  if (mode === "timed") {
+    const paper = timedPaperSpec(profile.examGoal);
+    if (unused.length < paper.questions) {
+      return {
+        ok: false,
+        status: 409,
+        error: `A ${paper.label} needs ${paper.questions} unused questions. ${unused.length} left in the bank — ask your family to refresh, or use Practice for a short set.`,
+      };
+    }
+  }
+  const questions = pickQuestions(unused, mode, profile.examGoal);
 
   const sessionId = createId("psn");
   const startedAt = nowIso();
@@ -470,15 +495,31 @@ export async function findAttemptImage(
 
 const EVIDENCE_SESSION_LIMIT = 20;
 
+export type PracticeEvidenceModeFilter = PracticeMode | "all";
+
+export function parseEvidenceModeFilter(value: unknown): PracticeEvidenceModeFilter | null {
+  if (value === undefined || value === null || value === "" || value === "all") return "all";
+  return parsePracticeMode(value);
+}
+
 export async function listPracticeEvidence(
   db: D1Database,
   profileId: string,
   examGoal: ExamGoal,
   userId: string,
-  options?: { sessionLimit?: number; sessionOffset?: number },
+  options?: {
+    sessionLimit?: number;
+    sessionOffset?: number;
+    mode?: PracticeEvidenceModeFilter;
+  },
 ) {
   const limit = Math.min(Math.max(options?.sessionLimit ?? EVIDENCE_SESSION_LIMIT, 1), 50);
   const offset = Math.max(options?.sessionOffset ?? 0, 0);
+  const mode = options?.mode ?? "all";
+  const modeClause = mode === "all" ? "" : " AND s.mode = ?";
+  const binds = mode === "all"
+    ? [profileId, examGoal, userId, limit, offset]
+    : [profileId, examGoal, mode, userId, limit, offset];
 
   const sessions = await db.prepare(
     `SELECT s.id, s.mode, s.status, s.started_at AS startedAt, s.completed_at AS completedAt,
@@ -487,11 +528,11 @@ export async function listPracticeEvidence(
      FROM practice_sessions s
      JOIN profiles p ON p.id = s.profile_id
      JOIN practice_attempts a ON a.session_id = s.id AND a.finalized_at IS NOT NULL
-     WHERE s.profile_id = ? AND s.exam_goal = ? AND ${parentAccess}
+     WHERE s.profile_id = ? AND s.exam_goal = ?${modeClause} AND ${parentAccess}
      GROUP BY s.id
      ORDER BY COALESCE(s.completed_at, s.started_at) DESC, s.id DESC
      LIMIT ? OFFSET ?`,
-  ).bind(profileId, examGoal, userId, limit, offset).all<{
+  ).bind(...binds).all<{
     id: string;
     mode: string;
     status: string;
@@ -585,7 +626,13 @@ export async function countIncorrectAttemptsNeedingReview(
 }
 
 export function parsePracticeMode(value: unknown): PracticeMode | null {
-  return value === "diagnostic" || value === "daily" ? value : null;
+  return value === "diagnostic" || value === "daily" || value === "timed" ? value : null;
+}
+
+export function practiceModeLabel(mode: string) {
+  if (mode === "diagnostic") return "Starting-point check";
+  if (mode === "timed") return "Timed paper";
+  return "Practice";
 }
 
 export function parseAttemptInput(value: unknown) {

@@ -450,3 +450,52 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   assert.equal(blocked.ok, false);
   if (!blocked.ok) assert.equal(blocked.status, 409);
 });
+
+test("timed papers need a full unused bank before they start", async (t) => {
+  const { sql, db } = fixture();
+  t.after(() => sql.close());
+  sql.exec(readFileSync(new URL("../migrations/0004_thinking_knowledge.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0005_resource_shelf.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0007_practice_questions.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0008_practice_explanations.sql", import.meta.url), "utf8"));
+  const invite = await issueInvitation(
+    db,
+    actor("owner"),
+    { profileId: "p1", email: actor("learner").email, role: "learner" },
+    accepted,
+  );
+  assert.ok(invite.ok);
+  assert.equal((await acceptInvitation(db, actor("learner"), invite.id)).ok, true);
+
+  const remaining = await countUnusedPracticeQuestions(db, "p1", "selective");
+  assert.ok(remaining > 0 && remaining < 40);
+  const timed = await startPracticeSession(db, "learner", "timed");
+  assert.equal(timed.ok, false);
+  if (!timed.ok) {
+    assert.equal(timed.status, 409);
+    assert.match(timed.error, /40 unused questions/);
+  }
+
+  const blueprint = sql.prepare(
+    "SELECT id, version FROM thinking_blueprints WHERE id = 'necessary-vs-sufficient' LIMIT 1",
+  ).get() as { id: string; version: number };
+  for (let index = 0; index < 40; index += 1) {
+    sql.prepare(
+      `INSERT INTO practice_questions
+         (id, version, blueprint_id, blueprint_version, prompt, options_json, correct_option, status, created_at)
+       VALUES (?, 1, ?, ?, ?, '{"A":"A","B":"B","C":"C","D":"D"}', 'A', 'active', ?)`,
+    ).run(
+      `q-timed-extra-${index}`,
+      blueprint.id,
+      blueprint.version,
+      `Timed filler prompt ${index} for paper sizing.`,
+      `2026-11-08T01:${String(index).padStart(2, "0")}:00.000Z`,
+    );
+  }
+  const ready = await startPracticeSession(db, "learner", "timed");
+  assert.equal(ready.ok, true);
+  if (!ready.ok) return;
+  assert.equal(ready.session.mode, "timed");
+  assert.equal(ready.session.attempts.length, 40);
+});
