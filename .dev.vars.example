@@ -2,4 +2,3 @@
 # Copy to `.dev.vars` and fill in.
 
 gmail-smtp-keys={"gmail-smtp-email":"you@gmail.com","gmail-smtp-host":"smtp.gmail.com","gmail-smtp-port":465,"gmail-smtp-password":"your-app-password"}
-deepseek-api-key=your-deepseek-api-key

@@ -215,21 +215,87 @@ export function buildCodexBankBrief(input: {
     "while keeping official blueprint coverage. Prefer fresh stems over near-copies of active bank items.",
     "For each blueprint that should stay covered for this exam goal, insert a new active practice_questions row",
     "(same id, version = previous max + 1, or a new id if adding coverage). Text-only is fine when no figure is needed.",
+    "Every new question MUST include explanation_en: a short kid-facing review (why the correct option works,",
+    "and why common traps fail). Codex writes these reviews — there is no in-app learner chat.",
     "If a figure is required, upload an immutable object under",
     "`question-bank/{questionId}/v{version}/figure.webp` in R2 and set image_key / image_name / image_type.",
     "Retire superseded versions with status = 'retired' only after the new active version is inserted.",
     "",
     "Example insert shape:",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO practice_questions (id, version, blueprint_id, blueprint_version, prompt, options_json, correct_option, status, created_at) VALUES ('q-example', 2, 'necessary-vs-sufficient', 1, 'PROMPT', '{\\"A\\":\\"\\",\\"B\\":\\"\\",\\"C\\":\\"\\",\\"D\\":\\"\\"}', 'B', 'active', '${stamp}');"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO practice_questions (id, version, blueprint_id, blueprint_version, prompt, options_json, correct_option, explanation_en, status, created_at) VALUES ('q-example', 2, 'necessary-vs-sufficient', 1, 'PROMPT', '{\\"A\\":\\"\\",\\"B\\":\\"\\",\\"C\\":\\"\\",\\"D\\":\\"\\"}', 'B', 'WHY_B_IS_RIGHT', 'active', '${stamp}');"`,
     "```",
     "",
     "Confirm coverage:",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT blueprint_id, id, version, substr(prompt,1,100) AS prompt FROM practice_questions WHERE status = 'active' ORDER BY blueprint_id, id;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT blueprint_id, id, version, substr(prompt,1,80) AS prompt, substr(explanation_en,1,80) AS explanation FROM practice_questions WHERE status = 'active' ORDER BY blueprint_id, id;"`,
     "```",
     "",
     "Then tell the parent to refresh Parent room → Practice bank / start a new practice session.",
+  ].join("\n");
+}
+
+/**
+ * Codex task: write personalised kid-facing reviews for incorrect attempts that still lack attempt_review_en.
+ */
+export function buildCodexAttemptReviewBrief(input: {
+  profileId: string;
+  goal: ExamGoal;
+  nickname: string;
+  actorUserId: string;
+  pendingCount: number;
+}) {
+  const { profileId, goal, nickname, actorUserId, pendingCount } = input;
+  const stamp = nowIso();
+
+  return [
+    "GritRoom Codex incorrect-attempt reviews",
+    "",
+    "You are working in the local gritroom repo with wrangler access to remote D1.",
+    "Write short kid-facing reviews for incorrect practice attempts that still have attempt_review_en IS NULL.",
+    "These offline reviews are Codex’s job — learners practise without an in-app chat bot.",
+    "Do not invent exam rules. Use the attempt snapshot + matching thinking_blueprints verification_rule.",
+    "",
+    "## Scope",
+    `- profile_id: ${profileId}`,
+    `- learner: ${nickname}`,
+    `- exam_goal: ${goal}`,
+    `- actor_user_id: ${actorUserId}`,
+    `- pending_incorrect_without_review: ${pendingCount}`,
+    `- prepared_at: ${stamp}`,
+    "",
+    "## Where to read",
+    `- D1: ${CODEX_D1_NAME} (${CODEX_D1_ID}) via wrangler.d1.jsonc`,
+    "",
+    "Incorrect attempts still needing a review (up to 200):",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, question_id, question_version, blueprint_id, selected_option, correct_option, confidence, substr(question_prompt,1,120) AS prompt, substr(draft_notes,1,160) AS notes, substr(explanation_en,1,160) AS bank_explanation FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND finalized_at IS NOT NULL AND is_correct = 0 AND attempt_review_en IS NULL ORDER BY finalized_at DESC LIMIT 200;"`,
+    "```",
+    "",
+    "Blueprint checks for those items:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, version, title, method, verification_rule FROM thinking_blueprints;"`,
+    "```",
+    "",
+    "## What to write",
+    "For each listed attempt, UPDATE practice_attempts.attempt_review_en with 2–4 short sentences for the child:",
+    "- name the option they chose and why it fails",
+    "- name the correct option and the key reason it works",
+    "- one next-time tip tied to the blueprint method",
+    "Keep English, kind, concrete. Max 4000 characters. Do not overwrite explanation_en.",
+    "Optionally INSERT learning_evidence kind='review' with ref_id=attempt id and a one-line summary.",
+    "",
+    "Example update:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "UPDATE practice_attempts SET attempt_review_en = 'You chose D because … The correct answer is A because … Next time …' WHERE id = 'pat_EXAMPLE' AND profile_id = '${profileId}' AND is_correct = 0 AND attempt_review_en IS NULL;"`,
+    "```",
+    "",
+    "Confirm remaining gaps:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT COUNT(*) AS still_open FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND is_correct = 0 AND finalized_at IS NOT NULL AND attempt_review_en IS NULL;"`,
+    "```",
+    "",
+    "Then tell the parent to refresh Parent room / have the learner reopen practice evidence.",
   ].join("\n");
 }
 

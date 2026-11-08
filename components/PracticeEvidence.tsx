@@ -29,8 +29,9 @@ export function PracticeEvidence({ items }: { items: PracticeEvidenceItem[] }) {
             <p className="shelf-copy">{item.prompt}</p>
             <p className="meta">
               <strong className={item.isCorrect ? "practice-ok" : "practice-miss"}>
-                {item.isCorrect ? "Correct" : "Incorrect"} · chose {item.selectedOption}
-                {item.isCorrect ? "" : ` · checked ${item.correctOption}`}
+                {item.isCorrect
+                  ? `Correct · answered ${item.selectedOption}`
+                  : `Incorrect · answered ${item.selectedOption} · correct answer ${item.correctOption}`}
               </strong>
               {" · "}
               {item.mode === "diagnostic" ? "Starting-point check" : "Focused practice"}
@@ -41,6 +42,13 @@ export function PracticeEvidence({ items }: { items: PracticeEvidenceItem[] }) {
               Confidence {item.confidence ?? "—"}/5 · {formatTime(item.timeMs)} · {item.finalizedAt.slice(0, 10)}
             </p>
             {item.draftNotes ? <p className="shelf-notes shelf-copy">{item.draftNotes}</p> : null}
+            {item.attemptReviewEn ? (
+              <p className="shelf-notes shelf-copy"><strong>Codex review · </strong>{item.attemptReviewEn}</p>
+            ) : item.explanationEn ? (
+              <p className="shelf-notes shelf-copy"><strong>Explanation · </strong>{item.explanationEn}</p>
+            ) : !item.isCorrect ? (
+              <p className="meta">No Codex review yet — use Ask Codex to review incorrect attempts.</p>
+            ) : null}
           </div>
         </li>
       ))}

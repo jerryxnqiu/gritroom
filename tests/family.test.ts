@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { hasLearnerInvitation, isInstallationOwner, linkedLearner, listManagedFamilies, listParentProfiles } from "../lib/family.ts";
 import { acceptInvitation, childAccess, closeInvitation, issueInvitation, recipientInvitations, revokeGuardian } from "../lib/invitations.ts";
 import {
+  buildCodexAttemptReviewBrief,
   buildCodexBankBrief,
   buildCodexMaterialBrief,
   getMaterialForCodex,
@@ -222,6 +223,16 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(bankBrief, /learning_evidence/);
   assert.match(bankBrief, /practice_attempts/);
   assert.match(bankBrief, /shelf_feedback/);
+  assert.match(bankBrief, /explanation_en/);
+  const reviewBrief = buildCodexAttemptReviewBrief({
+    profileId: "p1",
+    goal: "selective",
+    nickname: bankShelf.nickname,
+    actorUserId: "owner",
+    pendingCount: 3,
+  });
+  assert.match(reviewBrief, /attempt_review_en/);
+  assert.match(reviewBrief, /incorrect/);
   assert.equal("error" in parseCodexAnalysisInput({ json: "{" }), true);
   const parsed = parseCodexAnalysisInput({
     json: JSON.stringify({
@@ -284,6 +295,7 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   sql.exec(readFileSync(new URL("../migrations/0005_resource_shelf.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0007_practice_questions.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0008_practice_explanations.sql", import.meta.url), "utf8"));
   const invite = await issueInvitation(
     db,
     actor("owner"),
@@ -300,6 +312,7 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   assert.equal(started.session.status, "active");
   assert.ok(started.session.attempts.length >= 1 && started.session.attempts.length <= 5);
   assert.equal(started.session.attempts[0]?.correctOption, null);
+  assert.equal(started.session.attempts[0]?.explanationEn, null);
 
   const resumed = await startPracticeSession(db, "learner", "diagnostic");
   assert.equal(resumed.ok, true);
@@ -309,9 +322,14 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   const first = started.session.attempts[0];
   assert.ok(first);
   const bank = sql.prepare(
-    "SELECT correct_option AS correctOption FROM practice_questions WHERE prompt = ? AND status = 'active'",
-  ).get(first.prompt) as { correctOption: string } | undefined;
+    "SELECT correct_option AS correctOption, explanation_en AS explanationEn FROM practice_questions WHERE prompt = ? AND status = 'active'",
+  ).get(first.prompt) as { correctOption: string; explanationEn: string } | undefined;
   assert.ok(bank);
+  assert.ok(bank.explanationEn);
+  assert.equal(
+    sql.prepare("SELECT explanation_en AS explanationEn FROM practice_attempts WHERE id = ?").get(first.id)?.explanationEn,
+    bank.explanationEn,
+  );
   const saved = await submitPracticeAttempt(db, "learner", started.session.id, {
     attemptId: first.id,
     selectedOption: bank.correctOption,
@@ -323,6 +341,7 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   if (!saved.ok) return;
   assert.equal(saved.attempt.isCorrect, true);
   assert.equal(saved.attempt.correctOption, bank.correctOption);
+  assert.equal(saved.attempt.explanationEn, bank.explanationEn);
   assert.equal(
     sql.prepare("SELECT kind FROM learning_evidence WHERE ref_id = ?").get(first.id)?.kind,
     "attempt",

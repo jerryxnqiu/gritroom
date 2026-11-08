@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { isInstallationOwner } from "@/lib/family";
 import { getSessionTokenFromCookies, json } from "@/lib/http";
-import { getDeepseekApiKey, getGmailSmtpKeys } from "@/lib/secrets";
+import { getGmailSmtpKeys } from "@/lib/secrets";
 import { checkGmailConnection } from "@/lib/smtp";
 import { env } from "cloudflare:workers";
 
@@ -15,13 +15,11 @@ export async function POST() {
   }
 
   const configured = getGmailSmtpKeys();
-  const deepseek = Boolean(getDeepseekApiKey());
   if (!configured.ok) {
     return json({
       ok: false,
       stage: "config",
       reason: configured.reason,
-      deepseekConfigured: deepseek,
     });
   }
 
@@ -31,6 +29,5 @@ export async function POST() {
     from: configured.keys.email,
     host: configured.keys.host,
     port: configured.keys.port,
-    deepseekConfigured: deepseek,
   });
 }

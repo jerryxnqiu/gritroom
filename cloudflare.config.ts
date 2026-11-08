@@ -26,7 +26,6 @@ export default defineConfig({
       // Values live in Worker Secrets — not in git.
       // Dashboard names must match these binding keys exactly.
       "gmail-smtp-keys": bindings.secret(),
-      "deepseek-api-key": bindings.secret(),
     },
   }),
 });

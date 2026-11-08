@@ -203,10 +203,21 @@ export function LearnerPractice({
         />
       </label>
       {review ? (
-        <p className={review.isCorrect ? "notice" : "error"} role="status">
-          {review.isCorrect ? "Correct." : `Not yet. The checked answer is ${review.correctOption}.`}
-          {" "}Continue when you are ready.
-        </p>
+        <div className="practice-review" role="status">
+          <p className={review.isCorrect ? "notice" : "error"}>
+            {review.isCorrect
+              ? `Correct · answered ${review.selectedOption}.`
+              : `Not yet · answered ${review.selectedOption} · correct answer ${review.correctOption}.`}
+            {" "}Continue when you are ready.
+          </p>
+          {review.attemptReviewEn || review.explanationEn ? (
+            <p className="shelf-copy practice-review-body">
+              {review.attemptReviewEn || review.explanationEn}
+            </p>
+          ) : !review.isCorrect ? (
+            <p className="meta">A fuller review for this miss will appear after your family asks Codex to review incorrect attempts.</p>
+          ) : null}
+        </div>
       ) : null}
       <div className="actions">
         {review ? (

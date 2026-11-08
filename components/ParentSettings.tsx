@@ -12,11 +12,11 @@ export function ParentSettings() {
       try {
         const response = await fetch(`/api/settings/gmail/${action}`, { method: "POST" });
         const data = await response.json() as {
-          ok?: boolean; reason?: string; error?: string; message?: string; deepseekConfigured?: boolean;
+          ok?: boolean; reason?: string; error?: string; message?: string;
         };
         if (!response.ok || !data.ok) throw new Error(data.error ?? data.reason ?? "Gmail could not complete this request.");
         setStatus({ text: action === "check"
-          ? `Gmail connection verified. AI connection ${data.deepseekConfigured ? "configured" : "not configured"}.`
+          ? "Gmail connection verified."
           : data.message ?? "Test email accepted for delivery." });
       } catch (error) {
         setStatus({ text: error instanceof Error ? error.message : "Could not complete this request.", error: true });

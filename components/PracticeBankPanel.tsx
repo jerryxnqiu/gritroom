@@ -3,6 +3,8 @@ import { env } from "cloudflare:workers";
 
 import { examLabel, type ExamGoal, type ParentProfile } from "@/lib/family";
 import { listMaterialsForCodexBank } from "@/lib/material-analysis";
+import { countIncorrectAttemptsNeedingReview } from "@/lib/practice";
+import { AskCodexAttemptReviewButton } from "./AskCodexAttemptReviewButton";
 import { AskCodexBankButton } from "./AskCodexBankButton";
 
 export async function PracticeBankPanel({
@@ -14,7 +16,10 @@ export async function PracticeBankPanel({
   goal: ExamGoal;
   userId: string;
 }) {
-  const shelf = await listMaterialsForCodexBank(env.DB, profile.id, goal, userId);
+  const [shelf, pendingReviews] = await Promise.all([
+    listMaterialsForCodexBank(env.DB, profile.id, goal, userId),
+    countIncorrectAttemptsNeedingReview(env.DB, profile.id, goal, userId),
+  ]);
   const materialCount = shelf?.materials.length ?? 0;
 
   return (
@@ -24,7 +29,7 @@ export async function PracticeBankPanel({
       <p className="lede">
         Ask Codex to read the latest D1 inputs for {profile.nickname}’s {examLabel(goal)} archive — blueprints,
         coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback —
-        then insert evolved questions into the active bank.
+        then insert evolved questions (with kid-facing explanations) into the active bank.
       </p>
       <div className="shelf-toolbar">
         <nav className="shelf-actions" aria-label="Practice bank archive">
@@ -48,6 +53,20 @@ export async function PracticeBankPanel({
           {materialCount} shelf source{materialCount === 1 ? "" : "s"} ready for this archive. Paste the copied task into a Codex chat in this gritroom repo.
         </p>
       )}
+
+      <div className="family-subsection">
+        <h3>Review incorrect attempts</h3>
+        <p className="meta">
+          After practice, ask Codex to write personalised kid-facing notes for incorrect answers that still need a review.
+          Those notes appear in the learner room and under practice evidence.
+        </p>
+        <AskCodexAttemptReviewButton profileId={profile.id} goal={goal} disabled={pendingReviews === 0} />
+        <p className="meta">
+          {pendingReviews === 0
+            ? "No incorrect attempts are waiting for a Codex review in this archive."
+            : `${pendingReviews} incorrect attempt${pendingReviews === 1 ? "" : "s"} waiting for a Codex review.`}
+        </p>
+      </div>
     </section>
   );
 }

@@ -373,6 +373,9 @@ p { margin: 0; }
 .shelf-codex-form .actions { margin-top: .2rem; }
 .shelf-bank-action { display: grid; gap: .7rem; justify-items: start; margin-top: .85rem; }
 .shelf-bank-action .notice, .shelf-bank-action .error { margin: 0; max-width: 42rem; }
+.practice-review { display: grid; gap: .55rem; margin-top: .85rem; }
+.practice-review > .notice, .practice-review > .error { margin: 0; }
+.practice-review-body { margin: 0; max-width: 42rem; }
 .shelf-copy { white-space: pre-wrap; overflow-wrap: anywhere; }
 .shelf-feedback-form > button { justify-self: start; }
 .shelf-feedback-form ~ p { margin-top: .7rem; }

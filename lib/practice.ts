@@ -15,6 +15,7 @@ export type PracticeQuestion = {
   optionsJson: string;
   correctOption: string;
   imageKey: string | null;
+  explanationEn: string | null;
 };
 
 export type PracticeAttemptView = {
@@ -33,6 +34,8 @@ export type PracticeAttemptView = {
   confidence: number | null;
   timeMs: number | null;
   draftNotes: string | null;
+  explanationEn: string | null;
+  attemptReviewEn: string | null;
   finalizedAt: string | null;
   createdAt: string;
 };
@@ -62,6 +65,8 @@ export type PracticeEvidenceItem = {
   confidence: number | null;
   timeMs: number | null;
   draftNotes: string | null;
+  explanationEn: string | null;
+  attemptReviewEn: string | null;
   finalizedAt: string;
 };
 
@@ -89,6 +94,8 @@ type AttemptRow = {
   confidence: number | null;
   timeMs: number | null;
   draftNotes: string | null;
+  explanationEn: string | null;
+  attemptReviewEn: string | null;
   finalizedAt: string | null;
   createdAt: string;
   mode?: string;
@@ -120,6 +127,8 @@ function toAttemptView(row: AttemptRow, revealAnswer: boolean): PracticeAttemptV
     confidence: row.confidence,
     timeMs: row.timeMs,
     draftNotes: row.draftNotes,
+    explanationEn: row.finalizedAt ? row.explanationEn : null,
+    attemptReviewEn: row.finalizedAt ? row.attemptReviewEn : null,
     finalizedAt: row.finalizedAt,
     createdAt: row.createdAt,
   };
@@ -158,7 +167,7 @@ export async function loadActivePracticeQuestions(db: D1Database, blueprintIds: 
   const { results } = await db.prepare(
     `SELECT q.id, q.version, q.blueprint_id AS blueprintId, q.blueprint_version AS blueprintVersion,
             q.prompt, q.options_json AS optionsJson, q.correct_option AS correctOption,
-            q.image_key AS imageKey
+            q.image_key AS imageKey, q.explanation_en AS explanationEn
      FROM practice_questions q
      WHERE q.status = 'active'
        AND q.blueprint_id IN (${placeholders})
@@ -178,6 +187,7 @@ async function loadAttempts(db: D1Database, sessionId: string) {
             b.title AS blueprintTitle, b.skill, a.question_prompt AS prompt, a.options_json AS optionsJson,
             a.image_key AS imageKey, a.correct_option AS correctOption, a.selected_option AS selectedOption,
             a.is_correct AS isCorrect, a.confidence, a.time_ms AS timeMs, a.draft_notes AS draftNotes,
+            a.explanation_en AS explanationEn, a.attempt_review_en AS attemptReviewEn,
             a.finalized_at AS finalizedAt, a.created_at AS createdAt
      FROM practice_attempts a
      LEFT JOIN thinking_blueprints b ON b.id = a.blueprint_id AND b.version = a.blueprint_version
@@ -246,8 +256,8 @@ export async function startPracticeSession(
           `INSERT INTO practice_attempts
              (id, session_id, profile_id, exam_goal, question_id, question_version,
               blueprint_id, blueprint_version, question_prompt, options_json, correct_option,
-              image_key, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              image_key, explanation_en, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           createId("pat"),
           sessionId,
@@ -261,6 +271,7 @@ export async function startPracticeSession(
           question.optionsJson,
           question.correctOption,
           question.imageKey,
+          question.explanationEn,
           stamp,
         );
       }),
@@ -385,7 +396,9 @@ export async function listPracticeEvidence(
     `SELECT a.id, a.session_id AS sessionId, s.mode, a.question_prompt AS prompt, a.image_key AS imageKey,
             b.title AS blueprintTitle, b.skill, a.selected_option AS selectedOption,
             a.correct_option AS correctOption, a.is_correct AS isCorrect, a.confidence,
-            a.time_ms AS timeMs, a.draft_notes AS draftNotes, a.finalized_at AS finalizedAt
+            a.time_ms AS timeMs, a.draft_notes AS draftNotes,
+            a.explanation_en AS explanationEn, a.attempt_review_en AS attemptReviewEn,
+            a.finalized_at AS finalizedAt
      FROM practice_attempts a
      JOIN practice_sessions s ON s.id = a.session_id
      JOIN profiles p ON p.id = a.profile_id
@@ -414,8 +427,27 @@ export async function listPracticeEvidence(
     confidence: row.confidence,
     timeMs: row.timeMs,
     draftNotes: row.draftNotes,
+    explanationEn: row.explanationEn,
+    attemptReviewEn: row.attemptReviewEn,
     finalizedAt: row.finalizedAt,
   }));
+}
+
+/** Incorrect attempts still missing a personalised Codex review (this child + archive). */
+export async function countIncorrectAttemptsNeedingReview(
+  db: D1Database,
+  profileId: string,
+  examGoal: ExamGoal,
+  userId: string,
+) {
+  const row = await db.prepare(
+    `SELECT COUNT(*) AS total
+     FROM practice_attempts a
+     JOIN profiles p ON p.id = a.profile_id
+     WHERE a.profile_id = ? AND a.exam_goal = ? AND a.finalized_at IS NOT NULL
+       AND a.is_correct = 0 AND a.attempt_review_en IS NULL AND ${parentAccess}`,
+  ).bind(profileId, examGoal, userId).first<{ total: number }>();
+  return Number(row?.total ?? 0);
 }
 
 export function parsePracticeMode(value: unknown): PracticeMode | null {

@@ -13,16 +13,10 @@ export type GmailSmtpKeys = {
 
 type EnvWithSecrets = typeof env & {
   "gmail-smtp-keys"?: string;
-  "deepseek-api-key"?: string;
 };
 
 function secretsEnv(): EnvWithSecrets {
   return env as EnvWithSecrets;
-}
-
-export function getDeepseekApiKey(): string | null {
-  const value = secretsEnv()["deepseek-api-key"]?.trim();
-  return value ? value : null;
 }
 
 export function getGmailSmtpKeys():
