@@ -403,6 +403,76 @@ p { margin: 0; }
 .practice-timer.is-up { color: var(--danger); }
 .practice-review { margin-top: .9rem; display: grid; gap: .45rem; }
 .practice-review-body { margin: 0; }
+.practice-result-layout {
+  display: grid;
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+  align-items: start;
+}
+.practice-result-sessions {
+  display: grid;
+  gap: .45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.practice-result-session {
+  display: grid;
+  gap: .2rem;
+  width: 100%;
+  text-align: left;
+  padding: .75rem .85rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fcfdf9;
+  color: inherit;
+  cursor: pointer;
+}
+.practice-result-session.is-selected {
+  border-color: #a8bf95;
+  background: var(--pale);
+}
+.practice-result-session-title { font-weight: 650; color: var(--ink); }
+.practice-result-detail {
+  min-width: 0;
+  padding: .85rem 1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fcfdf9;
+}
+.practice-result-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem 1rem;
+  justify-content: space-between;
+  align-items: end;
+  margin-bottom: .85rem;
+}
+.practice-result-detail-head h3 {
+  margin: .25rem 0 0;
+  font-size: 1.2rem;
+  letter-spacing: -.02em;
+}
+.practice-result-attempts { display: grid; gap: .45rem; }
+.practice-result-attempt {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: .15rem .85rem .55rem;
+}
+.practice-result-attempt > summary {
+  display: grid;
+  gap: .15rem;
+  padding: .7rem 0 .55rem;
+  cursor: pointer;
+  list-style: none;
+}
+.practice-result-attempt > summary::-webkit-details-marker { display: none; }
+.practice-result-attempt-body { display: grid; gap: .55rem; padding-bottom: .35rem; }
+@media (max-width: 760px) {
+  .practice-result-layout { grid-template-columns: minmax(0, 1fr); }
+}
 .practice-prompt { margin: .85rem 0 1rem; font-size: 1.05rem; line-height: 1.65; max-width: 62ch; }
 .practice-figure { margin: .75rem 0; }
 .practice-figure img {

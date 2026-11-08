@@ -9,7 +9,12 @@ import { RoomLayout } from "@/components/RoomLayout";
 import { getSession } from "@/lib/auth";
 import { examLabel, hasOpenInvitations, linkedLearner } from "@/lib/family";
 import { getSessionTokenFromCookies } from "@/lib/http";
-import { countUnusedPracticeQuestions, getPracticeSession, latestPracticeSession } from "@/lib/practice";
+import {
+  countUnusedPracticeQuestions,
+  getPracticeSession,
+  latestPracticeSession,
+  listLearnerPracticeResults,
+} from "@/lib/practice";
 
 export default async function LearnerPage() {
   const session = await getSession(await getSessionTokenFromCookies());
@@ -24,12 +29,15 @@ export default async function LearnerPage() {
   const latest = profile
     ? await latestPracticeSession(env.DB, profile.id, profile.examGoal)
     : null;
-  const [practice, remainingCount] = profile
+  const [practice, remainingCount, resultPage] = profile
     ? await Promise.all([
       latest ? getPracticeSession(env.DB, latest.id, session.user_id) : Promise.resolve(null),
       countUnusedPracticeQuestions(env.DB, profile.id, profile.examGoal),
+      listLearnerPracticeResults(env.DB, session.user_id, { sessionLimit: 11 }),
     ])
-    : [null, 0];
+    : [null, 0, [] as Awaited<ReturnType<typeof listLearnerPracticeResults>>];
+  const resultsHasMore = resultPage.length > 10;
+  const resultSessions = resultsHasMore ? resultPage.slice(0, 10) : resultPage;
 
   const name = profile?.nickname || "Learner";
   const badge = profile ? `${examLabel(profile.examGoal)} · Personal practice` : "Your account";
@@ -45,6 +53,8 @@ export default async function LearnerPage() {
         <LearnerPractice
           initialSession={practice}
           initialRemainingCount={remainingCount}
+          initialResultSessions={resultSessions}
+          initialResultsHasMore={resultsHasMore}
           profile={{ id: profile.id, examGoal: profile.examGoal, nickname: profile.nickname }}
         />
       ) : (

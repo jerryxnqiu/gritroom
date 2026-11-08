@@ -3,7 +3,13 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 
-import type { PracticeAttemptView, PracticeMode, PracticeSessionView } from "@/lib/practice";
+import type {
+  PracticeAttemptView,
+  PracticeMode,
+  PracticeResultSessionSummary,
+  PracticeSessionView,
+} from "@/lib/practice";
+import { LearnerResults } from "./LearnerResults";
 
 type Profile = { id: string; examGoal: "selective" | "oc"; nickname: string };
 type Phase = "hub" | "question";
@@ -39,10 +45,14 @@ function parseSection(hash: string, session: PracticeSessionView | null): Sectio
 export function LearnerPractice({
   initialSession,
   initialRemainingCount,
+  initialResultSessions,
+  initialResultsHasMore = false,
   profile,
 }: {
   initialSession: PracticeSessionView | null;
   initialRemainingCount: number;
+  initialResultSessions: PracticeResultSessionSummary[];
+  initialResultsHasMore?: boolean;
   profile: Profile;
 }) {
   const paper = timedPaperSpec(profile.examGoal);
@@ -347,54 +357,13 @@ export function LearnerPractice({
   }
 
   if (section === "results") {
-    const correct = answered.filter((item) => item.isCorrect).length;
     return (
       <>
         {sectionNav}
-        <section className="panel practice-panel" aria-labelledby="practice-heading">
-          {!finished || !session ? (
-            <>
-              <p className="eyebrow">Last results</p>
-              <h2 id="practice-heading">No finished set yet.</h2>
-              <p className="lede">
-                When you complete a practice set or timed paper, the question-by-question review lands here.
-              </p>
-              <div className="actions">
-                <button type="button" className="button" onClick={() => go("practice")}>Go to Practice</button>
-                <button type="button" className="button secondary" onClick={() => go("timed")}>Go to Timed paper</button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="eyebrow">{modeLabel(session.mode)} complete</p>
-              <h2 id="practice-heading">Nice work.</h2>
-              <p className="lede">
-                You answered {correct} of {total} correctly. Your family can also review this under practice evidence.
-              </p>
-              <ul className="practice-summary">
-                {answered.map((item, itemIndex) => (
-                  <li key={item.id}>
-                    <span className="meta">Q{itemIndex + 1}</span>
-                    <strong className={item.isCorrect ? "practice-ok" : "practice-miss"}>
-                      {item.isCorrect ? "Correct" : "Not yet"} · {item.selectedOption}
-                    </strong>
-                    {item.blueprintTitle ? <span className="meta">{item.blueprintTitle}</span> : null}
-                    {!item.isCorrect && (item.attemptReviewEn || item.explanationEn) ? (
-                      <p className="shelf-copy practice-review-body">
-                        {item.attemptReviewEn || item.explanationEn}
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-              <div className="actions practice-start-actions">
-                <button type="button" className="button" onClick={() => go("practice")}>Start another practice</button>
-                <button type="button" className="button secondary" onClick={() => go("timed")}>Open timed paper</button>
-              </div>
-            </>
-          )}
-          {status ? <p className={status.error ? "error" : "notice"} role={status.error ? "alert" : "status"}>{status.text}</p> : null}
-        </section>
+        <LearnerResults
+          initialSessions={initialResultSessions}
+          initialHasMore={initialResultsHasMore}
+        />
       </>
     );
   }
