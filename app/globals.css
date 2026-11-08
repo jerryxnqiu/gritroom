@@ -46,10 +46,11 @@ p { margin: 0; }
 .wordmark strong { font-size: 1.32rem; line-height: 1.1; letter-spacing: -.055em; }
 .wordmark small { margin-top: .26rem; font-size: .44rem; letter-spacing: .19em; font-weight: 750; text-transform: uppercase; }
 .brand-mark { display: grid; place-items: center; position: relative; width: 39px; height: 43px; border-radius: 12px; background: var(--forest); color: white; font: bold 39px/.94 var(--font-display); padding: 0 7px 3px 0; }
-.brand-mark span { position: absolute; right: 4px; bottom: 4px; color: var(--lime); font-size: 23px; }
+.brand-letter { transform: translateY(-5px); }
+.brand-dot { position: absolute; right: 4px; bottom: 4px; color: var(--lime); font-size: 23px; }
 .wordmark-light { color: #f4f8ed; }
 .wordmark-light .brand-mark { color: var(--forest); background: var(--lime); }
-.wordmark-light .brand-mark span { color: var(--moss); }
+.wordmark-light .brand-dot { color: var(--moss); }
 .button {
   min-height: 46px; display: inline-flex; align-items: center; justify-content: center; gap: .85rem;
   padding: .72rem 1rem; border: 1px solid transparent; border-radius: 8px; background: var(--green);

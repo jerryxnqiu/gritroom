@@ -3,7 +3,10 @@ import Link from "next/link";
 export function Brand({ light = false }: { light?: boolean }) {
   return (
     <Link className={`wordmark${light ? " wordmark-light" : ""}`} href="/" aria-label="GritRoom home">
-      <span className="brand-mark" aria-hidden="true">g<span>.</span></span>
+      <span className="brand-mark" aria-hidden="true">
+        <span className="brand-letter">g</span>
+        <span className="brand-dot">.</span>
+      </span>
       <span><strong>GritRoom</strong><small>A little better, every day</small></span>
     </Link>
   );
