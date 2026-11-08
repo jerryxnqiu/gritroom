@@ -371,6 +371,8 @@ p { margin: 0; }
 .shelf-notes, .shelf-feedback-form, .shelf-codex-form { margin-top: .7rem; }
 .shelf-codex-form { max-width: 40rem; }
 .shelf-codex-form .actions { margin-top: .2rem; }
+.shelf-bank-action { display: grid; gap: .7rem; justify-items: start; margin-top: .85rem; }
+.shelf-bank-action .notice, .shelf-bank-action .error { margin: 0; max-width: 42rem; }
 .shelf-copy { white-space: pre-wrap; overflow-wrap: anywhere; }
 .shelf-feedback-form > button { justify-self: start; }
 .shelf-feedback-form ~ p { margin-top: .7rem; }

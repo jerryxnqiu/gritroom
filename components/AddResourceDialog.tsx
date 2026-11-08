@@ -44,7 +44,7 @@ export function AddResourceDialog({ profileId, goal }: { profileId: string; goal
       {notice ? <span className="meta" role="status">{notice}</span> : null}
       <dialog ref={dialog} className="shelf-dialog" aria-labelledby="add-resource-heading" onCancel={(event) => { if (pending) event.preventDefault(); }}>
         <h3 id="add-resource-heading">Add a resource</h3>
-        <p className="meta">Save a report, video link, photo or study document to this child’s archive.</p>
+        <p className="meta">Save a coaching report/video, or miscellaneous practice-question pages for bank generation.</p>
         <form onSubmit={save} aria-busy={pending}>
           <fieldset className="stack-form" disabled={pending}>
             <div className="shelf-form-pair">
@@ -66,7 +66,7 @@ export function AddResourceDialog({ profileId, goal }: { profileId: string; goal
               <textarea name="notes" rows={3} maxLength={6000} placeholder="Optional context for a later Codex review" />
             </label>
             <label className="field"><span>Attach a file (optional)</span><input name="file" type="file" accept={materialTypes.join(",")} aria-describedby="resource-file-help" /></label>
-            <p id="resource-file-help" className="meta">PDF, JPG, PNG or WebP · up to 8 MB. After saving, click Ask Codex so an agent can read D1/R2 and write the analysis back.</p>
+            <p id="resource-file-help" className="meta">PDF, JPG, PNG or WebP · up to 8 MB. Coaching items can be reviewed with Ask Codex; practice-question sources feed Ask Codex to generate practice bank.</p>
             {error ? <p className="error" role="alert">{error}</p> : null}
             <div className="shelf-actions">
               <button type="submit" className="button">{pending ? "Saving…" : "Save resource"}</button>

@@ -3,7 +3,7 @@ import type { ExamGoal } from "./family";
 export const materialKinds = {
   coaching_report: "Coaching report",
   coaching_video: "Coaching video",
-  study_material: "Extra study material",
+  study_material: "Practice questions (misc. source)",
 } as const;
 
 export type MaterialKind = keyof typeof materialKinds;

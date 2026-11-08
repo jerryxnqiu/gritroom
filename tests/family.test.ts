@@ -5,9 +5,11 @@ import assert from "node:assert/strict";
 import { hasLearnerInvitation, isInstallationOwner, linkedLearner, listManagedFamilies, listParentProfiles } from "../lib/family.ts";
 import { acceptInvitation, childAccess, closeInvitation, issueInvitation, recipientInvitations, revokeGuardian } from "../lib/invitations.ts";
 import {
+  buildCodexBankBrief,
   buildCodexMaterialBrief,
   getMaterialForCodex,
   listMaterialAnalyses,
+  listMaterialsForCodexBank,
   parseCodexAnalysisInput,
   saveCodexMaterialAnalysis,
 } from "../lib/material-analysis.ts";
@@ -205,6 +207,18 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(brief, /material_analyses/);
   assert.match(brief, /gritroom-db/);
   assert.match(brief, /learning_evidence/);
+  const bankShelf = await listMaterialsForCodexBank(db, "p1", "selective", "owner");
+  assert.ok(bankShelf);
+  assert.equal(bankShelf.materials.length, 2);
+  const bankBrief = buildCodexBankBrief({
+    profileId: "p1",
+    goal: "selective",
+    nickname: bankShelf.nickname,
+    actorUserId: "owner",
+    materials: bankShelf.materials,
+  });
+  assert.match(bankBrief, /practice_questions/);
+  assert.match(bankBrief, /Practice questions from miscellaneous sources/);
   assert.equal("error" in parseCodexAnalysisInput({ json: "{" }), true);
   const parsed = parseCodexAnalysisInput({
     json: JSON.stringify({

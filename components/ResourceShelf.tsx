@@ -6,6 +6,7 @@ import { listMaterialAnalyses } from "@/lib/material-analysis";
 import { listPracticeEvidence } from "@/lib/practice";
 import { readShelf } from "@/lib/resource-shelf";
 import { AddResourceDialog } from "./AddResourceDialog";
+import { AskCodexBankButton } from "./AskCodexBankButton";
 import { PracticeEvidence } from "./PracticeEvidence";
 import { QuestionFoundations } from "./QuestionFoundations";
 import { ShelfFeedbackForm } from "./ShelfFeedbackForm";
@@ -25,7 +26,7 @@ export async function ResourceShelf({ profile, goal, userId }: { profile: Parent
     <section className="panel family-panel" id="resource-shelf" aria-labelledby="resource-shelf-heading">
       <p className="eyebrow">03 / Practice inputs</p>
       <h2 id="resource-shelf-heading">Resource shelf</h2>
-      <p className="lede">Store coaching materials for {profile.nickname}, review them with Codex, and keep practice evidence and preferences for later generation.</p>
+      <p className="lede">Store coaching reports and miscellaneous practice-question sources for {profile.nickname}. Ask Codex once to refresh the practice bank from everything in this archive.</p>
       <div className="shelf-toolbar">
         <nav className="shelf-actions" aria-label="Exam archive">
           {(["selective", "oc"] as const).map((archive) => (
@@ -52,20 +53,35 @@ export async function ResourceShelf({ profile, goal, userId }: { profile: Parent
       </details>
 
       <details className="family-subsection" open={study.length > 0}>
-        <summary id="shelf-study">03 · Extra study materials</summary>
+        <summary id="shelf-study">03 · Practice questions from other sources</summary>
         <div className="shelf-nest">
-          <ShelfMaterialList profileId={profile.id} materials={study} analyses={analyses.filter((item) => study.some((material) => material.id === item.materialId))} empty="No extra study materials in this archive yet." />
+          <p className="meta">Workbook pages and other miscellaneous practice papers used as style exemplars. No per-file Codex click — use the bank button below.</p>
+          <ShelfMaterialList
+            profileId={profile.id}
+            materials={study}
+            analyses={analyses.filter((item) => study.some((material) => material.id === item.materialId))}
+            empty="No miscellaneous practice-question sources in this archive yet."
+            showAskCodex={false}
+          />
         </div>
       </details>
 
+      <section className="family-subsection shelf-anchor" id="practice-bank" aria-labelledby="shelf-bank">
+        <h3 id="shelf-bank">04 · Generate practice bank</h3>
+        <p className="meta">
+          One Codex task for this archive: official blueprints + coaching reports/videos + the practice sources above → new versioned rows in D1 <code>practice_questions</code>.
+        </p>
+        <AskCodexBankButton profileId={profile.id} goal={goal} disabled={materials.length === 0} />
+      </section>
+
       <section className="family-subsection shelf-anchor" id="practice-evidence" aria-labelledby="shelf-practice">
-        <h3 id="shelf-practice">04 · Practice evidence</h3>
+        <h3 id="shelf-practice">05 · Practice evidence</h3>
         <p className="meta">Per-question answers, time, confidence and draft notes from {profile.nickname}’s learner room. Together with material analyses above, these records will feed daily summaries and new question generation.</p>
         <PracticeEvidence items={evidence} />
       </section>
 
       <section className="family-subsection shelf-anchor" id="parent-feedback" aria-labelledby="shelf-feedback">
-        <h3 id="shelf-feedback">05 · Feedback &amp; question preferences</h3>
+        <h3 id="shelf-feedback">06 · Feedback &amp; question preferences</h3>
         <p className="meta">Save your observations or share what your child says about the questions in this exam archive.</p>
         <ShelfFeedbackForm key={scope} profileId={profile.id} goal={goal} feedback={feedback.map(({ authorId, ...item }) => ({
           ...item, canWithdraw: Boolean(profile.canManage) || authorId === userId,

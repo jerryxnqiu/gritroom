@@ -103,6 +103,119 @@ export async function getMaterialForCodex(
   ).bind(materialId, profileId, userId).first<MaterialRow>();
 }
 
+export async function listMaterialsForCodexBank(
+  db: D1Database,
+  profileId: string,
+  goal: ExamGoal,
+  userId: string,
+) {
+  const profile = await db.prepare(
+    `SELECT p.nickname FROM profiles p WHERE p.id = ? AND ${parentAccess}`,
+  ).bind(profileId, userId).first<{ nickname: string }>();
+  if (!profile) return null;
+
+  const { results } = await db.prepare(
+    `SELECT m.id, m.kind, m.title, m.source_url AS url, m.notes, m.file_key AS fileKey,
+            m.file_name AS fileName, m.file_type AS fileType, m.exam_goal AS examGoal,
+            m.created_by_user_id AS createdByUserId
+     FROM shelf_materials m JOIN profiles p ON p.id = m.profile_id
+     WHERE m.profile_id = ? AND m.exam_goal = ? AND ${parentAccess}
+     ORDER BY m.kind, m.created_at DESC, m.id DESC`,
+  ).bind(profileId, goal, userId).all<Omit<MaterialRow, "nickname">>();
+
+  return { nickname: profile.nickname, materials: results };
+}
+
+/**
+ * One Codex task for the whole archive: coaching reports + misc practice sources → refresh practice_questions.
+ */
+export function buildCodexBankBrief(input: {
+  profileId: string;
+  goal: ExamGoal;
+  nickname: string;
+  actorUserId: string;
+  materials: Omit<MaterialRow, "nickname" | "examGoal" | "createdByUserId">[];
+}) {
+  const { profileId, goal, nickname, actorUserId, materials } = input;
+  const stamp = nowIso();
+  const coaching = materials.filter((item) => item.kind !== "study_material");
+  const practiceSources = materials.filter((item) => item.kind === "study_material");
+
+  const lineFor = (item: (typeof materials)[number]) => [
+    `- [${item.kind}] ${item.title} (material_id=${item.id})`,
+    item.fileKey ? `  r2_key=${item.fileKey} file=${item.fileName || item.id}` : null,
+    item.url ? `  url=${item.url}` : null,
+    item.notes?.trim() ? `  notes=${item.notes.trim().slice(0, 240)}` : null,
+  ].filter(Boolean).join("\n");
+
+  return [
+    "GritRoom Codex practice-bank generation",
+    "",
+    "You are working in the local gritroom repo with wrangler access to remote D1/R2.",
+    "Use ALL shelf inputs below (coaching reports/videos + miscellaneous practice-question sources)",
+    "plus official thinking blueprints to refresh the active practice question bank.",
+    "Write original Selective/OC Thinking Skills items. Do NOT copy commercial or NSW sample stems.",
+    "Follow each blueprint authoring_rule and verification_rule. Respect evidence limits from coaching notes.",
+    "",
+    "## Scope",
+    `- profile_id: ${profileId}`,
+    `- learner: ${nickname}`,
+    `- exam_goal: ${goal}`,
+    `- actor_user_id: ${actorUserId}`,
+    `- prepared_at: ${stamp}`,
+    "",
+    "## Where to read",
+    `- D1: ${CODEX_D1_NAME} (${CODEX_D1_ID}) via wrangler.d1.jsonc`,
+    `- R2 bucket: ${CODEX_R2_BUCKET}`,
+    "",
+    "Official foundations:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, version, skill, title, method, authoring_rule, verification_rule FROM thinking_blueprints;"`,
+    "```",
+    "",
+    "Current active bank (do not delete old versions; insert new versions instead):",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, version, blueprint_id, substr(prompt,1,80) AS prompt, correct_option, image_key, status FROM practice_questions WHERE status = 'active' ORDER BY blueprint_id, id, version;"`,
+    "```",
+    "",
+    "Succeeded material analyses already on file (optional context):",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT material_id, summary_en, training_directions_json, evidence_limits FROM material_analyses WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND status = 'succeeded' ORDER BY created_at DESC;"`,
+    "```",
+    "",
+    `## Coaching reports & videos (${coaching.length})`,
+    coaching.length ? coaching.map(lineFor).join("\n") : "(none in this archive)",
+    "",
+    `## Practice questions from miscellaneous sources (${practiceSources.length})`,
+    "These are style exemplars / workbook pages — use them for difficulty, method and layout cues.",
+    practiceSources.length ? practiceSources.map(lineFor).join("\n") : "(none in this archive)",
+    "",
+    "Download each R2 file you need, e.g.:",
+    "```sh",
+    `npx wrangler r2 object get ${CODEX_R2_BUCKET}/R2_KEY --file /tmp/source.bin --remote`,
+    "```",
+    "",
+    "## What to write",
+    "For each blueprint that should stay covered for this exam goal, insert a new active practice_questions row",
+    "(same id, version = previous max + 1, or a new id if adding coverage). Text-only is fine when no figure is needed.",
+    "If a figure is required, upload an immutable object under",
+    "`question-bank/{questionId}/v{version}/figure.webp` in R2 and set image_key / image_name / image_type.",
+    "Retire superseded versions with status = 'retired' only after the new active version is inserted.",
+    "",
+    "Example insert shape:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO practice_questions (id, version, blueprint_id, blueprint_version, prompt, options_json, correct_option, status, created_at) VALUES ('q-example', 2, 'necessary-vs-sufficient', 1, 'PROMPT', '{\\"A\\":\\"\\",\\"B\\":\\"\\",\\"C\\":\\"\\",\\"D\\":\\"\\"}', 'B', 'active', '${stamp}');"`,
+    "```",
+    "",
+    "Confirm coverage:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT blueprint_id, id, version, substr(prompt,1,100) AS prompt FROM practice_questions WHERE status = 'active' ORDER BY blueprint_id, id;"`,
+    "```",
+    "",
+    "Then tell the parent to refresh Parent room → Resource shelf / start a new practice session.",
+  ].join("\n");
+}
+
 /**
  * Agent task for Codex: read this material from remote D1/R2 and write findings back to D1.
  * Parents click one shelf button to copy this into a Codex chat in the gritroom repo.
