@@ -8,12 +8,15 @@ type Profile = { id: string; examGoal: string; nickname: string };
 
 export function LearnerPractice({
   initialSession,
+  initialRemainingCount,
   profile,
 }: {
   initialSession: PracticeSessionView | null;
+  initialRemainingCount: number;
   profile: Profile;
 }) {
   const [session, setSession] = useState(initialSession);
+  const [remainingCount, setRemainingCount] = useState(initialRemainingCount);
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<{ text: string; error?: boolean }>();
   const [selected, setSelected] = useState("");
@@ -30,6 +33,7 @@ export function LearnerPractice({
   const index = review
     ? session!.attempts.findIndex((item) => item.id === review.id)
     : answered.length;
+  const canStartMore = remainingCount > 0;
 
   useEffect(() => {
     if (review) return;
@@ -40,6 +44,7 @@ export function LearnerPractice({
   }, [open?.id, review]);
 
   function start(mode: PracticeMode) {
+    if (!canStartMore) return;
     setStatus(undefined);
     setReview(null);
     startTransition(async () => {
@@ -49,9 +54,14 @@ export function LearnerPractice({
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ mode }),
         });
-        const data = await response.json() as { session?: PracticeSessionView; error?: string };
+        const data = await response.json() as {
+          session?: PracticeSessionView;
+          remainingCount?: number;
+          error?: string;
+        };
         if (!response.ok || !data.session) throw new Error(data.error || "Could not start practice.");
         setSession(data.session);
+        if (typeof data.remainingCount === "number") setRemainingCount(data.remainingCount);
       } catch (error) {
         setStatus({ text: error instanceof Error ? error.message : "Could not start practice.", error: true });
       }
@@ -80,6 +90,7 @@ export function LearnerPractice({
         const data = await response.json() as {
           session?: PracticeSessionView;
           attempt?: PracticeAttemptView;
+          remainingCount?: number;
           error?: string;
         };
         if (!response.ok || !data.session || !data.attempt) {
@@ -87,10 +98,31 @@ export function LearnerPractice({
         }
         setSession(data.session);
         setReview(data.attempt);
+        if (typeof data.remainingCount === "number") setRemainingCount(data.remainingCount);
       } catch (error) {
         setStatus({ text: error instanceof Error ? error.message : "Could not save your answer.", error: true });
       }
     });
+  }
+
+  function startActions() {
+    if (!canStartMore) {
+      return (
+        <p className="meta">
+          You have finished every practice question available right now. Ask your family to refresh the practice bank when they are ready.
+        </p>
+      );
+    }
+    return (
+      <div className="actions">
+        <button type="button" className="button" disabled={pending} onClick={() => start("diagnostic")}>
+          {session ? "New starting-point check" : "Starting-point check"}
+        </button>
+        <button type="button" className="button secondary" disabled={pending} onClick={() => start("daily")}>
+          {session ? "Another focused practice" : "Focused practice"}
+        </button>
+      </div>
+    );
   }
 
   if (!session) {
@@ -100,15 +132,9 @@ export function LearnerPractice({
         <h2 id="practice-heading">Begin when you are ready.</h2>
         <p className="lede">
           Short checked questions for {profile.nickname}. Your answers, time and confidence are saved for your family room.
+          {canStartMore ? ` ${remainingCount} question${remainingCount === 1 ? "" : "s"} waiting.` : ""}
         </p>
-        <div className="actions">
-          <button type="button" className="button" disabled={pending} onClick={() => start("diagnostic")}>
-            Starting-point check
-          </button>
-          <button type="button" className="button secondary" disabled={pending} onClick={() => start("daily")}>
-            Focused practice
-          </button>
-        </div>
+        {startActions()}
         {status ? <p className={status.error ? "error" : "notice"} role={status.error ? "alert" : "status"}>{status.text}</p> : null}
       </section>
     );
@@ -122,6 +148,9 @@ export function LearnerPractice({
         <h2 id="practice-heading">Nice work.</h2>
         <p className="lede">
           You answered {correct} of {total} correctly. Your family can review the detail under practice evidence.
+          {canStartMore
+            ? ` ${remainingCount} question${remainingCount === 1 ? "" : "s"} still waiting if you want another round.`
+            : " There are no new practice questions left until your family refreshes the bank."}
         </p>
         <ul className="practice-summary">
           {answered.map((item, itemIndex) => (
@@ -134,14 +163,7 @@ export function LearnerPractice({
             </li>
           ))}
         </ul>
-        <div className="actions">
-          <button type="button" className="button" disabled={pending} onClick={() => start("daily")}>
-            Another focused practice
-          </button>
-          <button type="button" className="button secondary" disabled={pending} onClick={() => start("diagnostic")}>
-            New starting-point check
-          </button>
-        </div>
+        {startActions()}
         {status ? <p className={status.error ? "error" : "notice"} role={status.error ? "alert" : "status"}>{status.text}</p> : null}
       </section>
     );

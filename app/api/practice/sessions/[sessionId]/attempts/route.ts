@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 
 import { getSession } from "@/lib/auth";
 import { getSessionTokenFromCookies, json, readJson } from "@/lib/http";
-import { parseAttemptInput, submitPracticeAttempt } from "@/lib/practice";
+import { countUnusedPracticeQuestions, parseAttemptInput, submitPracticeAttempt } from "@/lib/practice";
 
 export async function POST(request: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const session = await getSession(await getSessionTokenFromCookies());
@@ -15,5 +15,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
   const { sessionId } = await params;
   const result = await submitPracticeAttempt(env.DB, session.user_id, sessionId, input);
   if (!result.ok) return json({ error: result.error }, { status: result.status });
-  return json({ session: result.session, attempt: result.attempt });
+  const remainingCount = await countUnusedPracticeQuestions(
+    env.DB,
+    result.session.profileId,
+    result.session.examGoal,
+  );
+  return json({ session: result.session, attempt: result.attempt, remainingCount });
 }

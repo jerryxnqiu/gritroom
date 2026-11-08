@@ -8,7 +8,7 @@ import { RoomLayout } from "@/components/RoomLayout";
 import { getSession } from "@/lib/auth";
 import { examLabel, hasOpenInvitations, linkedLearner } from "@/lib/family";
 import { getSessionTokenFromCookies } from "@/lib/http";
-import { activePracticeSession, getPracticeSession } from "@/lib/practice";
+import { countUnusedPracticeQuestions, getPracticeSession, latestPracticeSession } from "@/lib/practice";
 
 export default async function LearnerPage() {
   const session = await getSession(await getSessionTokenFromCookies());
@@ -20,12 +20,15 @@ export default async function LearnerPage() {
     hasOpenInvitations(env.DB, session.email),
   ]);
 
-  const active = profile
-    ? await activePracticeSession(env.DB, profile.id, profile.examGoal)
+  const latest = profile
+    ? await latestPracticeSession(env.DB, profile.id, profile.examGoal)
     : null;
-  const practice = active
-    ? await getPracticeSession(env.DB, active.id, session.user_id)
-    : null;
+  const [practice, remainingCount] = profile
+    ? await Promise.all([
+      latest ? getPracticeSession(env.DB, latest.id, session.user_id) : Promise.resolve(null),
+      countUnusedPracticeQuestions(env.DB, profile.id, profile.examGoal),
+    ])
+    : [null, 0];
 
   return (
     <RoomLayout role="learner" name={profile?.nickname || "Learner"} badge={profile ? `${examLabel(profile.examGoal)} · Personal practice` : "Your account"}>
@@ -38,6 +41,7 @@ export default async function LearnerPage() {
       {profile ? (
         <LearnerPractice
           initialSession={practice}
+          initialRemainingCount={remainingCount}
           profile={{ id: profile.id, examGoal: profile.examGoal, nickname: profile.nickname }}
         />
       ) : (

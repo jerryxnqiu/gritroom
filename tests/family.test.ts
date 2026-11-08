@@ -14,7 +14,13 @@ import {
   parseCodexAnalysisInput,
   saveCodexMaterialAnalysis,
 } from "../lib/material-analysis.ts";
-import { listPracticeEvidence, startPracticeSession, submitPracticeAttempt } from "../lib/practice.ts";
+import {
+  countUnusedPracticeQuestions,
+  latestPracticeSession,
+  listPracticeEvidence,
+  startPracticeSession,
+  submitPracticeAttempt,
+} from "../lib/practice.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
@@ -352,4 +358,89 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   assert.equal(evidence[0]?.draftNotes, "Checked the rule direction.");
   assert.equal(evidence[0]?.isCorrect, true);
   assert.equal((await listPracticeEvidence(db, "p1", "oc", "owner")).length, 0);
+
+  // Finish remaining open attempts so the session completes, then latest should still surface it.
+  let current = saved.session;
+  while (current.status === "active") {
+    const open = current.attempts.find((item) => !item.finalizedAt);
+    assert.ok(open);
+    const answer = sql.prepare(
+      "SELECT correct_option AS correctOption FROM practice_questions WHERE prompt = ? AND status = 'active'",
+    ).get(open.prompt) as { correctOption: string } | undefined;
+    assert.ok(answer);
+    const next = await submitPracticeAttempt(db, "learner", current.id, {
+      attemptId: open.id,
+      selectedOption: answer.correctOption,
+      confidence: 3,
+      timeMs: 1_000,
+      draftNotes: "",
+    });
+    assert.equal(next.ok, true);
+    if (!next.ok) return;
+    current = next.session;
+  }
+  const latest = await latestPracticeSession(db, "p1", "selective");
+  assert.equal(latest?.id, current.id);
+  const remainingAfterDaily = await countUnusedPracticeQuestions(db, "p1", "selective");
+  assert.ok(remainingAfterDaily > 0);
+
+  const nextRound = await startPracticeSession(db, "learner", "daily");
+  assert.equal(nextRound.ok, true);
+  if (!nextRound.ok) return;
+  assert.notEqual(nextRound.session.id, current.id);
+  for (const attempt of nextRound.session.attempts) {
+    assert.equal(
+      current.attempts.some((item) => item.prompt === attempt.prompt),
+      false,
+    );
+  }
+
+  // Finish every remaining unused question via a full starting-point check.
+  let sweep = nextRound.session;
+  while (sweep.status === "active") {
+    const open = sweep.attempts.find((item) => !item.finalizedAt);
+    assert.ok(open);
+    const answer = sql.prepare(
+      "SELECT correct_option AS correctOption FROM practice_questions WHERE prompt = ? AND status = 'active'",
+    ).get(open.prompt) as { correctOption: string } | undefined;
+    assert.ok(answer);
+    const next = await submitPracticeAttempt(db, "learner", sweep.id, {
+      attemptId: open.id,
+      selectedOption: answer.correctOption,
+      confidence: 3,
+      timeMs: 500,
+      draftNotes: "",
+    });
+    assert.equal(next.ok, true);
+    if (!next.ok) return;
+    sweep = next.session;
+  }
+  while ((await countUnusedPracticeQuestions(db, "p1", "selective")) > 0) {
+    const more = await startPracticeSession(db, "learner", "diagnostic");
+    assert.equal(more.ok, true);
+    if (!more.ok) return;
+    let run = more.session;
+    while (run.status === "active") {
+      const open = run.attempts.find((item) => !item.finalizedAt);
+      assert.ok(open);
+      const answer = sql.prepare(
+        "SELECT correct_option AS correctOption FROM practice_questions WHERE prompt = ? AND status = 'active'",
+      ).get(open.prompt) as { correctOption: string } | undefined;
+      assert.ok(answer);
+      const next = await submitPracticeAttempt(db, "learner", run.id, {
+        attemptId: open.id,
+        selectedOption: answer.correctOption,
+        confidence: 3,
+        timeMs: 500,
+        draftNotes: "",
+      });
+      assert.equal(next.ok, true);
+      if (!next.ok) return;
+      run = next.session;
+    }
+  }
+  assert.equal(await countUnusedPracticeQuestions(db, "p1", "selective"), 0);
+  const blocked = await startPracticeSession(db, "learner", "daily");
+  assert.equal(blocked.ok, false);
+  if (!blocked.ok) assert.equal(blocked.status, 409);
 });

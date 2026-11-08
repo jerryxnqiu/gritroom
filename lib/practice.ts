@@ -160,6 +160,17 @@ export async function activePracticeSession(db: D1Database, profileId: string, e
   ).bind(profileId, examGoal).first<{ id: string }>();
 }
 
+/** Prefer an in-progress session; otherwise the most recent completed one for the learner room. */
+export async function latestPracticeSession(db: D1Database, profileId: string, examGoal: ExamGoal) {
+  const active = await activePracticeSession(db, profileId, examGoal);
+  if (active) return active;
+  return db.prepare(
+    `SELECT id FROM practice_sessions
+     WHERE profile_id = ? AND exam_goal = ? AND status = 'completed'
+     ORDER BY completed_at DESC, started_at DESC LIMIT 1`,
+  ).bind(profileId, examGoal).first<{ id: string }>();
+}
+
 /** Latest active bank items whose blueprints apply to the exam goal. */
 export async function loadActivePracticeQuestions(db: D1Database, blueprintIds: string[]) {
   if (!blueprintIds.length) return [] as PracticeQuestion[];
@@ -178,6 +189,52 @@ export async function loadActivePracticeQuestions(db: D1Database, blueprintIds: 
      ORDER BY q.blueprint_id, q.id`,
   ).bind(...blueprintIds).all<PracticeQuestion>();
   return results;
+}
+
+/** Active bank items this learner has not yet answered for the current question version. */
+export async function loadUnusedPracticeQuestions(
+  db: D1Database,
+  profileId: string,
+  examGoal: ExamGoal,
+  blueprintIds: string[],
+) {
+  if (!blueprintIds.length) return [] as PracticeQuestion[];
+  const placeholders = blueprintIds.map(() => "?").join(", ");
+  const { results } = await db.prepare(
+    `SELECT q.id, q.version, q.blueprint_id AS blueprintId, q.blueprint_version AS blueprintVersion,
+            q.prompt, q.options_json AS optionsJson, q.correct_option AS correctOption,
+            q.image_key AS imageKey, q.explanation_en AS explanationEn
+     FROM practice_questions q
+     WHERE q.status = 'active'
+       AND q.blueprint_id IN (${placeholders})
+       AND q.version = (
+         SELECT MAX(other.version) FROM practice_questions other
+         WHERE other.id = q.id AND other.status = 'active'
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM practice_attempts a
+         WHERE a.profile_id = ? AND a.exam_goal = ?
+           AND a.question_id = q.id AND a.question_version = q.version
+           AND a.finalized_at IS NOT NULL
+       )
+     ORDER BY q.blueprint_id, q.id`,
+  ).bind(...blueprintIds, profileId, examGoal).all<PracticeQuestion>();
+  return results;
+}
+
+export async function countUnusedPracticeQuestions(
+  db: D1Database,
+  profileId: string,
+  examGoal: ExamGoal,
+) {
+  const { blueprints } = await thinkingKnowledge(db, examGoal);
+  const unused = await loadUnusedPracticeQuestions(
+    db,
+    profileId,
+    examGoal,
+    blueprints.map((item) => item.id),
+  );
+  return unused.length;
 }
 
 async function loadAttempts(db: D1Database, sessionId: string) {
@@ -236,11 +293,24 @@ export async function startPracticeSession(
   }
 
   const { blueprints } = await thinkingKnowledge(db, profile.examGoal);
-  const bank = await loadActivePracticeQuestions(db, blueprints.map((item) => item.id));
-  const questions = pickQuestions(bank, mode);
-  if (!questions.length) {
-    return { ok: false, status: 503, error: "Practice questions for this exam goal are not ready yet." };
+  const unused = await loadUnusedPracticeQuestions(
+    db,
+    profile.id,
+    profile.examGoal,
+    blueprints.map((item) => item.id),
+  );
+  if (!unused.length) {
+    const bank = await loadActivePracticeQuestions(db, blueprints.map((item) => item.id));
+    if (!bank.length) {
+      return { ok: false, status: 503, error: "Practice questions for this exam goal are not ready yet." };
+    }
+    return {
+      ok: false,
+      status: 409,
+      error: "You have finished every practice question available right now. Ask your family to refresh the practice bank for new ones.",
+    };
   }
+  const questions = pickQuestions(unused, mode);
 
   const sessionId = createId("psn");
   const startedAt = nowIso();

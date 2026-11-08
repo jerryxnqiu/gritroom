@@ -3,8 +3,9 @@ import { env } from "cloudflare:workers";
 import { getSession } from "@/lib/auth";
 import { getSessionTokenFromCookies, json, readJson } from "@/lib/http";
 import {
-  activePracticeSession,
+  countUnusedPracticeQuestions,
   getPracticeSession,
+  latestPracticeSession,
   learnerProfile,
   parsePracticeMode,
   startPracticeSession,
@@ -17,10 +18,13 @@ export async function GET() {
   const profile = await learnerProfile(env.DB, session.user_id);
   if (!profile) return json({ session: null });
 
-  const active = await activePracticeSession(env.DB, profile.id, profile.examGoal);
-  if (!active) return json({ session: null, profile });
-  const practice = await getPracticeSession(env.DB, active.id, session.user_id);
-  return json({ session: practice, profile });
+  const [latest, remainingCount] = await Promise.all([
+    latestPracticeSession(env.DB, profile.id, profile.examGoal),
+    countUnusedPracticeQuestions(env.DB, profile.id, profile.examGoal),
+  ]);
+  if (!latest) return json({ session: null, profile, remainingCount });
+  const practice = await getPracticeSession(env.DB, latest.id, session.user_id);
+  return json({ session: practice, profile, remainingCount });
 }
 
 export async function POST(request: Request) {
@@ -34,5 +38,10 @@ export async function POST(request: Request) {
 
   const result = await startPracticeSession(env.DB, session.user_id, mode);
   if (!result.ok) return json({ error: result.error }, { status: result.status });
-  return json({ session: result.session }, { status: 201 });
+  const remainingCount = await countUnusedPracticeQuestions(
+    env.DB,
+    result.session.profileId,
+    result.session.examGoal,
+  );
+  return json({ session: result.session, remainingCount }, { status: 201 });
 }
