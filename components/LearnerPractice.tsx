@@ -4,8 +4,27 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import type { PracticeAttemptView, PracticeMode, PracticeSessionView } from "@/lib/practice";
 
-type Profile = { id: string; examGoal: string; nickname: string };
+type Profile = { id: string; examGoal: "selective" | "oc"; nickname: string };
 type Phase = "hub" | "question";
+
+function timedPaperSpec(goal: Profile["examGoal"]) {
+  return goal === "oc"
+    ? { questions: 30, minutes: 30, label: "30-question timed paper" }
+    : { questions: 40, minutes: 40, label: "40-question timed paper" };
+}
+
+function modeLabel(mode: string) {
+  if (mode === "diagnostic") return "Starting-point check";
+  if (mode === "timed") return "Timed paper";
+  return "Practice";
+}
+
+function formatClock(totalSeconds: number) {
+  const safe = Math.max(0, totalSeconds);
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
 
 export function LearnerPractice({
   initialSession,
@@ -16,6 +35,7 @@ export function LearnerPractice({
   initialRemainingCount: number;
   profile: Profile;
 }) {
+  const paper = timedPaperSpec(profile.examGoal);
   const [session, setSession] = useState(initialSession);
   const [remainingCount, setRemainingCount] = useState(initialRemainingCount);
   const [phase, setPhase] = useState<Phase>("hub");
@@ -25,6 +45,7 @@ export function LearnerPractice({
   const [confidence, setConfidence] = useState(3);
   const [draftNotes, setDraftNotes] = useState("");
   const [review, setReview] = useState<PracticeAttemptView | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const startedAt = useRef(Date.now());
 
   const open = session?.attempts.find((item) => !item.finalizedAt) ?? null;
@@ -34,12 +55,12 @@ export function LearnerPractice({
   const answered = session?.attempts.filter((item) => item.finalizedAt) ?? [];
   const total = session?.attempts.length ?? 0;
   const left = session?.attempts.filter((item) => !item.finalizedAt).length ?? 0;
-  // Position in this practice set (not a fresh "1 of N" restart counter).
   const questionNumber = current && session
     ? session.attempts.findIndex((item) => item.id === current.id) + 1
     : answered.length + 1;
-  const canStartMore = remainingCount > 0 && !active;
-  // Stay on the question screen while reviewing the last answer, even after the session completes.
+  const canStartPractice = remainingCount > 0 && !active;
+  const canStartTimed = remainingCount >= paper.questions && !active;
+  const timed = session?.mode === "timed";
   const inQuestion = phase === "question" && Boolean(current) && (active || Boolean(review));
 
   useEffect(() => {
@@ -50,8 +71,22 @@ export function LearnerPractice({
     setDraftNotes("");
   }, [open?.id, review]);
 
+  useEffect(() => {
+    if (!session || session.mode !== "timed" || session.status !== "active") {
+      setRemainingSeconds(null);
+      return;
+    }
+    const endsAt = Date.parse(session.startedAt) + timedPaperSpec(session.examGoal).minutes * 60_000;
+    function tick() {
+      setRemainingSeconds(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+    }
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [session?.id, session?.mode, session?.status, session?.startedAt, session?.examGoal]);
+
   function start(mode: PracticeMode) {
-    if (!canStartMore) return;
+    if (mode === "timed" ? !canStartTimed : !canStartPractice) return;
     setStatus(undefined);
     setReview(null);
     startTransition(async () => {
@@ -105,8 +140,14 @@ export function LearnerPractice({
           throw new Error(data.error || "Could not save your answer.");
         }
         setSession(data.session);
-        setReview(data.attempt);
         if (typeof data.remainingCount === "number") setRemainingCount(data.remainingCount);
+        if (data.session.mode === "timed") {
+          const stillOpen = data.session.attempts.some((item) => !item.finalizedAt);
+          setReview(null);
+          if (!stillOpen) setPhase("hub");
+        } else {
+          setReview(data.attempt);
+        }
       } catch (error) {
         setStatus({ text: error instanceof Error ? error.message : "Could not save your answer.", error: true });
       }
@@ -121,7 +162,7 @@ export function LearnerPractice({
 
   function startActions() {
     if (active) return null;
-    if (!canStartMore) {
+    if (!canStartPractice) {
       return (
         <p className="meta">
           You have finished every practice question available right now. Ask your family to refresh the practice bank when they are ready.
@@ -129,26 +170,45 @@ export function LearnerPractice({
       );
     }
     return (
-      <div className="actions">
-        <button type="button" className="button" disabled={pending} onClick={() => start("diagnostic")}>
-          {session ? "New starting-point check" : "Starting-point check"}
+      <div className="actions practice-start-actions">
+        <button type="button" className="button" disabled={pending} onClick={() => start("daily")}>
+          Practice · 5 questions
         </button>
-        <button type="button" className="button secondary" disabled={pending} onClick={() => start("daily")}>
-          {session ? "Another focused practice" : "Focused practice"}
+        <button
+          type="button"
+          className="button secondary"
+          disabled={pending || !canStartTimed}
+          onClick={() => start("timed")}
+        >
+          {paper.label} · {paper.minutes} min
         </button>
+        {!canStartTimed ? (
+          <p className="meta">
+            Timed paper needs {paper.questions} unused questions ({remainingCount} ready). Use Practice for a short set, or ask your family to refresh the bank.
+          </p>
+        ) : (
+          <p className="meta">{remainingCount} unused questions ready in the bank.</p>
+        )}
       </div>
     );
   }
 
   if (inQuestion) {
+    const timeUp = timed && remainingSeconds === 0;
     return (
       <section className="panel practice-panel" aria-labelledby="practice-heading" aria-busy={pending}>
         <p className="eyebrow">
-          {session!.mode === "diagnostic" ? "Starting-point check" : "Focused practice"}
+          {modeLabel(session!.mode)}
           {" · "}
           Question {questionNumber} of {total}
-          {left > 0 ? ` · ${left} left in this set` : ""}
+          {left > 0 ? ` · ${left} left` : ""}
+          {timed && remainingSeconds !== null ? ` · ${formatClock(remainingSeconds)} left` : ""}
         </p>
+        {timed && remainingSeconds !== null ? (
+          <p className={`practice-timer${remainingSeconds <= 5 * 60 ? " is-low" : ""}${timeUp ? " is-up" : ""}`} role="timer" aria-live="polite">
+            {timeUp ? "Time is up — finish this question, then see results." : `Paper time left · ${formatClock(remainingSeconds)}`}
+          </p>
+        ) : null}
         <h2 id="practice-heading">{current?.blueprintTitle || "Your next question"}</h2>
         {current?.skill ? <p className="meta">{current.skill}</p> : null}
         {current?.imageKey ? (
@@ -176,29 +236,33 @@ export function LearnerPractice({
             </label>
           ))}
         </fieldset>
-        <label className="field">
-          <span>How sure are you? ({confidence}/5)</span>
-          <input
-            type="range"
-            min={1}
-            max={5}
-            step={1}
-            value={confidence}
-            disabled={pending || Boolean(review)}
-            onChange={(event) => setConfidence(Number(event.target.value))}
-          />
-        </label>
-        <label className="field">
-          <span>Optional working notes</span>
-          <textarea
-            rows={3}
-            maxLength={8000}
-            value={draftNotes}
-            disabled={pending || Boolean(review)}
-            placeholder="Jot the key step or why you ruled an option out."
-            onChange={(event) => setDraftNotes(event.target.value)}
-          />
-        </label>
+        {!timed ? (
+          <>
+            <label className="field">
+              <span>How sure are you? ({confidence}/5)</span>
+              <input
+                type="range"
+                min={1}
+                max={5}
+                step={1}
+                value={confidence}
+                disabled={pending || Boolean(review)}
+                onChange={(event) => setConfidence(Number(event.target.value))}
+              />
+            </label>
+            <label className="field">
+              <span>Optional working notes</span>
+              <textarea
+                rows={3}
+                maxLength={8000}
+                value={draftNotes}
+                disabled={pending || Boolean(review)}
+                placeholder="Jot the key step or why you ruled an option out."
+                onChange={(event) => setDraftNotes(event.target.value)}
+              />
+            </label>
+          </>
+        ) : null}
         {review ? (
           <div className="practice-review" role="status">
             <p className={review.isCorrect ? "notice" : "error"}>
@@ -232,7 +296,7 @@ export function LearnerPractice({
             </button>
           ) : (
             <button type="button" className="button" disabled={pending || !selected} onClick={saveAnswer}>
-              Save answer
+              {timed ? "Save and continue" : "Save answer"}
             </button>
           )}
           <button type="button" className="button secondary" disabled={pending} onClick={pauseForLater}>
@@ -248,17 +312,18 @@ export function LearnerPractice({
     return (
       <section className="panel practice-panel" aria-labelledby="practice-heading">
         <p className="eyebrow">
-          {session!.mode === "diagnostic" ? "Starting-point check" : "Focused practice"} · in progress
+          {modeLabel(session!.mode)} · in progress
+          {timed && remainingSeconds !== null ? ` · ${formatClock(remainingSeconds)} left` : ""}
         </p>
         <h2 id="practice-heading">Continue where you left off.</h2>
         <p className="lede">
           {answered.length === 0
-            ? `This practice still has all ${total} question${total === 1 ? "" : "s"} waiting — none are saved yet. Your progress stays saved once you answer.`
+            ? `This ${timed ? "paper" : "practice"} still has all ${total} question${total === 1 ? "" : "s"} waiting — none are saved yet.`
             : `Saved progress: ${answered.length} of ${total} done. Next up is question ${answered.length + 1} of ${total} (${left} left). You will not repeat the ones already saved.`}
         </p>
         <div className="actions">
           <button type="button" className="button" disabled={pending} onClick={() => { setStatus(undefined); setPhase("question"); }}>
-            Continue practice
+            Continue {timed ? "paper" : "practice"}
           </button>
         </div>
         {status ? <p className={status.error ? "error" : "notice"} role={status.error ? "alert" : "status"}>{status.text}</p> : null}
@@ -270,11 +335,11 @@ export function LearnerPractice({
     const correct = answered.filter((item) => item.isCorrect).length;
     return (
       <section className="panel practice-panel" aria-labelledby="practice-heading">
-        <p className="eyebrow">{session.mode === "diagnostic" ? "Starting-point check" : "Focused practice"} complete</p>
+        <p className="eyebrow">{modeLabel(session.mode)} complete</p>
         <h2 id="practice-heading">Nice work.</h2>
         <p className="lede">
           You answered {correct} of {total} correctly. Your family can review the detail under practice evidence.
-          {canStartMore
+          {canStartPractice
             ? ` ${remainingCount} question${remainingCount === 1 ? "" : "s"} still waiting if you want another round.`
             : " There are no new practice questions left until your family refreshes the bank."}
         </p>
@@ -305,8 +370,7 @@ export function LearnerPractice({
       <p className="eyebrow">Thinking Skills</p>
       <h2 id="practice-heading">Begin when you are ready.</h2>
       <p className="lede">
-        Short checked questions for {profile.nickname}. Your answers, time and confidence are saved for your family room.
-        {canStartMore ? ` ${remainingCount} question${remainingCount === 1 ? "" : "s"} waiting.` : ""}
+        Choose a short practice set or a full timed paper. Your answers are saved for your family room.
       </p>
       {startActions()}
       {status ? <p className={status.error ? "error" : "notice"} role={status.error ? "alert" : "status"}>{status.text}</p> : null}

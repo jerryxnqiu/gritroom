@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const body = await readJson<{ mode?: unknown }>(request);
   if (!body) return json({ error: "Invalid request." }, { status: 400 });
   const mode = parsePracticeMode(body.mode);
-  if (!mode) return json({ error: "Choose a starting-point check or focused practice." }, { status: 400 });
+  if (!mode) return json({ error: "Choose Practice or a Timed paper." }, { status: 400 });
 
   const result = await startPracticeSession(env.DB, session.user_id, mode);
   if (!result.ok) return json({ error: result.error }, { status: result.status });

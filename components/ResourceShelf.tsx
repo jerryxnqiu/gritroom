@@ -12,11 +12,13 @@ import { ShelfFeedbackForm } from "./ShelfFeedbackForm";
 import { ShelfMaterialList } from "./ShelfMaterialList";
 
 export async function ResourceShelf({ profile, goal, userId }: { profile: ParentProfile; goal: ExamGoal; userId: string }) {
-  const [{ materials, feedback }, analyses, evidence] = await Promise.all([
+  const [{ materials, feedback }, analyses, evidencePage] = await Promise.all([
     readShelf(env.DB, profile.id, goal, userId),
     listMaterialAnalyses(env.DB, profile.id, goal, userId),
-    listPracticeEvidence(env.DB, profile.id, goal, userId),
+    listPracticeEvidence(env.DB, profile.id, goal, userId, { sessionLimit: 21 }),
   ]);
+  const evidenceHasMore = evidencePage.length > 20;
+  const evidence = evidenceHasMore ? evidencePage.slice(0, 20) : evidencePage;
   const scope = `${profile.id}:${goal}`;
   const coaching = materials.filter((item) => item.kind !== "study_material");
   const study = materials.filter((item) => item.kind === "study_material");
@@ -74,7 +76,12 @@ export async function ResourceShelf({ profile, goal, userId }: { profile: Parent
           <p className="meta">
             Practice sessions from {profile.nickname}’s learner room, grouped for scanning. Default view shows incorrect answers first; open a session for the detail that feeds the practice-bank task.
           </p>
-          <PracticeEvidence sessions={evidence} />
+          <PracticeEvidence
+            profileId={profile.id}
+            goal={goal}
+            initialSessions={evidence}
+            initialHasMore={evidenceHasMore}
+          />
         </div>
       </details>
 

@@ -383,6 +383,17 @@ p { margin: 0; }
 .practice-panel { margin-top: 1.2rem; }
 .practice-panel .actions { margin-top: 1rem; }
 .practice-panel .notice, .practice-panel .error { margin-top: .85rem; }
+.practice-start-actions { display: grid; gap: .65rem; justify-items: start; }
+.practice-timer {
+  margin: .55rem 0 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  color: var(--green);
+}
+.practice-timer.is-low { color: #9a5b12; }
+.practice-timer.is-up { color: var(--danger); }
+.practice-review { margin-top: .9rem; display: grid; gap: .45rem; }
+.practice-review-body { margin: 0; }
 .practice-prompt { margin: .85rem 0 1rem; font-size: 1.05rem; line-height: 1.65; max-width: 62ch; }
 .practice-figure { margin: .75rem 0; }
 .practice-figure img {
