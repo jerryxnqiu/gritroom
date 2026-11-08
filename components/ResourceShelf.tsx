@@ -68,19 +68,23 @@ export async function ResourceShelf({ profile, goal, userId }: { profile: Parent
         </div>
       </details>
 
-      <section className="family-subsection shelf-anchor" id="practice-evidence" aria-labelledby="shelf-practice">
-        <h3 id="shelf-practice">04 · Practice evidence</h3>
-        <p className="meta">Per-question answers, time, confidence and draft notes from {profile.nickname}’s learner room. Together with material analyses above, these records feed the practice-bank task.</p>
-        <PracticeEvidence items={evidence} />
-      </section>
+      <details className="family-subsection shelf-anchor" id="practice-evidence" open={evidence.length > 0}>
+        <summary id="shelf-practice">04 · Practice evidence</summary>
+        <div className="shelf-nest">
+          <p className="meta">Per-question answers, time, confidence and draft notes from {profile.nickname}’s learner room. Together with material analyses above, these records feed the practice-bank task.</p>
+          <PracticeEvidence items={evidence} />
+        </div>
+      </details>
 
-      <section className="family-subsection shelf-anchor" id="parent-feedback" aria-labelledby="shelf-feedback">
-        <h3 id="shelf-feedback">05 · Feedback &amp; question preferences</h3>
-        <p className="meta">Save your observations or share what your child says about the questions in this exam archive.</p>
-        <ShelfFeedbackForm key={scope} profileId={profile.id} goal={goal} feedback={feedback.map(({ authorId, ...item }) => ({
-          ...item, canWithdraw: Boolean(profile.canManage) || authorId === userId,
-        }))} />
-      </section>
+      <details className="family-subsection shelf-anchor" id="parent-feedback" open={feedback.length > 0}>
+        <summary id="shelf-feedback">05 · Feedback &amp; question preferences</summary>
+        <div className="shelf-nest">
+          <p className="meta">Save your observations or share what your child says about the questions in this exam archive.</p>
+          <ShelfFeedbackForm key={scope} profileId={profile.id} goal={goal} feedback={feedback.map(({ authorId, ...item }) => ({
+            ...item, canWithdraw: Boolean(profile.canManage) || authorId === userId,
+          }))} />
+        </div>
+      </details>
     </section>
   );
 }
