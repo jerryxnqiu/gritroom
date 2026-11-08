@@ -42,7 +42,7 @@ Open **Parent room → Resource shelf** for a child. The archive defaults to the
 | Official exam information | Reviewed NSW format, worked examples and versioned authoring blueprints from migration `0004`. | Determines exam coverage, reasoning structure and how to verify an original answer. |
 | Coaching reports and videos | Add a title, YouTube link and optional notes/file. Click **Ask Codex** to copy a task that points at the remote D1 row and R2 object; Codex reads them and writes findings back to D1. | Findings store English summary, optional Chinese parent reading, training directions and evidence limits in `material_analyses`, plus a summary in `learning_evidence`. Deleting the resource removes its analyses and those evidence copies. |
 | Practice questions from other sources | Upload miscellaneous workbook/question pages as style exemplars (no per-file Ask Codex). | Used with coaching materials when you click **Ask Codex to generate practice bank**. |
-| Generate practice bank | One archive-level Codex task lists all shelf materials + blueprints and asks Codex to insert new `practice_questions` versions in D1 (figures to R2 when needed). | Refreshes Starting-point check / Focused practice without rewriting old attempt snapshots. |
+| Generate practice bank | Own parent-room card above Practice inputs. One Codex task reads blueprints, shelf materials, analyses, `learning_evidence`, recent attempts and parent feedback, then inserts new `practice_questions` versions in D1 (figures to R2 when needed). | Refreshes Starting-point check / Focused practice without rewriting old attempt snapshots. |
 | Practice evidence | Learner room starts a resumable starting-point check (all active D1 bank items for the goal) or focused practice (5 items). Questions live in `practice_questions` (optional R2 `image_key` for figures). Each attempt snapshots prompt, options, correct answer, question id/version and image key in `practice_attempts`, plus a summary in `learning_evidence`. | Feeds summaries and later bank refreshes / generation. |
 | Feedback and question preferences | Parents can save observations and preferences. Authors and family administrators can withdraw them. | Active feedback is also copied into `learning_evidence` for later generation context. |
 
@@ -59,10 +59,10 @@ Open **Parent room → Resource shelf** for a child. The archive defaults to the
 Click **Ask Codex** on that item → paste into a Codex chat in this repo → Codex writes `material_analyses` / `learning_evidence`.
 
 **Refresh the practice bank from everything in the archive**  
-1. Upload coaching reports under **02** and miscellaneous practice-question pages under **03**.  
-2. Click **Ask Codex to generate practice bank** under **04**.  
+1. Upload coaching reports and miscellaneous practice-question pages in **03 / Practice inputs**.  
+2. In **02 / Practice bank**, click **Ask Codex to generate practice bank**.  
 3. Paste into a Codex chat in this `gritroom` repo (wrangler logged into the gritroom Cloudflare account).  
-4. Codex reads blueprints + all listed D1/R2 materials and inserts new `practice_questions` versions (optional figures under `question-bank/...` in R2).  
+4. Codex reads D1/R2 inputs (blueprints, materials, analyses, practice evidence, feedback) and inserts new `practice_questions` versions (optional figures under `question-bank/...` in R2).  
 5. Start a new learner practice session to use the refreshed bank.
 
 Migration `0005_resource_shelf.sql` adds the private material index and feedback history. Migration `0006_learning_inputs.sql` adds analyses, learning evidence and practice attempt tables. Migration `0007_practice_questions.sql` adds the versioned D1 question bank (seeded from the original starter items) and attempt snapshot columns for question id/version and figure `image_key`. Attachments and future question figures are stored in R2. Maximum 8 MB per PDF, JPG, PNG or WebP attachment.

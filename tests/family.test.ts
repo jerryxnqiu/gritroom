@@ -219,6 +219,9 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   });
   assert.match(bankBrief, /practice_questions/);
   assert.match(bankBrief, /Practice questions from miscellaneous sources/);
+  assert.match(bankBrief, /learning_evidence/);
+  assert.match(bankBrief, /practice_attempts/);
+  assert.match(bankBrief, /shelf_feedback/);
   assert.equal("error" in parseCodexAnalysisInput({ json: "{" }), true);
   const parsed = parseCodexAnalysisInput({
     json: JSON.stringify({

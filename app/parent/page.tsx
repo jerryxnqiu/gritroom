@@ -5,6 +5,7 @@ import { env } from "cloudflare:workers";
 import { FamilyAccess } from "@/components/FamilyAccess";
 import { FamilyBootstrap } from "@/components/FamilyBootstrap";
 import { ParentSettings } from "@/components/ParentSettings";
+import { PracticeBankPanel } from "@/components/PracticeBankPanel";
 import { ResourceShelf } from "@/components/ResourceShelf";
 import { RoomLayout } from "@/components/RoomLayout";
 import { getSession } from "@/lib/auth";
@@ -15,7 +16,7 @@ import { shelfGoal } from "@/lib/shelf-fields";
 
 const sections = [
   { title: "Family access", text: "Manage child profiles and exam goals.", href: "#family-access", action: "Open family access" },
-  { title: "Parent feedback", text: "Observations and question preferences.", href: "#parent-feedback", action: "Share feedback" },
+  { title: "Practice bank", text: "Ask Codex to refresh questions from the latest shelf evidence.", href: "#practice-bank", action: "Generate practice bank" },
   { title: "Resource shelf", text: "Official sources, reports and study materials.", href: "#resource-shelf", action: "Open resource shelf" },
   { title: "Progress & feedback", text: "Answers, working and next steps.", href: "#practice-evidence", action: "View practice evidence" },
 ];
@@ -59,7 +60,12 @@ export default async function ParentPage({ searchParams }: { searchParams: Promi
       {selected || families.length
         ? <FamilyAccess profiles={profiles} selected={selected} families={families} access={access} />
         : <FamilyBootstrap />}
-      {selected ? <ResourceShelf profile={selected} goal={shelfGoal(params.shelfGoal) ?? selected.examGoal} userId={session.user_id} /> : null}
+      {selected ? (
+        <>
+          <PracticeBankPanel profile={selected} goal={shelfGoal(params.shelfGoal) ?? selected.examGoal} userId={session.user_id} />
+          <ResourceShelf profile={selected} goal={shelfGoal(params.shelfGoal) ?? selected.examGoal} userId={session.user_id} />
+        </>
+      ) : null}
       {owner ? <ParentSettings /> : null}
     </RoomLayout>
   );
