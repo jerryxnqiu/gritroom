@@ -10,12 +10,13 @@ export type RoomNavItem = {
 };
 
 export function RoomLayout({
-  role, name, badge, navItems, children,
+  role, name, badge, navItems, onNavItemClick, children,
 }: {
   role: "parent" | "learner";
   name: string;
   badge: string;
   navItems?: RoomNavItem[];
+  onNavItemClick?: (href: string) => void;
   children: ReactNode;
 }) {
   const parent = role === "parent";
@@ -30,25 +31,51 @@ export function RoomLayout({
         <Brand />
         <nav className="room-nav" aria-label="Your room">
           <p className="eyebrow">Your {parent ? "family" : "practice"} room</p>
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={item.current ? "page" : undefined}
-              className={item.current ? "is-current" : undefined}
-            >
+          {items.map((item) => {
+            const hashOnly = item.href.startsWith("#");
+            const className = item.current ? "is-current" : undefined;
+            const icon = (
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 {parent
                   ? <><path d="M12 3 4 6.5v5c0 4.7 2.9 7.6 8 9.5 5.1-1.9 8-4.8 8-9.5v-5L12 3Z" /><path d="m8.5 12 2.1 2.1 4.9-5" /></>
-                  : item.href.includes("#timed")
+                  : item.href.includes("timed")
                     ? <><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 1.5" /></>
-                    : item.href.includes("#results")
+                    : item.href.includes("results")
                       ? <><path d="M8 6h10v14H8z" /><path d="M6 8h2M6 12h2M6 16h2" /><path d="M11 10h4M11 14h5" /></>
                       : <path d="m3 10 9-7 9 7v10h-6v-7H9v7H3Z" />}
               </svg>
-              {item.label}
-            </Link>
-          ))}
+            );
+
+            if (hashOnly && onNavItemClick) {
+              return (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  aria-current={item.current ? "page" : undefined}
+                  className={className}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    onNavItemClick(item.href);
+                  }}
+                >
+                  {icon}
+                  {item.label}
+                </a>
+              );
+            }
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={item.current ? "page" : undefined}
+                className={className}
+              >
+                {icon}
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
         <p className="room-motto">Small steps.<br />Strong thinking.</p>
         <div className="room-account">

@@ -1,16 +1,13 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import {
+  LearnerSectionProvider,
+  sectionFromHash,
+  type LearnerSection,
+} from "./LearnerSectionContext";
 import { RoomLayout, type RoomNavItem } from "./RoomLayout";
-
-type Section = "practice" | "timed" | "results";
-
-function sectionFromHash(hash: string): Section {
-  const value = hash.replace(/^#/, "");
-  if (value === "timed" || value === "results") return value;
-  return "practice";
-}
 
 export function LearnerRoomShell({
   name,
@@ -20,29 +17,50 @@ export function LearnerRoomShell({
 }: {
   name: string;
   badge: string;
-  initialSection?: Section;
+  initialSection?: LearnerSection;
   children: ReactNode;
 }) {
-  const [section, setSection] = useState<Section>(initialSection);
+  const [section, setSectionState] = useState<LearnerSection>(initialSection);
+
+  const setSection = useCallback((next: LearnerSection) => {
+    setSectionState(next);
+    const hash = `#${next}`;
+    if (window.location.hash !== hash) {
+      window.history.replaceState(null, "", hash);
+    }
+  }, []);
 
   useEffect(() => {
     function sync() {
-      setSection(window.location.hash ? sectionFromHash(window.location.hash) : initialSection);
+      setSectionState(window.location.hash
+        ? sectionFromHash(window.location.hash, initialSection)
+        : initialSection);
     }
     sync();
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, [initialSection]);
 
-  const navItems: RoomNavItem[] = [
-    { href: "/learner#practice", label: "Practice", current: section === "practice" },
-    { href: "/learner#timed", label: "Timed paper", current: section === "timed" },
-    { href: "/learner#results", label: "Last results", current: section === "results" },
-  ];
+  const navItems: RoomNavItem[] = useMemo(() => [
+    { href: "#practice", label: "Practice", current: section === "practice" },
+    { href: "#timed", label: "Timed paper", current: section === "timed" },
+    { href: "#results", label: "Last results", current: section === "results" },
+  ], [section]);
 
   return (
-    <RoomLayout role="learner" name={name} badge={badge} navItems={navItems}>
-      {children}
-    </RoomLayout>
+    <LearnerSectionProvider value={{ section, setSection }}>
+      <RoomLayout
+        role="learner"
+        name={name}
+        badge={badge}
+        navItems={navItems}
+        onNavItemClick={(href) => {
+          const next = sectionFromHash(href, section);
+          setSection(next);
+        }}
+      >
+        {children}
+      </RoomLayout>
+    </LearnerSectionProvider>
   );
 }

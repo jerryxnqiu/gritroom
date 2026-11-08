@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import Link from "next/link";
 
 import type {
   PracticeAttemptView,
@@ -10,10 +9,10 @@ import type {
   PracticeSessionView,
 } from "@/lib/practice";
 import { LearnerResults } from "./LearnerResults";
+import { useLearnerSection, type LearnerSection } from "./LearnerSectionContext";
 
 type Profile = { id: string; examGoal: "selective" | "oc"; nickname: string };
 type Phase = "hub" | "question";
-type Section = "practice" | "timed" | "results";
 
 function timedPaperSpec(goal: Profile["examGoal"]) {
   return goal === "oc"
@@ -34,14 +33,6 @@ function formatClock(totalSeconds: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-function parseSection(hash: string, session: PracticeSessionView | null): Section {
-  const value = hash.replace(/^#/, "");
-  if (value === "timed" || value === "practice" || value === "results") return value;
-  if (session?.status === "active") return session.mode === "timed" ? "timed" : "practice";
-  if (session) return "results";
-  return "practice";
-}
-
 export function LearnerPractice({
   initialSession,
   initialRemainingCount,
@@ -55,10 +46,10 @@ export function LearnerPractice({
   initialResultsHasMore?: boolean;
   profile: Profile;
 }) {
+  const { section, setSection } = useLearnerSection();
   const paper = timedPaperSpec(profile.examGoal);
   const [session, setSession] = useState(initialSession);
   const [remainingCount, setRemainingCount] = useState(initialRemainingCount);
-  const [section, setSection] = useState<Section>(() => parseSection("", initialSession));
   const [phase, setPhase] = useState<Phase>("hub");
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<{ text: string; error?: boolean }>();
@@ -71,7 +62,6 @@ export function LearnerPractice({
 
   const open = session?.attempts.find((item) => !item.finalizedAt) ?? null;
   const current = review || open;
-  const finished = Boolean(session && session.status !== "active");
   const active = Boolean(session && session.status === "active");
   const answered = session?.attempts.filter((item) => item.finalizedAt) ?? [];
   const total = session?.attempts.length ?? 0;
@@ -84,15 +74,6 @@ export function LearnerPractice({
   const timed = session?.mode === "timed";
   const inQuestion = phase === "question" && Boolean(current) && (active || Boolean(review));
   const sectionForActive = session?.mode === "timed" ? "timed" : "practice";
-
-  useEffect(() => {
-    function sync() {
-      setSection(parseSection(window.location.hash, session));
-    }
-    sync();
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
-  }, [session]);
 
   useEffect(() => {
     if (review) return;
@@ -116,15 +97,13 @@ export function LearnerPractice({
     return () => window.clearInterval(id);
   }, [session?.id, session?.mode, session?.status, session?.startedAt, session?.examGoal]);
 
-  function go(next: Section) {
-    setSection(next);
+  function go(next: LearnerSection, options?: { keepQuestion?: boolean }) {
     setStatus(undefined);
-    if (next !== sectionForActive || !active) setPhase("hub");
-    const hash = `#${next}`;
-    if (window.location.hash !== hash) {
-      window.history.replaceState(null, "", hash);
-      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    if (!options?.keepQuestion && (next !== sectionForActive || !active)) {
+      setPhase("hub");
+      setReview(null);
     }
+    setSection(next);
   }
 
   function start(mode: PracticeMode) {
@@ -146,7 +125,7 @@ export function LearnerPractice({
         if (!response.ok || !data.session) throw new Error(data.error || "Could not start practice.");
         setSession(data.session);
         if (typeof data.remainingCount === "number") setRemainingCount(data.remainingCount);
-        go(mode === "timed" ? "timed" : "practice");
+        go(mode === "timed" ? "timed" : "practice", { keepQuestion: true });
         setPhase("question");
       } catch (error) {
         setStatus({ text: error instanceof Error ? error.message : "Could not start practice.", error: true });
@@ -208,30 +187,21 @@ export function LearnerPractice({
 
   const sectionNav = (
     <nav className="practice-section-nav" aria-label="Practice sections">
-      <Link
-        href="#practice"
-        className={section === "practice" ? "button" : "button secondary"}
-        aria-current={section === "practice" ? "page" : undefined}
-        onClick={(event) => { event.preventDefault(); go("practice"); }}
-      >
-        Practice
-      </Link>
-      <Link
-        href="#timed"
-        className={section === "timed" ? "button" : "button secondary"}
-        aria-current={section === "timed" ? "page" : undefined}
-        onClick={(event) => { event.preventDefault(); go("timed"); }}
-      >
-        Timed paper
-      </Link>
-      <Link
-        href="#results"
-        className={section === "results" ? "button" : "button secondary"}
-        aria-current={section === "results" ? "page" : undefined}
-        onClick={(event) => { event.preventDefault(); go("results"); }}
-      >
-        Last results
-      </Link>
+      {([
+        ["practice", "Practice"],
+        ["timed", "Timed paper"],
+        ["results", "Last results"],
+      ] as const).map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          className={section === value ? "button" : "button secondary"}
+          aria-current={section === value ? "page" : undefined}
+          onClick={() => go(value)}
+        >
+          {label}
+        </button>
+      ))}
     </nav>
   );
 
