@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import type { PracticeAttemptView, PracticeMode, PracticeSessionView } from "@/lib/practice";
 
 type Profile = { id: string; examGoal: string; nickname: string };
+type Phase = "hub" | "question";
 
 export function LearnerPractice({
   initialSession,
@@ -17,6 +18,7 @@ export function LearnerPractice({
 }) {
   const [session, setSession] = useState(initialSession);
   const [remainingCount, setRemainingCount] = useState(initialRemainingCount);
+  const [phase, setPhase] = useState<Phase>("hub");
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<{ text: string; error?: boolean }>();
   const [selected, setSelected] = useState("");
@@ -27,13 +29,17 @@ export function LearnerPractice({
 
   const open = session?.attempts.find((item) => !item.finalizedAt) ?? null;
   const current = review || open;
-  const finished = Boolean(session && session.status !== "active" && !review);
+  const finished = Boolean(session && session.status !== "active");
+  const active = Boolean(session && session.status === "active");
   const answered = session?.attempts.filter((item) => item.finalizedAt) ?? [];
   const total = session?.attempts.length ?? 0;
+  const left = session?.attempts.filter((item) => !item.finalizedAt).length ?? 0;
   const index = review
     ? session!.attempts.findIndex((item) => item.id === review.id)
     : answered.length;
-  const canStartMore = remainingCount > 0;
+  const canStartMore = remainingCount > 0 && !active;
+  // Stay on the question screen while reviewing the last answer, even after the session completes.
+  const inQuestion = phase === "question" && Boolean(current) && (active || Boolean(review));
 
   useEffect(() => {
     if (review) return;
@@ -62,6 +68,7 @@ export function LearnerPractice({
         if (!response.ok || !data.session) throw new Error(data.error || "Could not start practice.");
         setSession(data.session);
         if (typeof data.remainingCount === "number") setRemainingCount(data.remainingCount);
+        setPhase("question");
       } catch (error) {
         setStatus({ text: error instanceof Error ? error.message : "Could not start practice.", error: true });
       }
@@ -105,7 +112,14 @@ export function LearnerPractice({
     });
   }
 
+  function pauseForLater() {
+    setReview(null);
+    setPhase("hub");
+    setStatus({ text: "Paused. Your answers are saved — continue when you are ready." });
+  }
+
   function startActions() {
+    if (active) return null;
     if (!canStartMore) {
       return (
         <p className="meta">
@@ -125,22 +139,130 @@ export function LearnerPractice({
     );
   }
 
-  if (!session) {
+  if (inQuestion) {
     return (
-      <section className="panel practice-panel" aria-labelledby="practice-heading">
-        <p className="eyebrow">Thinking Skills</p>
-        <h2 id="practice-heading">Begin when you are ready.</h2>
-        <p className="lede">
-          Short checked questions for {profile.nickname}. Your answers, time and confidence are saved for your family room.
-          {canStartMore ? ` ${remainingCount} question${remainingCount === 1 ? "" : "s"} waiting.` : ""}
+      <section className="panel practice-panel" aria-labelledby="practice-heading" aria-busy={pending}>
+        <p className="eyebrow">
+          {session!.mode === "diagnostic" ? "Starting-point check" : "Focused practice"} · Question {index + 1} of {total}
         </p>
-        {startActions()}
+        <h2 id="practice-heading">{current?.blueprintTitle || "Your next question"}</h2>
+        {current?.skill ? <p className="meta">{current.skill}</p> : null}
+        {current?.imageKey ? (
+          <p className="practice-figure">
+            <img
+              src={`/api/practice/attempts/${encodeURIComponent(current.id)}/image`}
+              alt="Question figure"
+            />
+          </p>
+        ) : null}
+        <p className="practice-prompt">{current?.prompt}</p>
+        <fieldset className="practice-options" disabled={pending || Boolean(review)}>
+          <legend className="field"><span>Choose an answer</span></legend>
+          {Object.entries(current?.options || {}).map(([key, label]) => (
+            <label key={key} className={`practice-option${selected === key ? " is-selected" : ""}`}>
+              <input
+                type="radio"
+                name="answer"
+                value={key}
+                checked={selected === key}
+                onChange={() => setSelected(key)}
+              />
+              <span className="practice-key">{key}</span>
+              <span>{label}</span>
+            </label>
+          ))}
+        </fieldset>
+        <label className="field">
+          <span>How sure are you? ({confidence}/5)</span>
+          <input
+            type="range"
+            min={1}
+            max={5}
+            step={1}
+            value={confidence}
+            disabled={pending || Boolean(review)}
+            onChange={(event) => setConfidence(Number(event.target.value))}
+          />
+        </label>
+        <label className="field">
+          <span>Optional working notes</span>
+          <textarea
+            rows={3}
+            maxLength={8000}
+            value={draftNotes}
+            disabled={pending || Boolean(review)}
+            placeholder="Jot the key step or why you ruled an option out."
+            onChange={(event) => setDraftNotes(event.target.value)}
+          />
+        </label>
+        {review ? (
+          <div className="practice-review" role="status">
+            <p className={review.isCorrect ? "notice" : "error"}>
+              {review.isCorrect
+                ? `Correct · answered ${review.selectedOption}.`
+                : `Not yet · answered ${review.selectedOption} · correct answer ${review.correctOption}.`}
+              {" "}Continue when you are ready.
+            </p>
+            {review.attemptReviewEn || review.explanationEn ? (
+              <p className="shelf-copy practice-review-body">
+                {review.attemptReviewEn || review.explanationEn}
+              </p>
+            ) : !review.isCorrect ? (
+              <p className="meta">A fuller review for this miss will appear after your family asks Codex to review incorrect attempts.</p>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="actions">
+          {review ? (
+            <button
+              type="button"
+              className="button"
+              disabled={pending}
+              onClick={() => {
+                const moreOpen = session!.attempts.some((item) => !item.finalizedAt);
+                setReview(null);
+                if (!moreOpen) setPhase("hub");
+              }}
+            >
+              {session!.attempts.some((item) => !item.finalizedAt) ? "Next question" : "See results"}
+            </button>
+          ) : (
+            <button type="button" className="button" disabled={pending || !selected} onClick={saveAnswer}>
+              Save answer
+            </button>
+          )}
+          <button type="button" className="button secondary" disabled={pending} onClick={pauseForLater}>
+            Pause for later
+          </button>
+        </div>
         {status ? <p className={status.error ? "error" : "notice"} role={status.error ? "alert" : "status"}>{status.text}</p> : null}
       </section>
     );
   }
 
-  if (finished) {
+  if (active) {
+    return (
+      <section className="panel practice-panel" aria-labelledby="practice-heading">
+        <p className="eyebrow">
+          {session!.mode === "diagnostic" ? "Starting-point check" : "Focused practice"} · in progress
+        </p>
+        <h2 id="practice-heading">Continue where you left off.</h2>
+        <p className="lede">
+          {answered.length === 0
+            ? `This practice has ${total} question${total === 1 ? "" : "s"} ready. Your progress stays saved if you leave and come back.`
+            : `You have answered ${answered.length} of ${total}. ${left} left in this practice — not a brand-new set.`}
+        </p>
+        <div className="actions">
+          <button type="button" className="button" disabled={pending} onClick={() => { setStatus(undefined); setPhase("question"); }}>
+            Continue practice
+          </button>
+        </div>
+        {status ? <p className={status.error ? "error" : "notice"} role={status.error ? "alert" : "status"}>{status.text}</p> : null}
+      </section>
+    );
+  }
+
+  if (finished && session) {
     const correct = answered.filter((item) => item.isCorrect).length;
     return (
       <section className="panel practice-panel" aria-labelledby="practice-heading">
@@ -170,88 +292,14 @@ export function LearnerPractice({
   }
 
   return (
-    <section className="panel practice-panel" aria-labelledby="practice-heading" aria-busy={pending}>
-      <p className="eyebrow">
-        {session.mode === "diagnostic" ? "Starting-point check" : "Focused practice"} · Question {index + 1} of {total}
+    <section className="panel practice-panel" aria-labelledby="practice-heading">
+      <p className="eyebrow">Thinking Skills</p>
+      <h2 id="practice-heading">Begin when you are ready.</h2>
+      <p className="lede">
+        Short checked questions for {profile.nickname}. Your answers, time and confidence are saved for your family room.
+        {canStartMore ? ` ${remainingCount} question${remainingCount === 1 ? "" : "s"} waiting.` : ""}
       </p>
-      <h2 id="practice-heading">{current?.blueprintTitle || "Your next question"}</h2>
-      {current?.skill ? <p className="meta">{current.skill}</p> : null}
-      {current?.imageKey ? (
-        <p className="practice-figure">
-          <img
-            src={`/api/practice/attempts/${encodeURIComponent(current.id)}/image`}
-            alt="Question figure"
-          />
-        </p>
-      ) : null}
-      <p className="practice-prompt">{current?.prompt}</p>
-      <fieldset className="practice-options" disabled={pending || Boolean(review)}>
-        <legend className="field"><span>Choose an answer</span></legend>
-        {Object.entries(current?.options || {}).map(([key, label]) => (
-          <label key={key} className={`practice-option${selected === key ? " is-selected" : ""}`}>
-            <input
-              type="radio"
-              name="answer"
-              value={key}
-              checked={selected === key}
-              onChange={() => setSelected(key)}
-            />
-            <span className="practice-key">{key}</span>
-            <span>{label}</span>
-          </label>
-        ))}
-      </fieldset>
-      <label className="field">
-        <span>How sure are you? ({confidence}/5)</span>
-        <input
-          type="range"
-          min={1}
-          max={5}
-          step={1}
-          value={confidence}
-          disabled={pending || Boolean(review)}
-          onChange={(event) => setConfidence(Number(event.target.value))}
-        />
-      </label>
-      <label className="field">
-        <span>Optional working notes</span>
-        <textarea
-          rows={3}
-          maxLength={8000}
-          value={draftNotes}
-          disabled={pending || Boolean(review)}
-          placeholder="Jot the key step or why you ruled an option out."
-          onChange={(event) => setDraftNotes(event.target.value)}
-        />
-      </label>
-      {review ? (
-        <div className="practice-review" role="status">
-          <p className={review.isCorrect ? "notice" : "error"}>
-            {review.isCorrect
-              ? `Correct · answered ${review.selectedOption}.`
-              : `Not yet · answered ${review.selectedOption} · correct answer ${review.correctOption}.`}
-            {" "}Continue when you are ready.
-          </p>
-          {review.attemptReviewEn || review.explanationEn ? (
-            <p className="shelf-copy practice-review-body">
-              {review.attemptReviewEn || review.explanationEn}
-            </p>
-          ) : !review.isCorrect ? (
-            <p className="meta">A fuller review for this miss will appear after your family asks Codex to review incorrect attempts.</p>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="actions">
-        {review ? (
-          <button type="button" className="button" disabled={pending} onClick={() => setReview(null)}>
-            {session.attempts.some((item) => !item.finalizedAt) ? "Next question" : "See results"}
-          </button>
-        ) : (
-          <button type="button" className="button" disabled={pending || !selected} onClick={saveAnswer}>
-            Save answer
-          </button>
-        )}
-      </div>
+      {startActions()}
       {status ? <p className={status.error ? "error" : "notice"} role={status.error ? "alert" : "status"}>{status.text}</p> : null}
     </section>
   );

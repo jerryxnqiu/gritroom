@@ -1,10 +1,19 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+
 import { EntryLayout } from "@/components/EntryLayout";
 import { SignInForm } from "@/components/SignInForm";
+import { getSession } from "@/lib/auth";
+import { getSessionTokenFromCookies } from "@/lib/http";
 
 type SearchParams = Promise<{ entry?: string }>;
 
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
+  const session = await getSession(await getSessionTokenFromCookies());
+  if (session) {
+    redirect(session.entry === "parent" ? "/parent" : "/learner");
+  }
+
   const { entry: requestedEntry } = await searchParams;
   const entry = requestedEntry === "parent" ? "parent" : "learner";
 
