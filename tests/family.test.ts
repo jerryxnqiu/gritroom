@@ -17,8 +17,10 @@ import {
 import {
   countUnusedPracticeQuestions,
   latestPracticeSession,
+  countUnusedWeakPracticeQuestions,
   listPracticeEvidence,
   listPracticeEvidenceSummaries,
+  listWeakBlueprintIds,
   saveTimedDraft,
   startPracticeSession,
   submitPracticeAttempt,
@@ -311,6 +313,7 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   sql.exec(readFileSync(new URL("../migrations/0007_practice_questions.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0008_practice_explanations.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0010_timed_draft_answers.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0011_focus_practice_mode.sql", import.meta.url), "utf8"));
   const invite = await issueInvitation(
     db,
     actor("owner"),
@@ -320,6 +323,7 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   assert.ok(invite.ok);
   assert.equal((await acceptInvitation(db, actor("learner"), invite.id)).ok, true);
 
+  assert.equal((await startPracticeSession(db, "learner", "focus")).ok, false);
   assert.equal((await startPracticeSession(db, "other", "daily")).ok, false);
   const started = await startPracticeSession(db, "learner", "daily");
   assert.equal(started.ok, true);
@@ -469,6 +473,7 @@ test("timed papers need a full unused bank and allow review before submit", asyn
   sql.exec(readFileSync(new URL("../migrations/0007_practice_questions.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0008_practice_explanations.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0010_timed_draft_answers.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0011_focus_practice_mode.sql", import.meta.url), "utf8"));
   const invite = await issueInvitation(
     db,
     actor("owner"),
@@ -554,4 +559,17 @@ test("timed papers need a full unused bank and allow review before submit", asyn
   assert.equal(submitted.session.attempts[1]?.selectedOption, "B");
   assert.equal(submitted.session.attempts[0]?.isCorrect, true);
   assert.equal(submitted.session.attempts[1]?.isCorrect, false);
+
+  const weakIds = await listWeakBlueprintIds(db, "p1", "selective");
+  assert.ok(weakIds.length >= 1);
+  assert.ok((await countUnusedWeakPracticeQuestions(db, "p1", "selective")) > 0);
+  const focused = await startPracticeSession(db, "learner", "focus");
+  assert.equal(focused.ok, true);
+  if (!focused.ok) return;
+  assert.equal(focused.session.mode, "focus");
+  assert.ok(focused.session.attempts.length >= 1 && focused.session.attempts.length <= 5);
+  for (const attempt of focused.session.attempts) {
+    assert.ok(attempt.blueprintId);
+    assert.equal(weakIds.includes(attempt.blueprintId!), true);
+  }
 });
