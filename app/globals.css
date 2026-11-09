@@ -534,24 +534,80 @@ p { margin: 0; }
 .practice-miss { color: var(--danger); }
 .practice-evidence { display: grid; gap: .85rem; }
 .practice-evidence-filters { display: flex; flex-wrap: wrap; gap: .45rem; }
-.practice-evidence-sessions { display: grid; gap: .55rem; }
-.practice-evidence-session {
+.practice-evidence-attempt-list { display: grid; gap: .75rem; }
+.practice-evidence-attempt-card {
+  display: grid;
+  gap: .55rem;
+  padding: .85rem .95rem;
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: .15rem .85rem .55rem;
-  background: #fcfdf9;
+  background: var(--panel);
 }
-.practice-evidence-session > summary {
+.practice-evidence-attempt-card.is-miss { border-color: #e0b8ae; background: #fffaf8; }
+.practice-evidence-attempt-card > header { display: grid; gap: .15rem; }
+.practice-evidence-options {
   display: grid;
-  gap: .15rem;
-  padding: .7rem 0 .55rem;
+  gap: .4rem;
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
-.practice-evidence-session > summary::-webkit-details-marker { display: none; }
-.practice-evidence-session-title { color: var(--ink); font-weight: 650; }
-.practice-evidence-session .shelf-items { margin-top: .15rem; }
-.practice-evidence-attempt { padding-left: 0; padding-right: 0; }
-.practice-evidence .shelf-notes { margin-top: .45rem; padding: .65rem .75rem; border-radius: 8px; background: #f7f9f3; }
+.practice-evidence-option {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: .65rem;
+  align-items: start;
+  padding: .55rem .7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fcfdf9;
+}
+.practice-evidence-option.is-selected { border-color: #d7a193; background: #f8ece8; }
+.practice-evidence-option.is-correct { border-color: #a8bf95; background: #eef5e6; }
+.practice-evidence .shelf-notes { margin-top: .15rem; padding: .65rem .75rem; border-radius: 8px; background: #f7f9f3; }
+.progress-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .7rem;
+  margin: 1rem 0 1.2rem;
+}
+.progress-stat {
+  display: grid;
+  gap: .35rem;
+  padding: .9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fcfdf9;
+}
+.progress-stat strong {
+  font: 650 clamp(1.6rem, 3vw, 2rem)/1 var(--font-display);
+  letter-spacing: -.03em;
+  color: var(--green);
+}
+.progress-session-heading { margin: .4rem 0 .7rem; font-size: 1.05rem; }
+.progress-session-list {
+  display: grid;
+  gap: .45rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+.progress-session-card {
+  display: grid;
+  gap: .2rem;
+  width: 100%;
+  text-align: left;
+  padding: .75rem .85rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fcfdf9;
+  color: inherit;
+  cursor: pointer;
+}
+.progress-session-card:hover { border-color: #a8bf95; background: var(--pale); }
+@media (max-width: 760px) {
+  .progress-stat-row { grid-template-columns: minmax(0, 1fr); }
+}
 .practice-panel input[type="range"] { width: min(100%, 18rem); accent-color: var(--moss); }
 .shelf-dialog { position: fixed; inset: 0; margin: auto; width: min(34rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.25rem; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--ink); }
 .shelf-dialog::backdrop { background: #182c26a6; }

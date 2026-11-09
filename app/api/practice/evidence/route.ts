@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { getSession } from "@/lib/auth";
 import { getSessionTokenFromCookies, json } from "@/lib/http";
 import { childAccess } from "@/lib/invitations";
-import { listPracticeEvidence, parseEvidenceModeFilter } from "@/lib/practice";
+import { listPracticeEvidenceSummaries, parseEvidenceModeFilter } from "@/lib/practice";
 import { shelfGoal } from "@/lib/shelf-fields";
 
 export async function GET(request: Request) {
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
   const sessionOffset = Number.isFinite(offset) ? Math.max(0, Math.floor(offset)) : 0;
   const sessionLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.floor(limit), 1), 50) : 20;
-  const sessions = await listPracticeEvidence(env.DB, profileId, goal, session.user_id, {
+  const sessions = await listPracticeEvidenceSummaries(env.DB, profileId, goal, session.user_id, {
     mode,
     sessionOffset,
     sessionLimit: sessionLimit + 1,

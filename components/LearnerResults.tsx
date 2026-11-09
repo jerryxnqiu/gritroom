@@ -19,6 +19,7 @@ function modeLabel(mode: string) {
 
 function AttemptRow({ item, index }: { item: PracticeEvidenceItem; index: number }) {
   const review = item.attemptReviewEn || item.explanationEn;
+  const optionEntries = Object.entries(item.options || {});
   return (
     <details className="practice-result-attempt">
       <summary>
@@ -30,11 +31,30 @@ function AttemptRow({ item, index }: { item: PracticeEvidenceItem; index: number
         {item.blueprintTitle ? <span className="meta">{item.blueprintTitle}</span> : null}
       </summary>
       <div className="practice-result-attempt-body">
-        <p className="shelf-copy">{item.prompt}</p>
         {item.imageKey ? (
           <p className="practice-figure">
             <img src={`/api/practice/attempts/${encodeURIComponent(item.id)}/image`} alt="Question figure" />
           </p>
+        ) : null}
+        <p className="shelf-copy practice-prompt">{item.prompt}</p>
+        {optionEntries.length ? (
+          <ul className="practice-evidence-options">
+            {optionEntries.map(([key, label]) => {
+              const selected = key === item.selectedOption;
+              const correct = key === item.correctOption;
+              return (
+                <li
+                  key={key}
+                  className={`practice-evidence-option${selected ? " is-selected" : ""}${correct ? " is-correct" : ""}`}
+                >
+                  <span className="practice-key">{key}</span>
+                  <span>{label}</span>
+                  {selected && !item.isCorrect ? <span className="meta">Your choice</span> : null}
+                  {correct ? <span className="meta">Correct</span> : null}
+                </li>
+              );
+            })}
+          </ul>
         ) : null}
         {review ? (
           <p className="shelf-notes shelf-copy">{review}</p>

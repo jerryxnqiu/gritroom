@@ -65,7 +65,7 @@ export function FamilyAccess({
   }
 
   return (
-    <section className="panel family-panel" id="family-access" aria-labelledby="family-access-heading">
+    <section className="panel family-panel" id="family" aria-labelledby="family-access-heading">
       <p className="eyebrow">01 / Family access</p>
       <h2 id="family-access-heading">Family access</h2>
       <p className="lede">Manage each child’s profile and exam goal.</p>
