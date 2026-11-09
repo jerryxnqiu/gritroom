@@ -59,29 +59,32 @@ export function LearnerPractice({
   const [review, setReview] = useState<PracticeAttemptView | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [startedAt, setStartedAt] = useState(() => Date.now());
+  const [timedIndex, setTimedIndex] = useState(0);
 
   const open = session?.attempts.find((item) => !item.finalizedAt) ?? null;
-  const current = review || open;
+  const timed = session?.mode === "timed";
   const active = Boolean(session && session.status === "active");
   const answered = session?.attempts.filter((item) => item.finalizedAt) ?? [];
   const total = session?.attempts.length ?? 0;
   const left = session?.attempts.filter((item) => !item.finalizedAt).length ?? 0;
+  const timedAnswered = session?.attempts.filter((item) => Boolean(item.selectedOption)).length ?? 0;
+  const timedCurrent = timed && session ? session.attempts[timedIndex] ?? null : null;
+  const current = review || (timed ? timedCurrent : open);
   const questionNumber = current && session
     ? session.attempts.findIndex((item) => item.id === current.id) + 1
     : answered.length + 1;
   const canStartPractice = remainingCount > 0 && !active;
   const canStartTimed = remainingCount >= paper.questions && !active;
-  const timed = session?.mode === "timed";
   const inQuestion = phase === "question" && Boolean(current) && (active || Boolean(review));
   const sectionForActive = session?.mode === "timed" ? "timed" : "practice";
 
   useEffect(() => {
-    if (review) return;
+    if (review || !current) return;
     setStartedAt(Date.now());
-    setSelected("");
-    setConfidence(3);
-    setDraftNotes("");
-  }, [open?.id, review]);
+    setSelected(current.selectedOption || "");
+    setConfidence(current.confidence ?? 3);
+    setDraftNotes(current.draftNotes || "");
+  }, [current?.id, current?.selectedOption, current?.confidence, current?.draftNotes, review]);
 
   useEffect(() => {
     if (!session || session.mode !== "timed" || session.status !== "active") {
@@ -106,6 +109,13 @@ export function LearnerPractice({
     setSection(next);
   }
 
+  function jumpTimed(index: number) {
+    if (!session || !timed) return;
+    const next = Math.max(0, Math.min(session.attempts.length - 1, index));
+    setTimedIndex(next);
+    setStatus(undefined);
+  }
+
   function start(mode: PracticeMode) {
     if (mode === "timed" ? !canStartTimed : !canStartPractice) return;
     setStatus(undefined);
@@ -125,6 +135,7 @@ export function LearnerPractice({
         if (!response.ok || !data.session) throw new Error(data.error || "Could not start practice.");
         setSession(data.session);
         if (typeof data.remainingCount === "number") setRemainingCount(data.remainingCount);
+        setTimedIndex(0);
         go(mode === "timed" ? "timed" : "practice", { keepQuestion: true });
         setPhase("question");
       } catch (error) {
@@ -133,8 +144,8 @@ export function LearnerPractice({
     });
   }
 
-  function saveAnswer() {
-    if (!session || !open || !selected || review) return;
+  function saveDailyAnswer() {
+    if (!session || !open || !selected || review || timed) return;
     setStatus(undefined);
     startTransition(async () => {
       try {
@@ -163,18 +174,90 @@ export function LearnerPractice({
         }
         setSession(data.session);
         if (typeof data.remainingCount === "number") setRemainingCount(data.remainingCount);
-        if (data.session.mode === "timed") {
-          const stillOpen = data.session.attempts.some((item) => !item.finalizedAt);
-          setReview(null);
-          if (!stillOpen) {
-            setPhase("hub");
-            go("results");
-          }
+        setReview(data.attempt);
+      } catch (error) {
+        setStatus({ text: error instanceof Error ? error.message : "Could not save your answer.", error: true });
+      }
+    });
+  }
+
+  function saveTimedAnswer(then?: "stay" | "next") {
+    if (!session || !timedCurrent || !selected || timedCurrent.finalizedAt) return;
+    setStatus(undefined);
+    const elapsed = Math.max(0, Date.now() - startedAt);
+    startTransition(async () => {
+      try {
+        const response = await fetch(
+          `/api/practice/sessions/${encodeURIComponent(session.id)}/attempts`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              draft: true,
+              attemptId: timedCurrent.id,
+              selectedOption: selected,
+              timeMs: elapsed,
+            }),
+          },
+        );
+        const data = await response.json() as {
+          session?: PracticeSessionView;
+          attempt?: PracticeAttemptView;
+          error?: string;
+        };
+        if (!response.ok || !data.session) throw new Error(data.error || "Could not save your answer.");
+        setSession(data.session);
+        setStartedAt(Date.now());
+        if (then === "next" && timedIndex < data.session.attempts.length - 1) {
+          setTimedIndex(timedIndex + 1);
         } else {
-          setReview(data.attempt);
+          setStatus({ text: "Answer saved. You can go back and change it before you submit the paper." });
         }
       } catch (error) {
         setStatus({ text: error instanceof Error ? error.message : "Could not save your answer.", error: true });
+      }
+    });
+  }
+
+  function submitPaper() {
+    if (!session || !timed) return;
+    setStatus(undefined);
+    startTransition(async () => {
+      try {
+        if (selected && timedCurrent && selected !== (timedCurrent.selectedOption || "")) {
+          const response = await fetch(
+            `/api/practice/sessions/${encodeURIComponent(session.id)}/attempts`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                draft: true,
+                attemptId: timedCurrent.id,
+                selectedOption: selected,
+                timeMs: Math.max(0, Date.now() - startedAt),
+              }),
+            },
+          );
+          const draft = await response.json() as { session?: PracticeSessionView; error?: string };
+          if (!response.ok || !draft.session) throw new Error(draft.error || "Could not save your answer.");
+          setSession(draft.session);
+        }
+        const response = await fetch(
+          `/api/practice/sessions/${encodeURIComponent(session.id)}/submit`,
+          { method: "POST" },
+        );
+        const data = await response.json() as {
+          session?: PracticeSessionView;
+          remainingCount?: number;
+          error?: string;
+        };
+        if (!response.ok || !data.session) throw new Error(data.error || "Could not submit the paper.");
+        setSession(data.session);
+        if (typeof data.remainingCount === "number") setRemainingCount(data.remainingCount);
+        setPhase("hub");
+        go("results");
+      } catch (error) {
+        setStatus({ text: error instanceof Error ? error.message : "Could not submit the paper.", error: true });
       }
     });
   }
@@ -183,6 +266,14 @@ export function LearnerPractice({
     setReview(null);
     setPhase("hub");
     setStatus({ text: "Paused. Your answers are saved — continue when you are ready." });
+  }
+
+  function resumeTimed() {
+    if (!session) return;
+    const firstBlank = session.attempts.findIndex((item) => !item.selectedOption);
+    setTimedIndex(firstBlank >= 0 ? firstBlank : 0);
+    setStatus(undefined);
+    setPhase("question");
   }
 
   const sectionNav = (
@@ -215,14 +306,37 @@ export function LearnerPractice({
             {modeLabel(session!.mode)}
             {" · "}
             Question {questionNumber} of {total}
-            {left > 0 ? ` · ${left} left` : ""}
+            {timed
+              ? ` · ${timedAnswered} answered`
+              : left > 0 ? ` · ${left} left` : ""}
             {timed && remainingSeconds !== null ? ` · ${formatClock(remainingSeconds)} left` : ""}
           </p>
           {timed && remainingSeconds !== null ? (
             <p className={`practice-timer${remainingSeconds <= 5 * 60 ? " is-low" : ""}${timeUp ? " is-up" : ""}`} role="timer" aria-live="polite">
-              {timeUp ? "Time is up — finish this question, then see results." : `Paper time left · ${formatClock(remainingSeconds)}`}
+              {timeUp
+                ? "Time is up — check your answers, then submit the paper."
+                : `Paper time left · ${formatClock(remainingSeconds)}`}
             </p>
           ) : null}
+
+          {timed && session ? (
+            <div className="practice-question-nav" role="navigation" aria-label="Jump to question">
+              {session.attempts.map((item, index) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`practice-q-chip${index === timedIndex ? " is-current" : ""}${item.selectedOption ? " is-answered" : ""}`}
+                  aria-current={index === timedIndex ? "true" : undefined}
+                  aria-label={`Question ${index + 1}${item.selectedOption ? ", answered" : ", unanswered"}`}
+                  disabled={pending}
+                  onClick={() => jumpTimed(index)}
+                >
+                  {index + 1}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <h2 id="practice-heading">{current?.blueprintTitle || "Your next question"}</h2>
           {current?.skill ? <p className="meta">{current.skill}</p> : null}
           {current?.imageKey ? (
@@ -276,7 +390,11 @@ export function LearnerPractice({
                 />
               </label>
             </>
-          ) : null}
+          ) : (
+            <p className="meta">
+              You can jump back to any question and change answers until you submit the paper. Correct answers stay hidden until then.
+            </p>
+          )}
           {review ? (
             <div className="practice-review" role="status">
               <p className={review.isCorrect ? "notice" : "error"}>
@@ -311,9 +429,44 @@ export function LearnerPractice({
               >
                 {session!.attempts.some((item) => !item.finalizedAt) ? "Next question" : "See results"}
               </button>
+            ) : timed ? (
+              <>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={pending || timedIndex === 0}
+                  onClick={() => jumpTimed(timedIndex - 1)}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  className="button"
+                  disabled={pending || !selected}
+                  onClick={() => saveTimedAnswer(timedIndex < total - 1 ? "next" : "stay")}
+                >
+                  {timedIndex < total - 1 ? "Save & next" : "Save answer"}
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={pending || timedIndex >= total - 1}
+                  onClick={() => jumpTimed(timedIndex + 1)}
+                >
+                  Next
+                </button>
+                <button
+                  type="button"
+                  className="button"
+                  disabled={pending || timedAnswered < total}
+                  onClick={submitPaper}
+                >
+                  Submit paper{timedAnswered < total ? ` · ${total - timedAnswered} left` : ""}
+                </button>
+              </>
             ) : (
-              <button type="button" className="button" disabled={pending || !selected} onClick={saveAnswer}>
-                {timed ? "Save and continue" : "Save answer"}
+              <button type="button" className="button" disabled={pending || !selected} onClick={saveDailyAnswer}>
+                Save answer
               </button>
             )}
             <button type="button" className="button secondary" disabled={pending} onClick={pauseForLater}>
@@ -351,13 +504,20 @@ export function LearnerPractice({
           <>
             <h2 id="practice-heading">Continue where you left off.</h2>
             <p className="lede">
-              {answered.length === 0
-                ? `This ${wantTimed ? "paper" : "practice"} still has all ${total} question${total === 1 ? "" : "s"} waiting — none are saved yet.`
-                : `Saved progress: ${answered.length} of ${total} done. Next up is question ${answered.length + 1} of ${total} (${left} left).`}
+              {timed
+                ? `${timedAnswered} of ${total} answered. You can still jump back and change answers before submitting.`
+                : answered.length === 0
+                  ? `This practice still has all ${total} question${total === 1 ? "" : "s"} waiting — none are saved yet.`
+                  : `Saved progress: ${answered.length} of ${total} done. Next up is question ${answered.length + 1} of ${total} (${left} left).`}
               {wantTimed && remainingSeconds !== null ? ` · ${formatClock(remainingSeconds)} left on the clock.` : ""}
             </p>
             <div className="actions">
-              <button type="button" className="button" disabled={pending} onClick={() => { setStatus(undefined); setPhase("question"); }}>
+              <button
+                type="button"
+                className="button"
+                disabled={pending}
+                onClick={() => timed ? resumeTimed() : (setStatus(undefined), setPhase("question"))}
+              >
                 Continue {wantTimed ? "paper" : "practice"}
               </button>
             </div>
@@ -378,7 +538,7 @@ export function LearnerPractice({
           <>
             <h2 id="practice-heading">Sit a full Thinking Skills paper.</h2>
             <p className="lede">
-              {paper.questions} questions · {paper.minutes} minutes. Answers save as you go; reviews wait until the end.
+              {paper.questions} questions · {paper.minutes} minutes. Move between questions freely, change answers anytime, then submit once at the end.
             </p>
             <div className="actions practice-start-actions">
               <button

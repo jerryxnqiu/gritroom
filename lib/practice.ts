@@ -392,6 +392,136 @@ export async function startPracticeSession(
   return { ok: true, session };
 }
 
+async function writeAttemptEvidence(
+  db: D1Database,
+  session: PracticeSessionView,
+  attemptId: string,
+  summary: string,
+  stamp: string,
+) {
+  await db.prepare(
+    `INSERT INTO learning_evidence (id, profile_id, exam_goal, kind, ref_id, summary, created_at)
+     VALUES (?, ?, ?, 'attempt', ?, ?, ?)`,
+  ).bind(createId("evd"), session.profileId, session.examGoal, attemptId, summary.slice(0, 4000), stamp).run();
+}
+
+/** Timed paper: save or change an answer without locking the paper. */
+export async function saveTimedDraft(
+  db: D1Database,
+  userId: string,
+  sessionId: string,
+  input: {
+    attemptId: string;
+    selectedOption: string;
+    timeMs: number;
+  },
+): Promise<{ ok: true; session: PracticeSessionView; attempt: PracticeAttemptView } | { ok: false; status: number; error: string }> {
+  const option = input.selectedOption.trim().toUpperCase();
+  if (!/^[A-D]$/.test(option)) return { ok: false, status: 400, error: "Choose one of the answer options." };
+  if (!Number.isInteger(input.timeMs) || input.timeMs < 0 || input.timeMs > 60 * 60 * 1000) {
+    return { ok: false, status: 400, error: "Practice time looks invalid. Try again." };
+  }
+
+  const session = await getPracticeSession(db, sessionId, userId);
+  if (!session) return { ok: false, status: 404, error: "That practice session is unavailable." };
+  if (session.status !== "active") return { ok: false, status: 409, error: "This practice session is already finished." };
+  if (session.mode !== "timed") return { ok: false, status: 409, error: "Draft answers are only for timed papers." };
+
+  const current = session.attempts.find((item) => item.id === input.attemptId);
+  if (!current) return { ok: false, status: 404, error: "That question is not part of this session." };
+  if (current.finalizedAt) return { ok: false, status: 409, error: "That answer is already locked." };
+
+  const prior = await db.prepare(
+    `SELECT time_ms AS timeMs FROM practice_attempts
+     WHERE id = ? AND session_id = ? AND finalized_at IS NULL`,
+  ).bind(input.attemptId, sessionId).first<{ timeMs: number | null }>();
+  if (!prior) return { ok: false, status: 404, error: "That question is not part of this session." };
+
+  const totalTime = Math.min(60 * 60 * 1000, Math.max(0, Number(prior.timeMs ?? 0) + input.timeMs));
+  const updated = await db.prepare(
+    `UPDATE practice_attempts
+     SET selected_option = ?, time_ms = ?, confidence = COALESCE(confidence, 3), draft_notes = NULL
+     WHERE id = ? AND session_id = ? AND finalized_at IS NULL`,
+  ).bind(option, totalTime, input.attemptId, sessionId).run();
+  if (!updated.meta.changes) return { ok: false, status: 409, error: "Could not save that answer." };
+
+  const next = await getPracticeSession(db, sessionId, userId);
+  if (!next) return { ok: false, status: 503, error: "Answer saved, but the session could not be reloaded." };
+  const attempt = next.attempts.find((item) => item.id === input.attemptId);
+  if (!attempt) return { ok: false, status: 503, error: "Answer saved, but the attempt could not be reloaded." };
+  return { ok: true, session: next, attempt };
+}
+
+/** Timed paper: lock every answered question, score them, and complete the session. */
+export async function submitTimedPaper(
+  db: D1Database,
+  userId: string,
+  sessionId: string,
+): Promise<{ ok: true; session: PracticeSessionView } | { ok: false; status: number; error: string }> {
+  const session = await getPracticeSession(db, sessionId, userId);
+  if (!session) return { ok: false, status: 404, error: "That practice session is unavailable." };
+  if (session.status !== "active") return { ok: false, status: 409, error: "This practice session is already finished." };
+  if (session.mode !== "timed") return { ok: false, status: 409, error: "Only timed papers use a final submit." };
+
+  const unanswered = session.attempts.filter((item) => !item.selectedOption).length;
+  if (unanswered > 0) {
+    return {
+      ok: false,
+      status: 409,
+      error: `${unanswered} question${unanswered === 1 ? "" : "s"} still unanswered. Go back and choose an answer for each, then submit.`,
+    };
+  }
+
+  const stamp = nowIso();
+  const openRows = await db.prepare(
+    `SELECT id, correct_option AS correctOption, selected_option AS selectedOption,
+            question_prompt AS prompt, confidence, time_ms AS timeMs
+     FROM practice_attempts
+     WHERE session_id = ? AND finalized_at IS NULL`,
+  ).bind(sessionId).all<{
+    id: string;
+    correctOption: string;
+    selectedOption: string;
+    prompt: string;
+    confidence: number | null;
+    timeMs: number | null;
+  }>();
+
+  try {
+    await db.batch([
+      ...openRows.results.map((row) => {
+        const correct = row.selectedOption === row.correctOption;
+        return db.prepare(
+          `UPDATE practice_attempts
+           SET is_correct = ?, confidence = COALESCE(confidence, 3), finalized_at = ?
+           WHERE id = ? AND session_id = ? AND finalized_at IS NULL`,
+        ).bind(correct ? 1 : 0, stamp, row.id, sessionId);
+      }),
+      db.prepare(
+        `UPDATE practice_sessions SET status = 'completed', completed_at = ? WHERE id = ? AND status = 'active'`,
+      ).bind(stamp, sessionId),
+    ]);
+  } catch {
+    return { ok: false, status: 503, error: "Could not submit the paper. Try again." };
+  }
+
+  for (const row of openRows.results) {
+    const correct = row.selectedOption === row.correctOption;
+    const summary = [
+      correct ? "Correct" : "Incorrect",
+      `answer ${row.selectedOption}`,
+      `confidence ${row.confidence ?? 3}/5`,
+      `${Math.round(Number(row.timeMs ?? 0) / 1000)}s`,
+      row.prompt.slice(0, 180),
+    ].join(" · ");
+    await writeAttemptEvidence(db, session, row.id, summary, stamp);
+  }
+
+  const next = await getPracticeSession(db, sessionId, userId);
+  if (!next) return { ok: false, status: 503, error: "Paper submitted, but the session could not be reloaded." };
+  return { ok: true, session: next };
+}
+
 export async function submitPracticeAttempt(
   db: D1Database,
   userId: string,
@@ -418,6 +548,9 @@ export async function submitPracticeAttempt(
   const session = await getPracticeSession(db, sessionId, userId);
   if (!session) return { ok: false, status: 404, error: "That practice session is unavailable." };
   if (session.status !== "active") return { ok: false, status: 409, error: "This practice session is already finished." };
+  if (session.mode === "timed") {
+    return { ok: false, status: 409, error: "Timed papers save drafts as you go. Use Submit paper when you are finished." };
+  }
 
   const current = session.attempts.find((item) => item.id === input.attemptId);
   if (!current) return { ok: false, status: 404, error: "That question is not part of this session." };
@@ -450,10 +583,7 @@ export async function submitPracticeAttempt(
     `${Math.round(input.timeMs / 1000)}s`,
     row.prompt.slice(0, 180),
   ].join(" · ");
-  await db.prepare(
-    `INSERT INTO learning_evidence (id, profile_id, exam_goal, kind, ref_id, summary, created_at)
-     VALUES (?, ?, ?, 'attempt', ?, ?, ?)`,
-  ).bind(createId("evd"), session.profileId, session.examGoal, input.attemptId, summary.slice(0, 4000), stamp).run();
+  await writeAttemptEvidence(db, session, input.attemptId, summary, stamp);
 
   const remaining = await db.prepare(
     `SELECT COUNT(*) AS openCount FROM practice_attempts WHERE session_id = ? AND finalized_at IS NULL`,
@@ -754,5 +884,18 @@ export function parseAttemptInput(value: unknown) {
     confidence: body.confidence,
     timeMs: Math.round(body.timeMs),
     draftNotes,
+  };
+}
+
+export function parseTimedDraftInput(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const body = value as Record<string, unknown>;
+  if (typeof body.attemptId !== "string" || !body.attemptId.trim()) return null;
+  if (typeof body.selectedOption !== "string") return null;
+  if (typeof body.timeMs !== "number") return null;
+  return {
+    attemptId: body.attemptId.trim(),
+    selectedOption: body.selectedOption as PracticeOptionKey | string,
+    timeMs: Math.round(body.timeMs),
   };
 }

@@ -18,8 +18,10 @@ import {
   countUnusedPracticeQuestions,
   latestPracticeSession,
   listPracticeEvidence,
+  saveTimedDraft,
   startPracticeSession,
   submitPracticeAttempt,
+  submitTimedPaper,
 } from "../lib/practice.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
@@ -307,6 +309,7 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0007_practice_questions.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0008_practice_explanations.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0010_timed_draft_answers.sql", import.meta.url), "utf8"));
   const invite = await issueInvitation(
     db,
     actor("owner"),
@@ -451,7 +454,7 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   if (!blocked.ok) assert.equal(blocked.status, 409);
 });
 
-test("timed papers need a full unused bank before they start", async (t) => {
+test("timed papers need a full unused bank and allow review before submit", async (t) => {
   const { sql, db } = fixture();
   t.after(() => sql.close());
   sql.exec(readFileSync(new URL("../migrations/0004_thinking_knowledge.sql", import.meta.url), "utf8"));
@@ -459,6 +462,7 @@ test("timed papers need a full unused bank before they start", async (t) => {
   sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0007_practice_questions.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0008_practice_explanations.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0010_timed_draft_answers.sql", import.meta.url), "utf8"));
   const invite = await issueInvitation(
     db,
     actor("owner"),
@@ -498,4 +502,50 @@ test("timed papers need a full unused bank before they start", async (t) => {
   if (!ready.ok) return;
   assert.equal(ready.session.mode, "timed");
   assert.equal(ready.session.attempts.length, 40);
+
+  const first = ready.session.attempts[0];
+  const second = ready.session.attempts[1];
+  assert.ok(first && second);
+  const draft = await saveTimedDraft(db, "learner", ready.session.id, {
+    attemptId: first.id,
+    selectedOption: "B",
+    timeMs: 1_000,
+  });
+  assert.equal(draft.ok, true);
+  if (!draft.ok) return;
+  assert.equal(draft.attempt.selectedOption, "B");
+  assert.equal(draft.attempt.finalizedAt, null);
+  assert.equal(draft.attempt.correctOption, null);
+  assert.equal(draft.session.status, "active");
+
+  const changed = await saveTimedDraft(db, "learner", ready.session.id, {
+    attemptId: first.id,
+    selectedOption: "A",
+    timeMs: 500,
+  });
+  assert.equal(changed.ok, true);
+  if (!changed.ok) return;
+  assert.equal(changed.attempt.selectedOption, "A");
+
+  const early = await submitTimedPaper(db, "learner", ready.session.id);
+  assert.equal(early.ok, false);
+  if (!early.ok) assert.match(early.error, /unanswered/);
+
+  for (const attempt of changed.session.attempts) {
+    const saved = await saveTimedDraft(db, "learner", ready.session.id, {
+      attemptId: attempt.id,
+      selectedOption: attempt.id === second.id ? "B" : "A",
+      timeMs: 100,
+    });
+    assert.equal(saved.ok, true);
+  }
+  const submitted = await submitTimedPaper(db, "learner", ready.session.id);
+  assert.equal(submitted.ok, true);
+  if (!submitted.ok) return;
+  assert.equal(submitted.session.status, "completed");
+  assert.equal(submitted.session.attempts.every((item) => Boolean(item.finalizedAt)), true);
+  assert.equal(submitted.session.attempts[0]?.selectedOption, "A");
+  assert.equal(submitted.session.attempts[1]?.selectedOption, "B");
+  assert.equal(submitted.session.attempts[0]?.isCorrect, true);
+  assert.equal(submitted.session.attempts[1]?.isCorrect, false);
 });

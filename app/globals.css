@@ -401,6 +401,34 @@ p { margin: 0; }
 }
 .practice-timer.is-low { color: #9a5b12; }
 .practice-timer.is-up { color: var(--danger); }
+.practice-question-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin: .85rem 0 1rem;
+}
+.practice-q-chip {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 .35rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.practice-q-chip.is-answered {
+  background: #e8f0df;
+  color: var(--green);
+  border-color: #b7cba8;
+}
+.practice-q-chip.is-current {
+  background: var(--green);
+  color: #f5f8ed;
+  border-color: var(--green);
+}
 .practice-review { margin-top: .9rem; display: grid; gap: .45rem; }
 .practice-review-body { margin: 0; }
 .practice-result-layout {
