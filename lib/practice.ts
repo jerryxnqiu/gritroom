@@ -63,6 +63,7 @@ export type PracticeEvidenceItem = {
   sessionId: string;
   mode: string;
   prompt: string;
+  options: Record<string, string>;
   imageKey: string | null;
   blueprintTitle: string | null;
   skill: string | null;
@@ -704,7 +705,8 @@ async function loadPracticeSessionAttempts(db: D1Database, sessionIds: string[])
   if (!sessionIds.length) return new Map<string, PracticeEvidenceItem[]>();
   const placeholders = sessionIds.map(() => "?").join(", ");
   const { results: attemptRows } = await db.prepare(
-    `SELECT a.id, a.session_id AS sessionId, s.mode, a.question_prompt AS prompt, a.image_key AS imageKey,
+    `SELECT a.id, a.session_id AS sessionId, s.mode, a.question_prompt AS prompt,
+            a.options_json AS optionsJson, a.image_key AS imageKey,
             b.title AS blueprintTitle, b.skill, a.selected_option AS selectedOption,
             a.correct_option AS correctOption, a.is_correct AS isCorrect, a.confidence,
             a.time_ms AS timeMs, a.draft_notes AS draftNotes,
@@ -729,6 +731,7 @@ async function loadPracticeSessionAttempts(db: D1Database, sessionIds: string[])
       sessionId: row.sessionId,
       mode: row.mode || "daily",
       prompt: row.prompt,
+      options: parseOptions(row.optionsJson),
       imageKey: row.imageKey,
       blueprintTitle: row.blueprintTitle,
       skill: row.skill,
@@ -747,6 +750,63 @@ async function loadPracticeSessionAttempts(db: D1Database, sessionIds: string[])
     bySession.set(row.sessionId, list);
   }
   return bySession;
+}
+
+/** Session score cards for parent progress / evidence bird’s-eye view. */
+export async function listPracticeEvidenceSummaries(
+  db: D1Database,
+  profileId: string,
+  examGoal: ExamGoal,
+  userId: string,
+  options?: {
+    sessionLimit?: number;
+    sessionOffset?: number;
+    mode?: PracticeEvidenceModeFilter;
+  },
+) {
+  return listPracticeSessionSummaries(db, profileId, examGoal, parentAccess, userId, options);
+}
+
+export async function getPracticeEvidenceSession(
+  db: D1Database,
+  profileId: string,
+  examGoal: ExamGoal,
+  userId: string,
+  sessionId: string,
+) {
+  const row = await db.prepare(
+    `SELECT s.id, s.mode, s.status, s.started_at AS startedAt, s.completed_at AS completedAt,
+            COUNT(a.id) AS total,
+            SUM(CASE WHEN a.is_correct = 1 THEN 1 ELSE 0 END) AS correctCount
+     FROM practice_sessions s
+     JOIN profiles p ON p.id = s.profile_id
+     JOIN practice_attempts a ON a.session_id = s.id AND a.finalized_at IS NOT NULL
+     WHERE s.id = ? AND s.profile_id = ? AND s.exam_goal = ? AND ${parentAccess}
+     GROUP BY s.id`,
+  ).bind(sessionId, profileId, examGoal, userId).first<{
+    id: string;
+    mode: string;
+    status: string;
+    startedAt: string;
+    completedAt: string | null;
+    total: number;
+    correctCount: number;
+  }>();
+  if (!row) return null;
+  const bySession = await loadPracticeSessionAttempts(db, [row.id]);
+  const total = Number(row.total);
+  const correct = Number(row.correctCount);
+  return {
+    id: row.id,
+    mode: row.mode,
+    status: row.status,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
+    total,
+    correct,
+    incorrect: Math.max(0, total - correct),
+    attempts: bySession.get(row.id) ?? [],
+  } satisfies PracticeEvidenceSession;
 }
 
 export async function listPracticeEvidence(

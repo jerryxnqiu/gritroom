@@ -3,40 +3,35 @@ import { env } from "cloudflare:workers";
 
 import { examLabel, type ExamGoal, type ParentProfile } from "@/lib/family";
 import { listMaterialAnalyses } from "@/lib/material-analysis";
-import { listPracticeEvidence } from "@/lib/practice";
 import { readShelf } from "@/lib/resource-shelf";
 import { AddResourceDialog } from "./AddResourceDialog";
-import { PracticeEvidence } from "./PracticeEvidence";
 import { QuestionFoundations } from "./QuestionFoundations";
 import { ShelfFeedbackForm } from "./ShelfFeedbackForm";
 import { ShelfMaterialList } from "./ShelfMaterialList";
 
 export async function ResourceShelf({ profile, goal, userId }: { profile: ParentProfile; goal: ExamGoal; userId: string }) {
-  const [{ materials, feedback }, analyses, evidencePage] = await Promise.all([
+  const [{ materials, feedback }, analyses] = await Promise.all([
     readShelf(env.DB, profile.id, goal, userId),
     listMaterialAnalyses(env.DB, profile.id, goal, userId),
-    listPracticeEvidence(env.DB, profile.id, goal, userId, { sessionLimit: 21 }),
   ]);
-  const evidenceHasMore = evidencePage.length > 20;
-  const evidence = evidenceHasMore ? evidencePage.slice(0, 20) : evidencePage;
   const scope = `${profile.id}:${goal}`;
   const coaching = materials.filter((item) => item.kind !== "study_material");
   const study = materials.filter((item) => item.kind === "study_material");
 
   return (
-    <section className="panel family-panel" id="resource-shelf" aria-labelledby="resource-shelf-heading">
-      <p className="eyebrow">03 / Practice inputs</p>
+    <section className="panel family-panel" id="shelf" aria-labelledby="resource-shelf-heading">
+      <p className="eyebrow">04 / Practice inputs</p>
       <h2 id="resource-shelf-heading">Resource shelf</h2>
       <p className="lede">
-        Store coaching reports and miscellaneous practice-question sources for {profile.nickname}. Use{" "}
-        <a href="#practice-bank">Generate practice bank</a> above when you want Codex to refresh questions from everything here.
+        Store coaching reports and miscellaneous practice-question sources for {profile.nickname}. Use Practice bank
+        when you want Codex to refresh questions from everything here.
       </p>
       <div className="shelf-toolbar">
         <nav className="shelf-actions" aria-label="Exam archive">
           {(["selective", "oc"] as const).map((archive) => (
             <Link key={archive} className={archive === goal ? "button" : "button secondary"}
               aria-current={archive === goal ? "true" : undefined}
-              href={`/parent?child=${encodeURIComponent(profile.id)}&shelfGoal=${archive}#resource-shelf`}>
+              href={`/parent?child=${encodeURIComponent(profile.id)}&shelfGoal=${archive}#shelf`}>
               {examLabel(archive)}
             </Link>
           ))}
@@ -70,23 +65,8 @@ export async function ResourceShelf({ profile, goal, userId }: { profile: Parent
         </div>
       </details>
 
-      <details className="family-subsection shelf-anchor" id="practice-evidence" open={evidence.length > 0}>
-        <summary id="shelf-practice">04 · Practice evidence</summary>
-        <div className="shelf-nest">
-          <p className="meta">
-            Practice sessions from {profile.nickname}’s learner room, grouped for scanning. Default view shows incorrect answers first; open a session for the detail that feeds the practice-bank task.
-          </p>
-          <PracticeEvidence
-            profileId={profile.id}
-            goal={goal}
-            initialSessions={evidence}
-            initialHasMore={evidenceHasMore}
-          />
-        </div>
-      </details>
-
       <details className="family-subsection shelf-anchor" id="parent-feedback" open={feedback.length > 0}>
-        <summary id="shelf-feedback">05 · Feedback &amp; question preferences</summary>
+        <summary id="shelf-feedback">04 · Feedback &amp; question preferences</summary>
         <div className="shelf-nest">
           <p className="meta">Save your observations or share what your child says about the questions in this exam archive.</p>
           <ShelfFeedbackForm key={scope} profileId={profile.id} goal={goal} feedback={feedback.map(({ authorId, ...item }) => ({

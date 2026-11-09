@@ -18,6 +18,7 @@ import {
   countUnusedPracticeQuestions,
   latestPracticeSession,
   listPracticeEvidence,
+  listPracticeEvidenceSummaries,
   saveTimedDraft,
   startPracticeSession,
   submitPracticeAttempt,
@@ -365,8 +366,13 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   assert.equal(evidence.length, 1);
   assert.equal(evidence[0]?.attempts[0]?.draftNotes, "Checked the rule direction.");
   assert.equal(evidence[0]?.attempts[0]?.isCorrect, true);
+  assert.ok(evidence[0]?.attempts[0]?.options.A);
   assert.equal(evidence[0]?.correct, 1);
   assert.equal((await listPracticeEvidence(db, "p1", "oc", "owner")).length, 0);
+  const summaries = await listPracticeEvidenceSummaries(db, "p1", "selective", "owner");
+  assert.equal(summaries.length, 1);
+  assert.equal(summaries[0]?.correct, 1);
+  assert.equal(summaries[0]?.total, 1);
 
   // Finish remaining open attempts so the session completes, then latest should still surface it.
   let current = saved.session;
