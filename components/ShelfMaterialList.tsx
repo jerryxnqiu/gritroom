@@ -92,7 +92,7 @@ export function ShelfMaterialList({
                 </p>
                 {material.notes ? <details className="shelf-notes"><summary>Notes</summary><p className="shelf-copy">{material.notes}</p></details> : null}
                 {analysed ? (
-                  <details className="shelf-notes shelf-analysis" open>
+                  <details className="shelf-notes shelf-analysis">
                     <summary>Codex findings</summary>
                     <p className="shelf-copy">{analysis.summaryEn}</p>
                     {analysis.trainingDirections.length ? (
