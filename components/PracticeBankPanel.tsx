@@ -23,8 +23,8 @@ export async function PracticeBankPanel({
   const materialCount = shelf?.materials.length ?? 0;
 
   return (
-    <section className="panel family-panel" id="practice-bank" aria-labelledby="practice-bank-heading">
-      <p className="eyebrow">02 / Practice bank</p>
+    <section className="panel family-panel" id="bank" aria-labelledby="practice-bank-heading">
+      <p className="eyebrow">03 / Practice bank</p>
       <h2 id="practice-bank-heading">Generate practice bank</h2>
       <p className="lede">
         Ask Codex to read the latest D1 inputs for {profile.nickname}’s {examLabel(goal)} archive — blueprints,
@@ -38,7 +38,7 @@ export async function PracticeBankPanel({
               key={archive}
               className={archive === goal ? "button" : "button secondary"}
               aria-current={archive === goal ? "true" : undefined}
-              href={`/parent?child=${encodeURIComponent(profile.id)}&shelfGoal=${archive}#practice-bank`}
+              href={`/parent?child=${encodeURIComponent(profile.id)}&shelfGoal=${archive}#bank`}
             >
               {examLabel(archive)}
             </Link>

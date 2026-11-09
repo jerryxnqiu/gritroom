@@ -1,9 +1,13 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 import type { ExamGoal } from "@/lib/family";
-import type { PracticeEvidenceItem, PracticeEvidenceSession } from "@/lib/practice";
+import type {
+  PracticeEvidenceItem,
+  PracticeEvidenceSession,
+  PracticeResultSessionSummary,
+} from "@/lib/practice";
 
 type AnswerFilter = "incorrect" | "all";
 type ModeFilter = "all" | "daily" | "timed" | "diagnostic";
@@ -21,38 +25,60 @@ function modeLabel(mode: string) {
   return "Practice";
 }
 
-function AttemptCard({ item }: { item: PracticeEvidenceItem }) {
+function AttemptDetail({ item, index }: { item: PracticeEvidenceItem; index: number }) {
+  const optionEntries = Object.entries(item.options || {});
   return (
-    <li className="shelf-item practice-evidence-attempt">
-      <div>
-        {item.imageKey ? (
-          <p className="practice-figure">
-            <img src={`/api/practice/attempts/${encodeURIComponent(item.id)}/image`} alt="Question figure" />
-          </p>
-        ) : null}
-        <p className="shelf-copy">{item.prompt}</p>
-        <p className="meta">
-          <strong className={item.isCorrect ? "practice-ok" : "practice-miss"}>
-            {item.isCorrect
-              ? `Correct · answered ${item.selectedOption}`
-              : `Incorrect · answered ${item.selectedOption} · correct answer ${item.correctOption}`}
-          </strong>
-          {item.blueprintTitle ? ` · ${item.blueprintTitle}` : ""}
-          {item.skill ? ` · ${item.skill}` : ""}
+    <article className={`practice-evidence-attempt-card${item.isCorrect ? "" : " is-miss"}`}>
+      <header>
+        <span className="meta">Q{index + 1}</span>
+        <strong className={item.isCorrect ? "practice-ok" : "practice-miss"}>
+          {item.isCorrect
+            ? `Correct · answered ${item.selectedOption}`
+            : `Incorrect · answered ${item.selectedOption} · correct ${item.correctOption}`}
+        </strong>
+        {item.blueprintTitle ? <span className="meta">{item.blueprintTitle}</span> : null}
+        {item.skill ? <span className="meta">{item.skill}</span> : null}
+      </header>
+
+      {item.imageKey ? (
+        <p className="practice-figure">
+          <img src={`/api/practice/attempts/${encodeURIComponent(item.id)}/image`} alt="Question figure" />
         </p>
-        <p className="meta">
-          Confidence {item.confidence ?? "—"}/5 · {formatTime(item.timeMs)} · {item.finalizedAt.slice(0, 10)}
-        </p>
-        {item.draftNotes ? <p className="shelf-notes shelf-copy">{item.draftNotes}</p> : null}
-        {item.attemptReviewEn ? (
-          <p className="shelf-notes shelf-copy"><strong>Codex review · </strong>{item.attemptReviewEn}</p>
-        ) : item.explanationEn ? (
-          <p className="shelf-notes shelf-copy"><strong>Explanation · </strong>{item.explanationEn}</p>
-        ) : !item.isCorrect ? (
-          <p className="meta">No Codex review yet — use Ask Codex to review incorrect attempts.</p>
-        ) : null}
-      </div>
-    </li>
+      ) : null}
+      <p className="shelf-copy practice-prompt">{item.prompt}</p>
+
+      {optionEntries.length ? (
+        <ul className="practice-evidence-options">
+          {optionEntries.map(([key, label]) => {
+            const selected = key === item.selectedOption;
+            const correct = key === item.correctOption;
+            return (
+              <li
+                key={key}
+                className={`practice-evidence-option${selected ? " is-selected" : ""}${correct ? " is-correct" : ""}`}
+              >
+                <span className="practice-key">{key}</span>
+                <span>{label}</span>
+                {selected && !item.isCorrect ? <span className="meta">Chosen</span> : null}
+                {correct ? <span className="meta">Correct</span> : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+
+      <p className="meta">
+        Confidence {item.confidence ?? "—"}/5 · {formatTime(item.timeMs)} · {item.finalizedAt.slice(0, 10)}
+      </p>
+      {item.draftNotes ? <p className="shelf-notes shelf-copy"><strong>Working notes · </strong>{item.draftNotes}</p> : null}
+      {item.attemptReviewEn ? (
+        <p className="shelf-notes shelf-copy"><strong>Codex review · </strong>{item.attemptReviewEn}</p>
+      ) : item.explanationEn ? (
+        <p className="shelf-notes shelf-copy"><strong>Explanation · </strong>{item.explanationEn}</p>
+      ) : !item.isCorrect ? (
+        <p className="meta">No Codex review yet — use Ask Codex to review incorrect attempts.</p>
+      ) : null}
+    </article>
   );
 }
 
@@ -64,26 +90,58 @@ export function PracticeEvidence({
 }: {
   profileId: string;
   goal: ExamGoal;
-  initialSessions: PracticeEvidenceSession[];
+  initialSessions: PracticeResultSessionSummary[];
   initialHasMore?: boolean;
 }) {
   const [sessions, setSessions] = useState(initialSessions);
   const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
   const [answerFilter, setAnswerFilter] = useState<AnswerFilter>("incorrect");
   const [hasMore, setHasMore] = useState(initialHasMore);
+  const [openId, setOpenId] = useState<string | null>(initialSessions[0]?.id ?? null);
+  const [details, setDetails] = useState<Record<string, PracticeEvidenceSession>>({});
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<{ text: string; error?: boolean }>();
 
-  const visible = useMemo(() => {
-    return sessions
-      .map((session) => {
-        const attempts = answerFilter === "incorrect"
-          ? session.attempts.filter((item) => !item.isCorrect)
-          : session.attempts;
-        return { session, attempts };
-      })
-      .filter((row) => row.attempts.length > 0);
-  }, [sessions, answerFilter]);
+  const openSession = details[openId || ""] ?? null;
+  const visibleAttempts = useMemo(() => {
+    if (!openSession) return [];
+    return answerFilter === "incorrect"
+      ? openSession.attempts.filter((item) => !item.isCorrect)
+      : openSession.attempts;
+  }, [openSession, answerFilter]);
+
+  function openSessionDetail(sessionId: string) {
+    setOpenId(sessionId);
+    if (details[sessionId]) return;
+    setStatus(undefined);
+    startTransition(async () => {
+      try {
+        const params = new URLSearchParams({ profileId, goal });
+        const response = await fetch(
+          `/api/practice/evidence/${encodeURIComponent(sessionId)}?${params}`,
+        );
+        const data = await response.json() as {
+          session?: PracticeEvidenceSession;
+          error?: string;
+        };
+        if (!response.ok || !data.session) {
+          throw new Error(data.error || "Could not open that session.");
+        }
+        setDetails((current) => ({ ...current, [sessionId]: data.session! }));
+      } catch (error) {
+        setStatus({
+          text: error instanceof Error ? error.message : "Could not open that session.",
+          error: true,
+        });
+      }
+    });
+  }
+
+  useEffect(() => {
+    if (openId && !details[openId]) openSessionDetail(openId);
+    // Prefetch first listed paper once on mount / after filter reset.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId]);
 
   function load(mode: ModeFilter, offset: number, append: boolean) {
     setStatus(undefined);
@@ -98,7 +156,7 @@ export function PracticeEvidence({
         });
         const response = await fetch(`/api/practice/evidence?${params}`);
         const data = await response.json() as {
-          sessions?: PracticeEvidenceSession[];
+          sessions?: PracticeResultSessionSummary[];
           hasMore?: boolean;
           error?: string;
         };
@@ -108,6 +166,10 @@ export function PracticeEvidence({
         setSessions((current) => append ? [...current, ...data.sessions!] : data.sessions!);
         setHasMore(Boolean(data.hasMore));
         setModeFilter(mode);
+        if (!append) {
+          setOpenId(data.sessions[0]?.id ?? null);
+          setDetails({});
+        }
       } catch (error) {
         setStatus({
           text: error instanceof Error ? error.message : "Could not load practice evidence.",
@@ -120,112 +182,126 @@ export function PracticeEvidence({
   if (!sessions.length && modeFilter === "all" && !pending) {
     return (
       <p className="meta">
-        No practice answers yet. When your child completes a practice set or timed paper, each question’s answer, time, confidence and notes appear here.
+        No practice answers yet. When your child completes a practice set or timed paper, each paper appears here as a score card — open one for the question detail.
       </p>
     );
   }
 
-  const incorrectTotal = sessions.reduce((sum, session) => sum + session.incorrect, 0);
+  const birdIncorrect = sessions.reduce((sum, session) => sum + session.incorrect, 0);
 
   return (
     <div className="practice-evidence">
       <div className="practice-evidence-filters" role="group" aria-label="Practice evidence filters">
-        <button
-          type="button"
-          className={modeFilter === "all" ? "button" : "button secondary"}
-          aria-pressed={modeFilter === "all"}
-          disabled={pending}
-          onClick={() => load("all", 0, false)}
-        >
-          All modes
-        </button>
-        <button
-          type="button"
-          className={modeFilter === "daily" ? "button" : "button secondary"}
-          aria-pressed={modeFilter === "daily"}
-          disabled={pending}
-          onClick={() => load("daily", 0, false)}
-        >
-          Practice
-        </button>
-        <button
-          type="button"
-          className={modeFilter === "timed" ? "button" : "button secondary"}
-          aria-pressed={modeFilter === "timed"}
-          disabled={pending}
-          onClick={() => load("timed", 0, false)}
-        >
-          Timed papers
-        </button>
-        <button
-          type="button"
-          className={modeFilter === "diagnostic" ? "button" : "button secondary"}
-          aria-pressed={modeFilter === "diagnostic"}
-          disabled={pending}
-          onClick={() => load("diagnostic", 0, false)}
-        >
-          Starting-point
-        </button>
-      </div>
-
-      <div className="practice-evidence-filters" role="group" aria-label="Answer filter">
-        <button
-          type="button"
-          className={answerFilter === "incorrect" ? "button" : "button secondary"}
-          aria-pressed={answerFilter === "incorrect"}
-          onClick={() => setAnswerFilter("incorrect")}
-        >
-          Incorrect only{incorrectTotal ? ` · ${incorrectTotal}` : ""}
-        </button>
-        <button
-          type="button"
-          className={answerFilter === "all" ? "button" : "button secondary"}
-          aria-pressed={answerFilter === "all"}
-          onClick={() => setAnswerFilter("all")}
-        >
-          All answers
-        </button>
+        {([
+          ["all", "All modes"],
+          ["daily", "Practice"],
+          ["timed", "Timed papers"],
+          ["diagnostic", "Starting-point"],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={modeFilter === value ? "button" : "button secondary"}
+            aria-pressed={modeFilter === value}
+            disabled={pending}
+            onClick={() => load(value, 0, false)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {!sessions.length ? (
         <p className="meta">No sessions in this mode filter yet.</p>
-      ) : null}
+      ) : (
+        <div className="practice-result-layout">
+          <div>
+            <p className="eyebrow">Bird’s-eye</p>
+            <ul className="practice-result-sessions">
+              {sessions.map((session) => {
+                const when = (session.completedAt || session.startedAt).slice(0, 10);
+                const selected = openId === session.id;
+                const pct = session.total ? Math.round((session.correct / session.total) * 100) : 0;
+                return (
+                  <li key={session.id}>
+                    <button
+                      type="button"
+                      className={`practice-result-session${selected ? " is-selected" : ""}`}
+                      aria-pressed={selected}
+                      disabled={pending}
+                      onClick={() => openSessionDetail(session.id)}
+                    >
+                      <span className="practice-result-session-title">
+                        {modeLabel(session.mode)}
+                        {session.status === "abandoned" ? " · abandoned" : ""}
+                      </span>
+                      <span className="meta">
+                        {session.correct}/{session.total} · {pct}%
+                        {session.incorrect ? ` · ${session.incorrect} miss` : ""}
+                        {" · "}
+                        {when}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
 
-      {answerFilter === "incorrect" && sessions.length > 0 && incorrectTotal === 0 ? (
-        <p className="meta">No incorrect answers in these practice sessions.</p>
-      ) : null}
+          <div className="practice-result-detail">
+            <div className="practice-result-detail-head">
+              <div>
+                <p className="eyebrow">Detail</p>
+                {!openSession ? (
+                  <h3>{openId ? "Loading…" : "Choose a paper"}</h3>
+                ) : (
+                  <h3>
+                    {modeLabel(openSession.mode)} · {openSession.correct} of {openSession.total}
+                  </h3>
+                )}
+              </div>
+              {openSession ? (
+                <div className="practice-evidence-filters" role="group" aria-label="Answer filter">
+                  <button
+                    type="button"
+                    className={answerFilter === "incorrect" ? "button" : "button secondary"}
+                    aria-pressed={answerFilter === "incorrect"}
+                    onClick={() => setAnswerFilter("incorrect")}
+                  >
+                    Incorrect{openSession.incorrect ? ` · ${openSession.incorrect}` : ""}
+                  </button>
+                  <button
+                    type="button"
+                    className={answerFilter === "all" ? "button" : "button secondary"}
+                    aria-pressed={answerFilter === "all"}
+                    onClick={() => setAnswerFilter("all")}
+                  >
+                    All answers
+                  </button>
+                </div>
+              ) : null}
+            </div>
 
-      <div className="practice-evidence-sessions">
-        {visible.map(({ session, attempts }, index) => {
-          const when = (session.completedAt || session.startedAt).slice(0, 10);
-          return (
-            <details
-              key={session.id}
-              className="practice-evidence-session"
-              open={index === 0}
-            >
-              <summary>
-                <span className="practice-evidence-session-title">
-                  {modeLabel(session.mode)}
-                  {session.status === "abandoned" ? " · abandoned" : ""}
-                </span>
-                <span className="meta">
-                  {session.correct} of {session.total} correct
-                  {session.incorrect ? ` · ${session.incorrect} incorrect` : ""}
-                  {" · "}
-                  {when}
-                </span>
-              </summary>
-              <ul className="shelf-items">
-                {attempts.map((item) => <AttemptCard key={item.id} item={item} />)}
-              </ul>
-            </details>
-          );
-        })}
-      </div>
+            {!openId ? (
+              <p className="meta">Select a session on the left to review questions, options and explanations.</p>
+            ) : !openSession ? (
+              <p className="meta">Loading that paper…</p>
+            ) : answerFilter === "incorrect" && openSession.incorrect === 0 ? (
+              <p className="meta">No incorrect answers in this paper.</p>
+            ) : (
+              <div className="practice-evidence-attempt-list">
+                {visibleAttempts.map((item) => {
+                  const index = openSession.attempts.findIndex((attempt) => attempt.id === item.id);
+                  return <AttemptDetail key={item.id} item={item} index={index} />;
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {hasMore ? (
-        <div className="actions">
+        <div className="actions" style={{ marginTop: "1rem" }}>
           <button
             type="button"
             className="button secondary"
@@ -236,7 +312,10 @@ export function PracticeEvidence({
           </button>
         </div>
       ) : sessions.length > 0 ? (
-        <p className="meta">Showing {sessions.length} practice session{sessions.length === 1 ? "" : "s"}.</p>
+        <p className="meta" style={{ marginTop: "1rem" }}>
+          Showing {sessions.length} session{sessions.length === 1 ? "" : "s"}
+          {birdIncorrect ? ` · ${birdIncorrect} incorrect across this list` : ""}.
+        </p>
       ) : null}
 
       {status ? (
