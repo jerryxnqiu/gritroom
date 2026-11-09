@@ -10,7 +10,7 @@ import type {
 } from "@/lib/practice";
 
 type AnswerFilter = "incorrect" | "all";
-type ModeFilter = "all" | "daily" | "timed" | "diagnostic";
+type ModeFilter = "all" | "daily" | "timed" | "diagnostic" | "focus";
 
 function formatTime(timeMs: number | null) {
   if (timeMs === null) return "—";
@@ -22,6 +22,7 @@ function formatTime(timeMs: number | null) {
 function modeLabel(mode: string) {
   if (mode === "diagnostic") return "Starting-point check";
   if (mode === "timed") return "Timed paper";
+  if (mode === "focus") return "Weak-spot practice";
   return "Practice";
 }
 
@@ -197,6 +198,7 @@ export function PracticeEvidence({
           ["daily", "Practice"],
           ["timed", "Timed papers"],
           ["diagnostic", "Starting-point"],
+          ["focus", "Weak spots"],
         ] as const).map(([value, label]) => (
           <button
             key={value}

@@ -23,6 +23,7 @@ function timedPaperSpec(goal: Profile["examGoal"]) {
 function modeLabel(mode: string) {
   if (mode === "diagnostic") return "Starting-point check";
   if (mode === "timed") return "Timed paper";
+  if (mode === "focus") return "Weak-spot practice";
   return "Practice";
 }
 
@@ -36,12 +37,14 @@ function formatClock(totalSeconds: number) {
 export function LearnerPractice({
   initialSession,
   initialRemainingCount,
+  initialWeakRemainingCount = 0,
   initialResultSessions,
   initialResultsHasMore = false,
   profile,
 }: {
   initialSession: PracticeSessionView | null;
   initialRemainingCount: number;
+  initialWeakRemainingCount?: number;
   initialResultSessions: PracticeResultSessionSummary[];
   initialResultsHasMore?: boolean;
   profile: Profile;
@@ -50,6 +53,7 @@ export function LearnerPractice({
   const paper = timedPaperSpec(profile.examGoal);
   const [session, setSession] = useState(initialSession);
   const [remainingCount, setRemainingCount] = useState(initialRemainingCount);
+  const [weakRemainingCount, setWeakRemainingCount] = useState(initialWeakRemainingCount);
   const [phase, setPhase] = useState<Phase>("hub");
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<{ text: string; error?: boolean }>();
@@ -74,6 +78,7 @@ export function LearnerPractice({
     ? session.attempts.findIndex((item) => item.id === current.id) + 1
     : answered.length + 1;
   const canStartPractice = remainingCount > 0 && !active;
+  const canStartFocus = weakRemainingCount > 0 && !active;
   const canStartTimed = remainingCount >= paper.questions && !active;
   const inQuestion = phase === "question" && Boolean(current) && (active || Boolean(review));
   const sectionForActive = session?.mode === "timed" ? "timed" : "practice";
@@ -117,7 +122,9 @@ export function LearnerPractice({
   }
 
   function start(mode: PracticeMode) {
-    if (mode === "timed" ? !canStartTimed : !canStartPractice) return;
+    if (mode === "timed" && !canStartTimed) return;
+    if (mode === "focus" && !canStartFocus) return;
+    if ((mode === "daily" || mode === "diagnostic") && !canStartPractice) return;
     setStatus(undefined);
     setReview(null);
     startTransition(async () => {
@@ -130,11 +137,13 @@ export function LearnerPractice({
         const data = await response.json() as {
           session?: PracticeSessionView;
           remainingCount?: number;
+          weakRemainingCount?: number;
           error?: string;
         };
         if (!response.ok || !data.session) throw new Error(data.error || "Could not start practice.");
         setSession(data.session);
         if (typeof data.remainingCount === "number") setRemainingCount(data.remainingCount);
+        if (typeof data.weakRemainingCount === "number") setWeakRemainingCount(data.weakRemainingCount);
         setTimedIndex(0);
         go(mode === "timed" ? "timed" : "practice", { keepQuestion: true });
         setPhase("question");
@@ -167,6 +176,7 @@ export function LearnerPractice({
           session?: PracticeSessionView;
           attempt?: PracticeAttemptView;
           remainingCount?: number;
+          weakRemainingCount?: number;
           error?: string;
         };
         if (!response.ok || !data.session || !data.attempt) {
@@ -174,6 +184,7 @@ export function LearnerPractice({
         }
         setSession(data.session);
         if (typeof data.remainingCount === "number") setRemainingCount(data.remainingCount);
+        if (typeof data.weakRemainingCount === "number") setWeakRemainingCount(data.weakRemainingCount);
         setReview(data.attempt);
       } catch (error) {
         setStatus({ text: error instanceof Error ? error.message : "Could not save your answer.", error: true });
@@ -249,11 +260,13 @@ export function LearnerPractice({
         const data = await response.json() as {
           session?: PracticeSessionView;
           remainingCount?: number;
+          weakRemainingCount?: number;
           error?: string;
         };
         if (!response.ok || !data.session) throw new Error(data.error || "Could not submit the paper.");
         setSession(data.session);
         if (typeof data.remainingCount === "number") setRemainingCount(data.remainingCount);
+        if (typeof data.weakRemainingCount === "number") setWeakRemainingCount(data.weakRemainingCount);
         setPhase("hub");
         go("results");
       } catch (error) {
@@ -562,21 +575,36 @@ export function LearnerPractice({
           <>
             <h2 id="practice-heading">A short practice set.</h2>
             <p className="lede">
-              Five unused questions with a quick review after each answer. Your family can see the detail later.
+              Do a mixed five-question set, or practise only the skills you miss most. Each answer gets a quick review.
             </p>
             <div className="actions practice-start-actions">
               {canStartPractice ? (
-                <>
-                  <button type="button" className="button" disabled={pending} onClick={() => start("daily")}>
-                    Practice · 5 questions
-                  </button>
-                  <p className="meta">{remainingCount} unused questions ready in the bank.</p>
-                </>
+                <button type="button" className="button" disabled={pending} onClick={() => start("daily")}>
+                  Practice · 5 questions
+                </button>
               ) : (
                 <p className="meta">
                   You have finished every practice question available right now. Ask your family to refresh the practice bank when they are ready.
                 </p>
               )}
+              <button
+                type="button"
+                className="button secondary"
+                disabled={pending || !canStartFocus}
+                onClick={() => start("focus")}
+              >
+                Practice weak spots · up to 5
+              </button>
+              {canStartFocus ? (
+                <p className="meta">
+                  {weakRemainingCount} unused question{weakRemainingCount === 1 ? "" : "s"} ready in your weak-spot skills
+                  {canStartPractice ? ` · ${remainingCount} unused in the whole bank` : ""}.
+                </p>
+              ) : canStartPractice ? (
+                <p className="meta">
+                  {remainingCount} unused questions ready. Weak-spot practice unlocks after a few incorrect answers, or when your family refreshes the bank for those skills.
+                </p>
+              ) : null}
             </div>
           </>
         )}

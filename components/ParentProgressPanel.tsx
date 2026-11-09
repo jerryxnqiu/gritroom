@@ -6,6 +6,7 @@ import { useParentSection } from "./ParentSectionContext";
 function modeLabel(mode: string) {
   if (mode === "diagnostic") return "Starting-point check";
   if (mode === "timed") return "Timed paper";
+  if (mode === "focus") return "Weak-spot practice";
   return "Practice";
 }
 

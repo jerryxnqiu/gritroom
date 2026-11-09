@@ -3,8 +3,11 @@ import { createId } from "./ids.ts";
 import { thinkingKnowledge } from "./thinking-knowledge.ts";
 import { nowIso } from "./time.ts";
 
-export type PracticeMode = "diagnostic" | "daily" | "timed";
+export type PracticeMode = "diagnostic" | "daily" | "timed" | "focus";
 export type PracticeOptionKey = "A" | "B" | "C" | "D";
+
+const WEAK_BLUEPRINT_LIMIT = 3;
+const FOCUS_SET_SIZE = 5;
 
 /** Official paper length / minutes for a timed Thinking Skills set. */
 export function timedPaperSpec(goal: ExamGoal) {
@@ -170,7 +173,38 @@ function pickQuestions(bank: PracticeQuestion[], mode: PracticeMode, goal: ExamG
   if (mode === "timed") {
     return shuffled.slice(0, timedPaperSpec(goal).questions);
   }
-  return shuffled.slice(0, Math.min(5, shuffled.length));
+  return shuffled.slice(0, Math.min(FOCUS_SET_SIZE, shuffled.length));
+}
+
+/** Blueprints this learner misses most often (for focused short rounds). */
+export async function listWeakBlueprintIds(
+  db: D1Database,
+  profileId: string,
+  examGoal: ExamGoal,
+  limit = WEAK_BLUEPRINT_LIMIT,
+) {
+  const { results } = await db.prepare(
+    `SELECT a.blueprint_id AS blueprintId, COUNT(*) AS misses
+     FROM practice_attempts a
+     WHERE a.profile_id = ? AND a.exam_goal = ?
+       AND a.finalized_at IS NOT NULL AND a.is_correct = 0
+       AND a.blueprint_id IS NOT NULL
+     GROUP BY a.blueprint_id
+     ORDER BY misses DESC, a.blueprint_id
+     LIMIT ?`,
+  ).bind(profileId, examGoal, Math.max(1, limit)).all<{ blueprintId: string; misses: number }>();
+  return results.map((row) => row.blueprintId);
+}
+
+export async function countUnusedWeakPracticeQuestions(
+  db: D1Database,
+  profileId: string,
+  examGoal: ExamGoal,
+) {
+  const weakIds = await listWeakBlueprintIds(db, profileId, examGoal);
+  if (!weakIds.length) return 0;
+  const unused = await loadUnusedPracticeQuestions(db, profileId, examGoal, weakIds);
+  return unused.length;
 }
 
 export async function learnerProfile(db: D1Database, userId: string) {
@@ -321,21 +355,51 @@ export async function startPracticeSession(
   }
 
   const { blueprints } = await thinkingKnowledge(db, profile.examGoal);
+  const allBlueprintIds = blueprints.map((item) => item.id);
+  let dealBlueprintIds = allBlueprintIds;
+  if (mode === "focus") {
+    const weakIds = await listWeakBlueprintIds(db, profile.id, profile.examGoal);
+    if (!weakIds.length) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Weak-spot practice needs a few incorrect answers first. Do a short Practice set, then try again.",
+      };
+    }
+    dealBlueprintIds = weakIds.filter((id) => allBlueprintIds.includes(id));
+    if (!dealBlueprintIds.length) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Your weak-spot skills are not in this exam archive’s bank yet. Ask your family to refresh the practice bank.",
+      };
+    }
+  }
+
   const unused = await loadUnusedPracticeQuestions(
     db,
     profile.id,
     profile.examGoal,
-    blueprints.map((item) => item.id),
+    dealBlueprintIds,
   );
   if (!unused.length) {
-    const bank = await loadActivePracticeQuestions(db, blueprints.map((item) => item.id));
+    const bank = await loadActivePracticeQuestions(db, dealBlueprintIds);
+    if (!bank.length && mode === "focus") {
+      return {
+        ok: false,
+        status: 409,
+        error: "No unused questions left for your weak spots. Ask your family to refresh the practice bank for those skills.",
+      };
+    }
     if (!bank.length) {
       return { ok: false, status: 503, error: "Practice questions for this exam goal are not ready yet." };
     }
     return {
       ok: false,
       status: 409,
-      error: "You have finished every practice question available right now. Ask your family to refresh the practice bank for new ones.",
+      error: mode === "focus"
+        ? "No unused questions left for your weak spots. Ask your family to refresh the practice bank for those skills."
+        : "You have finished every practice question available right now. Ask your family to refresh the practice bank for new ones.",
     };
   }
   if (mode === "timed") {
@@ -921,12 +985,15 @@ export async function countIncorrectAttemptsNeedingReview(
 }
 
 export function parsePracticeMode(value: unknown): PracticeMode | null {
-  return value === "diagnostic" || value === "daily" || value === "timed" ? value : null;
+  return value === "diagnostic" || value === "daily" || value === "timed" || value === "focus"
+    ? value
+    : null;
 }
 
 export function practiceModeLabel(mode: string) {
   if (mode === "diagnostic") return "Starting-point check";
   if (mode === "timed") return "Timed paper";
+  if (mode === "focus") return "Weak-spot practice";
   return "Practice";
 }
 

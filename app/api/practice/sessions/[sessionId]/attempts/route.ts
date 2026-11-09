@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { getSessionTokenFromCookies, json, readJson } from "@/lib/http";
 import {
   countUnusedPracticeQuestions,
+  countUnusedWeakPracticeQuestions,
   parseAttemptInput,
   parseTimedDraftInput,
   saveTimedDraft,
@@ -32,10 +33,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
 
   const result = await submitPracticeAttempt(env.DB, session.user_id, sessionId, input);
   if (!result.ok) return json({ error: result.error }, { status: result.status });
-  const remainingCount = await countUnusedPracticeQuestions(
-    env.DB,
-    result.session.profileId,
-    result.session.examGoal,
-  );
-  return json({ session: result.session, attempt: result.attempt, remainingCount });
+  const [remainingCount, weakRemainingCount] = await Promise.all([
+    countUnusedPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
+    countUnusedWeakPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
+  ]);
+  return json({ session: result.session, attempt: result.attempt, remainingCount, weakRemainingCount });
 }
