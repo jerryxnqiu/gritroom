@@ -316,9 +316,23 @@ async function loadAttempts(db: D1Database, sessionId: string) {
   return results;
 }
 
+function storedSessionMode(mode: PracticeMode): { mode: "diagnostic" | "daily" | "timed"; isFocus: number } {
+  if (mode === "focus") return { mode: "daily", isFocus: 1 };
+  return { mode, isFocus: 0 };
+}
+
+function modeFilterSql(mode: PracticeEvidenceModeFilter) {
+  if (mode === "all") return { clause: "", bind: null as string | null };
+  if (mode === "focus") return { clause: " AND s.is_focus = 1", bind: null as string | null };
+  if (mode === "daily") return { clause: " AND s.mode = 'daily' AND s.is_focus = 0", bind: null as string | null };
+  return { clause: " AND s.mode = ? AND s.is_focus = 0", bind: mode };
+}
+
+const sessionModeSelect = `CASE WHEN s.is_focus = 1 THEN 'focus' ELSE s.mode END AS mode`;
+
 export async function getPracticeSession(db: D1Database, sessionId: string, userId: string) {
   const session = await db.prepare(
-    `SELECT s.id, s.profile_id AS profileId, s.exam_goal AS examGoal, s.mode, s.status,
+    `SELECT s.id, s.profile_id AS profileId, s.exam_goal AS examGoal, ${sessionModeSelect}, s.status,
             s.started_at AS startedAt, s.completed_at AS completedAt
      FROM practice_sessions s
      JOIN learner_links l ON l.profile_id = s.profile_id AND l.user_id = ?
@@ -416,12 +430,13 @@ export async function startPracticeSession(
 
   const sessionId = createId("psn");
   const startedAt = nowIso();
+  const stored = storedSessionMode(mode);
   try {
     await db.batch([
       db.prepare(
-        `INSERT INTO practice_sessions (id, profile_id, exam_goal, mode, status, started_at)
-         VALUES (?, ?, ?, ?, 'active', ?)`,
-      ).bind(sessionId, profile.id, profile.examGoal, mode, startedAt),
+        `INSERT INTO practice_sessions (id, profile_id, exam_goal, mode, status, started_at, is_focus)
+         VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+      ).bind(sessionId, profile.id, profile.examGoal, stored.mode, startedAt, stored.isFocus),
       ...questions.map((question, index) => {
         const stamp = new Date(Date.parse(startedAt) + index).toISOString();
         return db.prepare(
@@ -723,19 +738,19 @@ async function listPracticeSessionSummaries(
   const limit = Math.min(Math.max(options?.sessionLimit ?? EVIDENCE_SESSION_LIMIT, 1), 50);
   const offset = Math.max(options?.sessionOffset ?? 0, 0);
   const mode = options?.mode ?? "all";
-  const modeClause = mode === "all" ? "" : " AND s.mode = ?";
-  const binds = mode === "all"
-    ? [profileId, examGoal, accessBind, limit, offset]
-    : [profileId, examGoal, mode, accessBind, limit, offset];
+  const filter = modeFilterSql(mode);
+  const binds = filter.bind
+    ? [profileId, examGoal, filter.bind, accessBind, limit, offset]
+    : [profileId, examGoal, accessBind, limit, offset];
 
   const sessions = await db.prepare(
-    `SELECT s.id, s.mode, s.status, s.started_at AS startedAt, s.completed_at AS completedAt,
+    `SELECT s.id, ${sessionModeSelect}, s.status, s.started_at AS startedAt, s.completed_at AS completedAt,
             COUNT(a.id) AS total,
             SUM(CASE WHEN a.is_correct = 1 THEN 1 ELSE 0 END) AS correctCount
      FROM practice_sessions s
      JOIN profiles p ON p.id = s.profile_id
      JOIN practice_attempts a ON a.session_id = s.id AND a.finalized_at IS NOT NULL
-     WHERE s.profile_id = ? AND s.exam_goal = ?${modeClause} AND ${accessSql}
+     WHERE s.profile_id = ? AND s.exam_goal = ?${filter.clause} AND ${accessSql}
      GROUP BY s.id
      ORDER BY COALESCE(s.completed_at, s.started_at) DESC, s.id DESC
      LIMIT ? OFFSET ?`,
@@ -769,7 +784,7 @@ async function loadPracticeSessionAttempts(db: D1Database, sessionIds: string[])
   if (!sessionIds.length) return new Map<string, PracticeEvidenceItem[]>();
   const placeholders = sessionIds.map(() => "?").join(", ");
   const { results: attemptRows } = await db.prepare(
-    `SELECT a.id, a.session_id AS sessionId, s.mode, a.question_prompt AS prompt,
+    `SELECT a.id, a.session_id AS sessionId, ${sessionModeSelect}, a.question_prompt AS prompt,
             a.options_json AS optionsJson, a.image_key AS imageKey,
             b.title AS blueprintTitle, b.skill, a.selected_option AS selectedOption,
             a.correct_option AS correctOption, a.is_correct AS isCorrect, a.confidence,
@@ -839,7 +854,7 @@ export async function getPracticeEvidenceSession(
   sessionId: string,
 ) {
   const row = await db.prepare(
-    `SELECT s.id, s.mode, s.status, s.started_at AS startedAt, s.completed_at AS completedAt,
+    `SELECT s.id, ${sessionModeSelect}, s.status, s.started_at AS startedAt, s.completed_at AS completedAt,
             COUNT(a.id) AS total,
             SUM(CASE WHEN a.is_correct = 1 THEN 1 ELSE 0 END) AS correctCount
      FROM practice_sessions s
@@ -934,7 +949,7 @@ export async function getLearnerPracticeResultSession(
   const profile = await learnerProfile(db, userId);
   if (!profile) return null;
   const row = await db.prepare(
-    `SELECT s.id, s.mode, s.status, s.started_at AS startedAt, s.completed_at AS completedAt,
+    `SELECT s.id, ${sessionModeSelect}, s.status, s.started_at AS startedAt, s.completed_at AS completedAt,
             COUNT(a.id) AS total,
             SUM(CASE WHEN a.is_correct = 1 THEN 1 ELSE 0 END) AS correctCount
      FROM practice_sessions s
