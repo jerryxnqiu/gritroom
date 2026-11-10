@@ -196,6 +196,11 @@ export function buildCodexBankBrief(input: {
     `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT question_id, question_version, blueprint_id, is_correct, confidence, substr(question_prompt,1,80) AS prompt, substr(draft_notes,1,120) AS notes FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND finalized_at IS NOT NULL ORDER BY finalized_at DESC LIMIT 200;"`,
     "```",
     "",
+    "Weak-spot blueprints for this learner (incorrect finalized attempts, highest miss count first):",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT blueprint_id, COUNT(*) AS misses FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND finalized_at IS NOT NULL AND is_correct = 0 AND blueprint_id IS NOT NULL GROUP BY blueprint_id ORDER BY misses DESC, blueprint_id LIMIT 8;"`,
+    "```",
+    "",
     "Active parent feedback:",
     "```sh",
     `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT body, created_at FROM shelf_feedback WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND withdrawn_at IS NULL ORDER BY created_at DESC;"`,
@@ -217,15 +222,16 @@ export function buildCodexBankBrief(input: {
     "```",
     "",
     "## What to write",
-    "Batch size for this exam goal (active bank after the refresh):",
+    "This refresh should ADD about 60 new active questions (new ids or new versions), not merely top up to an old floor.",
     goal === "selective"
-      ? "- Selective: at least 60 active items — 40 for a standard timed paper + 20 for focused / starting-point practice."
-      : "- OC: at least 50 active items — 30 for a standard timed paper + 20 for focused / starting-point practice.",
-    "If the active bank is already at/above that floor, still refresh weak-spot coverage with new versions;",
-    "add enough fresh items that the learner has unused questions to practise after this run.",
-    "Spread across blueprints (several original items per blueprint is expected; one-per-blueprint is not enough).",
-    "Weight new items toward weak spots and training directions from the evolved evidence above,",
-    "while keeping official blueprint coverage. Prefer fresh stems over near-copies of active bank items.",
+      ? "Selective mix for the ~60 new items: about 25–30 on the learner’s weak-spot blueprints (from the miss counts above),"
+        + " and the remaining ~30–35 spread across other blueprints so a full 40-question timed paper and mixed Practice · 10 sets stay balanced."
+      : "OC mix for the ~60 new items: about 25–30 on the learner’s weak-spot blueprints (from the miss counts above),"
+        + " and the remaining ~30–35 spread across other blueprints so a full 30-question timed paper and mixed Practice · 10 sets stay balanced.",
+    "If there are no weak-spot misses yet, spread all ~60 evenly across blueprints.",
+    "Also honour training directions from material analyses and parent feedback when choosing which weak blueprints to reinforce.",
+    "Several original items per blueprint is expected; one-per-blueprint is not enough.",
+    "Prefer fresh stems over near-copies of active bank items. Keep official blueprint coverage so the bank is not only remediation.",
     "Insert new active practice_questions rows (same id with version = previous max + 1, or new ids for added coverage).",
     "Write full, exam-like stems (context + data + question), not short toy prompts.",
     "Across the refresh batch, at least half of new active items should include a figure or table image in R2",

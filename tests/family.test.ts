@@ -233,9 +233,11 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(bankBrief, /Practice questions from miscellaneous sources/);
   assert.match(bankBrief, /CRITICAL style models/);
   assert.match(bankBrief, /at least half/);
-  assert.match(bankBrief, /at least 60 active items/);
-  assert.match(bankBrief, /40 for a standard timed paper/);
-  assert.match(bankBrief, /20 for focused/);
+  assert.match(bankBrief, /ADD about 60 new active questions/);
+  assert.match(bankBrief, /25–30 on the learner’s weak-spot blueprints/);
+  assert.match(bankBrief, /30–35 spread across other blueprints/);
+  assert.match(bankBrief, /40-question timed paper/);
+  assert.match(bankBrief, /Weak-spot blueprints for this learner/);
   assert.match(bankBrief, /learning_evidence/);
   assert.match(bankBrief, /practice_attempts/);
   assert.match(bankBrief, /shelf_feedback/);
@@ -562,6 +564,20 @@ test("timed papers need a full unused bank and allow review before submit", asyn
 
   const weakIds = await listWeakBlueprintIds(db, "p1", "selective");
   assert.ok(weakIds.length >= 1);
+  // Bank refresh leaves unused items on weak blueprints after a timed paper has used many.
+  for (let index = 0; index < 12; index += 1) {
+    sql.prepare(
+      `INSERT INTO practice_questions
+         (id, version, blueprint_id, blueprint_version, prompt, options_json, correct_option, status, created_at)
+       VALUES (?, 1, ?, ?, ?, '{"A":"A","B":"B","C":"C","D":"D"}', 'A', 'active', ?)`,
+    ).run(
+      `q-weak-extra-${index}`,
+      blueprint.id,
+      blueprint.version,
+      `Weak-spot refresh prompt ${index}.`,
+      `2026-11-08T02:${String(index).padStart(2, "0")}:00.000Z`,
+    );
+  }
   assert.ok((await countUnusedWeakPracticeQuestions(db, "p1", "selective")) > 0);
   const focused = await startPracticeSession(db, "learner", "focus");
   assert.equal(focused.ok, true);

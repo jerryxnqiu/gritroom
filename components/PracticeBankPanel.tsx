@@ -29,7 +29,8 @@ export async function PracticeBankPanel({
       <p className="lede">
         Ask Codex to read the latest D1 inputs for {profile.nickname}’s {examLabel(goal)} archive — blueprints,
         coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback —
-        then insert evolved questions (with kid-facing explanations) into the active bank.
+        then add about 60 new questions (with kid-facing explanations): enough for weak-spot practice, with the rest
+        balanced across other skills for timed papers and mixed sets.
       </p>
       <div className="shelf-toolbar">
         <nav className="shelf-actions" aria-label="Practice bank archive">
