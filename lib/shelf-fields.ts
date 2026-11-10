@@ -1,4 +1,5 @@
 import type { ExamGoal } from "./family";
+import { parseSubject, type PracticeSubject } from "./subjects";
 
 export const materialKinds = {
   coaching_report: "Coaching report",
@@ -15,6 +16,8 @@ export function shelfGoal(value: unknown): ExamGoal | null {
   return value === "selective" || value === "oc" ? value : null;
 }
 
+export { parseSubject, type PracticeSubject };
+
 function httpLink(input: string): string | null {
   try {
     const url = new URL(input);
@@ -26,6 +29,7 @@ function httpLink(input: string): string | null {
 
 export async function parseMaterial(form: FormData) {
   const goal = shelfGoal(form.get("goal"));
+  const subject = parseSubject(form.get("subject")) ?? "thinking";
   const kind = form.get("kind");
   const title = String(form.get("title") ?? "").trim();
   const rawLink = String(form.get("url") ?? "").trim();
@@ -55,5 +59,5 @@ export async function parseMaterial(form: FormData) {
     if (!valid) return { error: "Choose a valid PDF, JPG, PNG or WebP file." } as const;
   }
 
-  return { goal, kind, title, url, notes: notes || null, file } as const;
+  return { goal, subject, kind, title, url, notes: notes || null, file } as const;
 }

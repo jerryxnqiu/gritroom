@@ -1,5 +1,6 @@
 import type { ExamGoal } from "./family";
 import { createId } from "./ids.ts";
+import type { PracticeSubject } from "./subjects.ts";
 import { thinkingKnowledge } from "./thinking-knowledge.ts";
 import { nowIso } from "./time.ts";
 
@@ -186,7 +187,7 @@ export async function listWeakBlueprintIds(
   const { results } = await db.prepare(
     `SELECT a.blueprint_id AS blueprintId, COUNT(*) AS misses
      FROM practice_attempts a
-     WHERE a.profile_id = ? AND a.exam_goal = ?
+     WHERE a.profile_id = ? AND a.exam_goal = ? AND a.subject = 'thinking'
        AND a.finalized_at IS NOT NULL AND a.is_correct = 0
        AND a.blueprint_id IS NOT NULL
      GROUP BY a.blueprint_id
@@ -217,7 +218,7 @@ export async function learnerProfile(db: D1Database, userId: string) {
 export async function activePracticeSession(db: D1Database, profileId: string, examGoal: ExamGoal) {
   return db.prepare(
     `SELECT id FROM practice_sessions
-     WHERE profile_id = ? AND exam_goal = ? AND status = 'active'
+     WHERE profile_id = ? AND exam_goal = ? AND subject = 'thinking' AND status = 'active'
      ORDER BY started_at DESC LIMIT 1`,
   ).bind(profileId, examGoal).first<{ id: string }>();
 }
@@ -228,7 +229,7 @@ export async function latestPracticeSession(db: D1Database, profileId: string, e
   if (active) return active;
   return db.prepare(
     `SELECT id FROM practice_sessions
-     WHERE profile_id = ? AND exam_goal = ? AND status = 'completed'
+     WHERE profile_id = ? AND exam_goal = ? AND subject = 'thinking' AND status = 'completed'
      ORDER BY completed_at DESC, started_at DESC LIMIT 1`,
   ).bind(profileId, examGoal).first<{ id: string }>();
 }
@@ -242,11 +243,11 @@ export async function loadActivePracticeQuestions(db: D1Database, blueprintIds: 
             q.prompt, q.options_json AS optionsJson, q.correct_option AS correctOption,
             q.image_key AS imageKey, q.explanation_en AS explanationEn
      FROM practice_questions q
-     WHERE q.status = 'active'
+     WHERE q.status = 'active' AND q.subject = 'thinking'
        AND q.blueprint_id IN (${placeholders})
        AND q.version = (
          SELECT MAX(other.version) FROM practice_questions other
-         WHERE other.id = q.id AND other.status = 'active'
+         WHERE other.id = q.id AND other.status = 'active' AND other.subject = 'thinking'
        )
      ORDER BY q.blueprint_id, q.id`,
   ).bind(...blueprintIds).all<PracticeQuestion>();
@@ -267,15 +268,15 @@ export async function loadUnusedPracticeQuestions(
             q.prompt, q.options_json AS optionsJson, q.correct_option AS correctOption,
             q.image_key AS imageKey, q.explanation_en AS explanationEn
      FROM practice_questions q
-     WHERE q.status = 'active'
+     WHERE q.status = 'active' AND q.subject = 'thinking'
        AND q.blueprint_id IN (${placeholders})
        AND q.version = (
          SELECT MAX(other.version) FROM practice_questions other
-         WHERE other.id = q.id AND other.status = 'active'
+         WHERE other.id = q.id AND other.status = 'active' AND other.subject = 'thinking'
        )
        AND NOT EXISTS (
          SELECT 1 FROM practice_attempts a
-         WHERE a.profile_id = ? AND a.exam_goal = ?
+         WHERE a.profile_id = ? AND a.exam_goal = ? AND a.subject = 'thinking'
            AND a.question_id = q.id AND a.question_version = q.version
            AND a.finalized_at IS NOT NULL
        )
@@ -288,7 +289,9 @@ export async function countUnusedPracticeQuestions(
   db: D1Database,
   profileId: string,
   examGoal: ExamGoal,
+  subject: PracticeSubject = "thinking",
 ) {
+  if (subject !== "thinking") return 0;
   const { blueprints } = await thinkingKnowledge(db, examGoal);
   const unused = await loadUnusedPracticeQuestions(
     db,
@@ -733,15 +736,17 @@ async function listPracticeSessionSummaries(
     sessionLimit?: number;
     sessionOffset?: number;
     mode?: PracticeEvidenceModeFilter;
+    subject?: PracticeSubject;
   },
 ) {
   const limit = Math.min(Math.max(options?.sessionLimit ?? EVIDENCE_SESSION_LIMIT, 1), 50);
   const offset = Math.max(options?.sessionOffset ?? 0, 0);
   const mode = options?.mode ?? "all";
+  const subject = options?.subject ?? "thinking";
   const filter = modeFilterSql(mode);
   const binds = filter.bind
-    ? [profileId, examGoal, filter.bind, accessBind, limit, offset]
-    : [profileId, examGoal, accessBind, limit, offset];
+    ? [profileId, examGoal, subject, filter.bind, accessBind, limit, offset]
+    : [profileId, examGoal, subject, accessBind, limit, offset];
 
   const sessions = await db.prepare(
     `SELECT s.id, ${sessionModeSelect}, s.status, s.started_at AS startedAt, s.completed_at AS completedAt,
@@ -750,7 +755,7 @@ async function listPracticeSessionSummaries(
      FROM practice_sessions s
      JOIN profiles p ON p.id = s.profile_id
      JOIN practice_attempts a ON a.session_id = s.id AND a.finalized_at IS NOT NULL
-     WHERE s.profile_id = ? AND s.exam_goal = ?${filter.clause} AND ${accessSql}
+     WHERE s.profile_id = ? AND s.exam_goal = ? AND s.subject = ?${filter.clause} AND ${accessSql}
      GROUP BY s.id
      ORDER BY COALESCE(s.completed_at, s.started_at) DESC, s.id DESC
      LIMIT ? OFFSET ?`,
@@ -841,6 +846,7 @@ export async function listPracticeEvidenceSummaries(
     sessionLimit?: number;
     sessionOffset?: number;
     mode?: PracticeEvidenceModeFilter;
+    subject?: PracticeSubject;
   },
 ) {
   return listPracticeSessionSummaries(db, profileId, examGoal, parentAccess, userId, options);
@@ -993,7 +999,8 @@ export async function countIncorrectAttemptsNeedingReview(
     `SELECT COUNT(*) AS total
      FROM practice_attempts a
      JOIN profiles p ON p.id = a.profile_id
-     WHERE a.profile_id = ? AND a.exam_goal = ? AND a.finalized_at IS NOT NULL
+     WHERE a.profile_id = ? AND a.exam_goal = ? AND a.subject = 'thinking'
+       AND a.finalized_at IS NOT NULL
        AND a.is_correct = 0 AND a.attempt_review_en IS NULL AND ${parentAccess}`,
   ).bind(profileId, examGoal, userId).first<{ total: number }>();
   return Number(row?.total ?? 0);

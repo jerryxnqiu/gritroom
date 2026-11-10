@@ -11,6 +11,7 @@ import {
   getMaterialForCodex,
   listMaterialAnalyses,
   listMaterialsForCodexBank,
+  listSucceededMaterialEvidence,
   parseCodexAnalysisInput,
   saveCodexMaterialAnalysis,
 } from "../lib/material-analysis.ts";
@@ -200,11 +201,14 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   sql.exec(readFileSync(new URL("../migrations/0005_resource_shelf.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0004_thinking_knowledge.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0012_practice_subjects.sql", import.meta.url), "utf8"));
   sql.exec(`
     INSERT INTO shelf_materials(id,profile_id,exam_goal,kind,title,file_key,file_name,file_type,created_by_user_id,created_at)
     VALUES('report','p1','selective','coaching_report','Report','private/report','report.pdf','application/pdf','owner',datetime('now'));
     INSERT INTO shelf_materials(id,profile_id,exam_goal,kind,title,notes,created_by_user_id,created_at)
     VALUES('notes','p1','selective','coaching_report','Notes only','Child mixes necessary and sufficient conditions.','owner',datetime('now'));
+    INSERT INTO shelf_materials(id,profile_id,exam_goal,subject,kind,title,notes,created_by_user_id,created_at)
+    VALUES('reading-notes','p1','selective','reading','coaching_report','Reading coach note','Inference from short passages.','owner',datetime('now'));
   `);
   const feedbackId = await saveShelfFeedback(db, "p1", "oc", "guardian", "Use longer passages.");
   assert.ok(feedbackId);
@@ -233,15 +237,49 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(bankBrief, /Practice questions from miscellaneous sources/);
   assert.match(bankBrief, /CRITICAL style models/);
   assert.match(bankBrief, /at least half/);
-  assert.match(bankBrief, /ADD about 60 new active questions/);
+  assert.match(bankBrief, /ADD about 60 new active Thinking Skills questions/);
   assert.match(bankBrief, /25–30 on the learner’s weak-spot blueprints/);
   assert.match(bankBrief, /30–35 spread across other blueprints/);
   assert.match(bankBrief, /40-question timed paper/);
   assert.match(bankBrief, /Weak-spot blueprints for this learner/);
+  assert.match(bankBrief, /subject = 'thinking'/);
   assert.match(bankBrief, /learning_evidence/);
   assert.match(bankBrief, /practice_attempts/);
   assert.match(bankBrief, /shelf_feedback/);
   assert.match(bankBrief, /explanation_en/);
+  const readingShelf = await listMaterialsForCodexBank(db, "p1", "selective", "owner", "reading");
+  assert.ok(readingShelf);
+  assert.equal(readingShelf.materials.length, 1);
+  const readingBrief = buildCodexBankBrief({
+    profileId: "p1",
+    goal: "selective",
+    subject: "reading",
+    nickname: readingShelf.nickname,
+    actorUserId: "owner",
+    materials: readingShelf.materials,
+  });
+  assert.match(readingBrief, /Reading module shelf review/);
+  assert.match(readingBrief, /subject: reading/);
+  assert.match(readingBrief, /do NOT insert Thinking Skills practice_questions/);
+  assert.equal((await readShelf(db, "p1", "selective", "owner", "reading")).materials[0]?.id, "reading-notes");
+  assert.equal((await listSucceededMaterialEvidence(db, "p1", "selective", "owner", "reading")).length, 0);
+  const readingParsed = parseCodexAnalysisInput({
+    json: JSON.stringify({
+      summary_en: "Practise inference from short informational passages.",
+      parent_zh: "",
+      training_directions: ["Ask what the author implies, not only what is stated."],
+      evidence_limits: "One coaching note; not a full Reading diagnostic.",
+    }),
+  });
+  assert.equal("error" in readingParsed, false);
+  if (!("error" in readingParsed)) {
+    const readingSaved = await saveCodexMaterialAnalysis(db, "p1", "reading-notes", "owner", readingParsed);
+    assert.equal(readingSaved.ok, true);
+    const readingEvidence = await listSucceededMaterialEvidence(db, "p1", "selective", "owner", "reading");
+    assert.equal(readingEvidence.length, 1);
+    assert.equal(readingEvidence[0]?.materialTitle, "Reading coach note");
+    assert.match(readingEvidence[0]?.summaryEn || "", /inference/);
+  }
   const reviewBrief = buildCodexAttemptReviewBrief({
     profileId: "p1",
     goal: "selective",
@@ -316,6 +354,8 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   sql.exec(readFileSync(new URL("../migrations/0008_practice_explanations.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0010_timed_draft_answers.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0011_focus_practice_mode.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0012_practice_subjects.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0013_practice_subject_sessions.sql", import.meta.url), "utf8"));
   const invite = await issueInvitation(
     db,
     actor("owner"),
@@ -476,6 +516,8 @@ test("timed papers need a full unused bank and allow review before submit", asyn
   sql.exec(readFileSync(new URL("../migrations/0008_practice_explanations.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0010_timed_draft_answers.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0011_focus_practice_mode.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0012_practice_subjects.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0013_practice_subject_sessions.sql", import.meta.url), "utf8"));
   const invite = await issueInvitation(
     db,
     actor("owner"),
@@ -564,6 +606,10 @@ test("timed papers need a full unused bank and allow review before submit", asyn
 
   const weakIds = await listWeakBlueprintIds(db, "p1", "selective");
   assert.ok(weakIds.length >= 1);
+  const weakBlueprintId = weakIds[0]!;
+  const weakBlueprint = sql.prepare(
+    "SELECT id, version FROM thinking_blueprints WHERE id = ? LIMIT 1",
+  ).get(weakBlueprintId) as { id: string; version: number };
   // Bank refresh leaves unused items on weak blueprints after a timed paper has used many.
   for (let index = 0; index < 12; index += 1) {
     sql.prepare(
@@ -572,8 +618,8 @@ test("timed papers need a full unused bank and allow review before submit", asyn
        VALUES (?, 1, ?, ?, ?, '{"A":"A","B":"B","C":"C","D":"D"}', 'A', 'active', ?)`,
     ).run(
       `q-weak-extra-${index}`,
-      blueprint.id,
-      blueprint.version,
+      weakBlueprint.id,
+      weakBlueprint.version,
       `Weak-spot refresh prompt ${index}.`,
       `2026-11-08T02:${String(index).padStart(2, "0")}:00.000Z`,
     );

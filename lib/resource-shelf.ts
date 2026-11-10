@@ -1,5 +1,6 @@
 import type { ExamGoal } from "./family";
 import type { MaterialKind, parseMaterial } from "./shelf-fields";
+import type { PracticeSubject } from "./subjects";
 import { createId } from "./ids.ts";
 import { nowIso } from "./time.ts";
 
@@ -30,21 +31,27 @@ export function canOpenShelf(db: D1Database, profileId: string, userId: string) 
     .bind(profileId, userId).first();
 }
 
-export async function readShelf(db: D1Database, profileId: string, goal: ExamGoal, userId: string) {
+export async function readShelf(
+  db: D1Database,
+  profileId: string,
+  goal: ExamGoal,
+  userId: string,
+  subject: PracticeSubject = "thinking",
+) {
   const [materials, feedback] = await Promise.all([
     db.prepare(
       `SELECT m.id, m.kind, m.title, m.source_url AS url, m.notes, m.file_name AS fileName,
               m.file_type AS fileType, m.created_at AS createdAt
        FROM shelf_materials m JOIN profiles p ON p.id = m.profile_id
-       WHERE m.profile_id = ? AND m.exam_goal = ? AND ${parentAccess}
+       WHERE m.profile_id = ? AND m.exam_goal = ? AND m.subject = ? AND ${parentAccess}
        ORDER BY m.created_at DESC, m.id DESC`,
-    ).bind(profileId, goal, userId).all<ShelfMaterial>(),
+    ).bind(profileId, goal, subject, userId).all<ShelfMaterial>(),
     db.prepare(
       `SELECT f.id, f.body, f.created_by_user_id AS authorId, f.created_at AS createdAt
        FROM shelf_feedback f JOIN profiles p ON p.id = f.profile_id
-       WHERE f.profile_id = ? AND f.exam_goal = ? AND f.withdrawn_at IS NULL AND ${parentAccess}
+       WHERE f.profile_id = ? AND f.exam_goal = ? AND f.subject = ? AND f.withdrawn_at IS NULL AND ${parentAccess}
        ORDER BY f.created_at DESC, f.id DESC`,
-    ).bind(profileId, goal, userId).all<ShelfFeedback>(),
+    ).bind(profileId, goal, subject, userId).all<ShelfFeedback>(),
   ]);
   return { materials: materials.results, feedback: feedback.results };
 }
@@ -57,11 +64,11 @@ export async function saveMaterial(db: D1Database, bucket: R2Bucket, profileId: 
 
   const inserted = await db.prepare(
     `INSERT INTO shelf_materials
-       (id, profile_id, exam_goal, kind, title, source_url, notes, file_key, file_name, file_type, created_by_user_id, created_at)
-     SELECT ?, p.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM profiles p WHERE p.id = ? AND ${parentAccess}`,
+       (id, profile_id, exam_goal, subject, kind, title, source_url, notes, file_key, file_name, file_type, created_by_user_id, created_at)
+     SELECT ?, p.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM profiles p WHERE p.id = ? AND ${parentAccess}`,
   ).bind(
-    id, input.goal, input.kind, input.title, input.url, input.notes, key, file?.name.slice(0, 180) ?? null,
-    file?.type ?? null, userId, nowIso(), profileId, userId,
+    id, input.goal, input.subject, input.kind, input.title, input.url, input.notes, key,
+    file?.name.slice(0, 180) ?? null, file?.type ?? null, userId, nowIso(), profileId, userId,
   ).run();
 
   if (inserted.meta.changes) return id;
@@ -102,18 +109,25 @@ export async function deleteMaterial(db: D1Database, bucket: R2Bucket, profileId
   return true;
 }
 
-export async function saveShelfFeedback(db: D1Database, profileId: string, goal: ExamGoal, userId: string, body: string) {
+export async function saveShelfFeedback(
+  db: D1Database,
+  profileId: string,
+  goal: ExamGoal,
+  userId: string,
+  body: string,
+  subject: PracticeSubject = "thinking",
+) {
   const id = createId("fdb");
   const stamp = nowIso();
   const result = await db.prepare(
-    `INSERT INTO shelf_feedback (id, profile_id, exam_goal, body, created_by_user_id, created_at)
-     SELECT ?, p.id, ?, ?, ?, ? FROM profiles p WHERE p.id = ? AND ${parentAccess}`,
-  ).bind(id, goal, body, userId, stamp, profileId, userId).run();
+    `INSERT INTO shelf_feedback (id, profile_id, exam_goal, subject, body, created_by_user_id, created_at)
+     SELECT ?, p.id, ?, ?, ?, ?, ? FROM profiles p WHERE p.id = ? AND ${parentAccess}`,
+  ).bind(id, goal, subject, body, userId, stamp, profileId, userId).run();
   if (!result.meta.changes) return null;
   await db.prepare(
-    `INSERT INTO learning_evidence (id, profile_id, exam_goal, kind, ref_id, summary, created_at)
-     VALUES (?, ?, ?, 'parent_feedback', ?, ?, ?)`,
-  ).bind(createId("evd"), profileId, goal, id, body.slice(0, 4000), stamp).run();
+    `INSERT INTO learning_evidence (id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at)
+     VALUES (?, ?, ?, ?, 'parent_feedback', ?, ?, ?)`,
+  ).bind(createId("evd"), profileId, goal, subject, id, body.slice(0, 4000), stamp).run();
   return id;
 }
 
