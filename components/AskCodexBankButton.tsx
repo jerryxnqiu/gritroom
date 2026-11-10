@@ -3,15 +3,20 @@
 import { useState, useTransition } from "react";
 
 import type { ExamGoal } from "@/lib/family";
+import type { PracticeSubject } from "@/lib/subjects";
 
 export function AskCodexBankButton({
   profileId,
   goal,
+  subject = "thinking",
   disabled = false,
+  label = "Ask Codex to generate practice bank",
 }: {
   profileId: string;
   goal: ExamGoal;
+  subject?: PracticeSubject;
   disabled?: boolean;
+  label?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -23,8 +28,9 @@ export function AskCodexBankButton({
     setNotice("");
     startTransition(async () => {
       try {
+        const params = new URLSearchParams({ goal, subject });
         const response = await fetch(
-          `/api/shelf/${encodeURIComponent(profileId)}/bank-brief?goal=${encodeURIComponent(goal)}`,
+          `/api/shelf/${encodeURIComponent(profileId)}/bank-brief?${params.toString()}`,
         );
         const result = await response.json() as { brief?: string; error?: string };
         if (!response.ok || !result.brief) throw new Error(result.error || "Could not prepare the Codex bank task.");
@@ -39,7 +45,7 @@ export function AskCodexBankButton({
   return (
     <div className="shelf-bank-action">
       <button type="button" className="button secondary" disabled={pending || disabled} onClick={copyBrief}>
-        {pending ? "Preparing…" : "Ask Codex to generate practice bank"}
+        {pending ? "Preparing…" : label}
       </button>
       {notice ? <p className="notice" role="status">{notice}</p> : null}
       {error ? <p className="error" role="alert">{error}</p> : null}

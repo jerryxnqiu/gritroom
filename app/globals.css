@@ -216,6 +216,10 @@ p { margin: 0; }
 .actions { display: flex; flex-wrap: wrap; gap: .7rem; }
 .current-child { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; margin-bottom: .8rem; }
 .current-child strong { overflow-wrap: anywhere; }
+.parent-module-switch,
+.shelf-switch-stack { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; }
+.parent-module-switch { margin: 0 0 1rem; }
+.shelf-switch-stack { flex-direction: column; align-items: flex-start; gap: .7rem; }
 .pill, .child-badge span { display: inline-flex; align-items: center; padding: .25rem .52rem; border-radius: 5px; background: var(--pale); color: var(--green); font-size: .75rem; font-weight: 650; }
 .parent-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; }
 .step-card { display: flex; flex-direction: column; gap: .42rem; min-height: 145px; padding: .9rem; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
@@ -532,6 +536,23 @@ p { margin: 0; }
 }
 .practice-ok { color: var(--green); }
 .practice-miss { color: var(--danger); }
+.reading-evidence-layout {
+  display: grid;
+  grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
+  gap: 1rem 1.25rem;
+  align-items: start;
+}
+.reading-evidence-rail,
+.reading-evidence-detail { display: grid; gap: .75rem; min-width: 0; }
+.reading-feedback-list { margin: 0; padding: 0; list-style: none; display: grid; gap: .55rem; }
+.reading-evidence-empty { display: grid; gap: .85rem; }
+.progress-session-card.is-current {
+  border-color: var(--moss);
+  background: color-mix(in srgb, var(--lime) 42%, white);
+}
+@media (max-width: 820px) {
+  .reading-evidence-layout { grid-template-columns: minmax(0, 1fr); }
+}
 .practice-evidence { display: grid; gap: .85rem; }
 .practice-evidence-filters { display: flex; flex-wrap: wrap; gap: .45rem; }
 .practice-evidence-attempt-list { display: grid; gap: .75rem; }

@@ -4,6 +4,7 @@ import { env } from "cloudflare:workers";
 
 import { FamilyAccess } from "@/components/FamilyAccess";
 import { FamilyBootstrap } from "@/components/FamilyBootstrap";
+import { ParentModuleSwitch } from "@/components/ParentModuleSwitch";
 import { ParentProgressPanel } from "@/components/ParentProgressPanel";
 import { ParentRoomShell } from "@/components/ParentRoomShell";
 import { ParentSectionNav, ParentSectionView } from "@/components/ParentSectionView";
@@ -21,8 +22,13 @@ import {
   listPracticeEvidenceSummaries,
 } from "@/lib/practice";
 import { shelfGoal } from "@/lib/shelf-fields";
+import { shelfSubject, subjectLabel } from "@/lib/subjects";
 
-export default async function ParentPage({ searchParams }: { searchParams: Promise<{ child?: string; shelfGoal?: string }> }) {
+export default async function ParentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ child?: string; shelfGoal?: string; subject?: string }>;
+}) {
   const session = await getSession(await getSessionTokenFromCookies());
   if (!session) redirect("/?entry=parent");
   if (session.entry !== "parent") redirect("/learner");
@@ -36,19 +42,25 @@ export default async function ParentPage({ searchParams }: { searchParams: Promi
   ]);
   const selected = profiles.find((profile) => profile.id === params.child) ?? profiles[0] ?? null;
   const goal = selected ? (shelfGoal(params.shelfGoal) ?? selected.examGoal) : "selective";
+  const subject = shelfSubject(params.subject);
   const access = selected?.canManage ? await childAccess(env.DB, selected.id, session.user_id) : null;
 
   const [unusedCount, evidencePage] = selected
     ? await Promise.all([
-      countUnusedPracticeQuestions(env.DB, selected.id, goal),
-      listPracticeEvidenceSummaries(env.DB, selected.id, goal, session.user_id, { sessionLimit: 21 }),
+      countUnusedPracticeQuestions(env.DB, selected.id, goal, subject),
+      listPracticeEvidenceSummaries(env.DB, selected.id, goal, session.user_id, {
+        sessionLimit: 21,
+        subject,
+      }),
     ])
     : [0, [] as Awaited<ReturnType<typeof listPracticeEvidenceSummaries>>];
   const evidenceHasMore = evidencePage.length > 20;
   const evidenceSessions = evidenceHasMore ? evidencePage.slice(0, 20) : evidencePage;
 
   const name = selected?.nickname || "Your family";
-  const badge = selected ? `${examLabel(selected.examGoal)} · Parent view` : "Parent view";
+  const badge = selected
+    ? `${examLabel(selected.examGoal)} · ${subjectLabel(subject)} · Parent view`
+    : "Parent view";
 
   const body = (
     <>
@@ -67,16 +79,20 @@ export default async function ParentPage({ searchParams }: { searchParams: Promi
           <span className="eyebrow">Current learner</span>
           <strong>{selected.nickname}</strong>
           <span className="pill">{examLabel(goal)}</span>
+          <span className="pill">{subjectLabel(subject)}</span>
         </div>
       ) : null}
 
       {selected ? (
         <>
+          <ParentModuleSwitch profileId={selected.id} goal={goal} subject={subject} hash="progress" />
           <ParentSectionNav />
           <ParentSectionView id="progress">
             <ParentProgressPanel
               nickname={selected.nickname}
               archiveLabel={examLabel(goal)}
+              subjectLabel={subjectLabel(subject)}
+              subject={subject}
               unusedCount={unusedCount}
               sessions={evidenceSessions}
             />
@@ -88,15 +104,17 @@ export default async function ParentPage({ searchParams }: { searchParams: Promi
             {owner ? <ParentSettings /> : null}
           </ParentSectionView>
           <ParentSectionView id="bank">
-            <PracticeBankPanel profile={selected} goal={goal} userId={session.user_id} />
+            <PracticeBankPanel profile={selected} goal={goal} subject={subject} userId={session.user_id} />
           </ParentSectionView>
           <ParentSectionView id="shelf">
-            <ResourceShelf profile={selected} goal={goal} userId={session.user_id} />
+            <ResourceShelf profile={selected} goal={goal} subject={subject} userId={session.user_id} />
           </ParentSectionView>
           <ParentSectionView id="evidence">
             <PracticeEvidencePanel
               profile={selected}
               goal={goal}
+              subject={subject}
+              userId={session.user_id}
               sessions={evidenceSessions}
               hasMore={evidenceHasMore}
             />
