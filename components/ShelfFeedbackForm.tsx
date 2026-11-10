@@ -4,10 +4,21 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 
 import type { ExamGoal } from "@/lib/family";
+import type { PracticeSubject } from "@/lib/subjects";
 
 type Feedback = { id: string; body: string; createdAt: string; canWithdraw: boolean };
 
-export function ShelfFeedbackForm({ profileId, goal, feedback }: { profileId: string; goal: ExamGoal; feedback: Feedback[] }) {
+export function ShelfFeedbackForm({
+  profileId,
+  goal,
+  subject = "thinking",
+  feedback,
+}: {
+  profileId: string;
+  goal: ExamGoal;
+  subject?: PracticeSubject;
+  feedback: Feedback[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<{ text: string; error?: boolean }>();
@@ -35,7 +46,7 @@ export function ShelfFeedbackForm({ profileId, goal, feedback }: { profileId: st
     submit(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ goal, body: new FormData(form).get("body") }),
+      body: JSON.stringify({ goal, subject, body: new FormData(form).get("body") }),
     }, "Feedback saved for future practice.", form);
   }
 

@@ -1,5 +1,6 @@
 import type { ExamGoal } from "./family.ts";
 import { createId } from "./ids.ts";
+import type { PracticeSubject } from "./subjects.ts";
 import { nowIso } from "./time.ts";
 
 const parentAccess = `EXISTS (
@@ -25,6 +26,11 @@ export type MaterialAnalysis = {
   completedAt: string | null;
 };
 
+export type MaterialAnalysisEvidence = MaterialAnalysis & {
+  materialTitle: string;
+  materialKind: string;
+};
+
 export type CodexAnalysisInput = {
   summaryEn: string;
   parentZh: string;
@@ -43,25 +49,32 @@ type MaterialRow = {
   fileName: string | null;
   fileType: string | null;
   examGoal: ExamGoal;
+  subject: PracticeSubject;
   nickname: string;
   createdByUserId: string;
 };
 
-export async function listMaterialAnalyses(db: D1Database, profileId: string, goal: ExamGoal, userId: string) {
+export async function listMaterialAnalyses(
+  db: D1Database,
+  profileId: string,
+  goal: ExamGoal,
+  userId: string,
+  subject: PracticeSubject = "thinking",
+) {
   const rows = await db.prepare(
     `SELECT a.id, a.material_id AS materialId, a.status, a.summary_en AS summaryEn, a.parent_zh AS parentZh,
             a.training_directions_json AS trainingJson, a.evidence_limits AS evidenceLimits,
             a.error, a.created_at AS createdAt, a.completed_at AS completedAt
      FROM material_analyses a
      JOIN profiles p ON p.id = a.profile_id
-     WHERE a.profile_id = ? AND a.exam_goal = ? AND ${parentAccess}
+     WHERE a.profile_id = ? AND a.exam_goal = ? AND a.subject = ? AND ${parentAccess}
        AND a.id = (
          SELECT a2.id FROM material_analyses a2
          WHERE a2.material_id = a.material_id
          ORDER BY a2.created_at DESC, a2.id DESC LIMIT 1
        )
      ORDER BY a.created_at DESC`,
-  ).bind(profileId, goal, userId).all<{
+  ).bind(profileId, goal, subject, userId).all<{
     id: string;
     materialId: string;
     status: MaterialAnalysis["status"];
@@ -88,6 +101,61 @@ export async function listMaterialAnalyses(db: D1Database, profileId: string, go
   })) satisfies MaterialAnalysis[];
 }
 
+/** Latest succeeded Codex findings with shelf titles — used by Reading evidence before practice attempts exist. */
+export async function listSucceededMaterialEvidence(
+  db: D1Database,
+  profileId: string,
+  goal: ExamGoal,
+  userId: string,
+  subject: PracticeSubject = "thinking",
+) {
+  const rows = await db.prepare(
+    `SELECT a.id, a.material_id AS materialId, a.status, a.summary_en AS summaryEn, a.parent_zh AS parentZh,
+            a.training_directions_json AS trainingJson, a.evidence_limits AS evidenceLimits,
+            a.error, a.created_at AS createdAt, a.completed_at AS completedAt,
+            m.title AS materialTitle, m.kind AS materialKind
+     FROM material_analyses a
+     JOIN shelf_materials m ON m.id = a.material_id
+     JOIN profiles p ON p.id = a.profile_id
+     WHERE a.profile_id = ? AND a.exam_goal = ? AND a.subject = ? AND a.status = 'succeeded'
+       AND ${parentAccess}
+       AND a.id = (
+         SELECT a2.id FROM material_analyses a2
+         WHERE a2.material_id = a.material_id AND a2.status = 'succeeded'
+         ORDER BY a2.created_at DESC, a2.id DESC LIMIT 1
+       )
+     ORDER BY a.created_at DESC, a.id DESC`,
+  ).bind(profileId, goal, subject, userId).all<{
+    id: string;
+    materialId: string;
+    status: MaterialAnalysis["status"];
+    summaryEn: string | null;
+    parentZh: string | null;
+    trainingJson: string | null;
+    evidenceLimits: string | null;
+    error: string | null;
+    createdAt: string;
+    completedAt: string | null;
+    materialTitle: string;
+    materialKind: string;
+  }>();
+
+  return rows.results.map((row) => ({
+    id: row.id,
+    materialId: row.materialId,
+    status: row.status,
+    summaryEn: row.summaryEn,
+    parentZh: row.parentZh,
+    trainingDirections: parseDirections(row.trainingJson),
+    evidenceLimits: row.evidenceLimits,
+    error: row.error,
+    createdAt: row.createdAt,
+    completedAt: row.completedAt,
+    materialTitle: row.materialTitle,
+    materialKind: row.materialKind,
+  })) satisfies MaterialAnalysisEvidence[];
+}
+
 export async function getMaterialForCodex(
   db: D1Database,
   profileId: string,
@@ -97,7 +165,7 @@ export async function getMaterialForCodex(
   return db.prepare(
     `SELECT m.id, m.kind, m.title, m.source_url AS url, m.notes, m.file_key AS fileKey,
             m.file_name AS fileName, m.file_type AS fileType, m.exam_goal AS examGoal,
-            m.created_by_user_id AS createdByUserId, p.nickname
+            m.subject, m.created_by_user_id AS createdByUserId, p.nickname
      FROM shelf_materials m JOIN profiles p ON p.id = m.profile_id
      WHERE m.id = ? AND m.profile_id = ? AND ${parentAccess}`,
   ).bind(materialId, profileId, userId).first<MaterialRow>();
@@ -108,6 +176,7 @@ export async function listMaterialsForCodexBank(
   profileId: string,
   goal: ExamGoal,
   userId: string,
+  subject: PracticeSubject = "thinking",
 ) {
   const profile = await db.prepare(
     `SELECT p.nickname FROM profiles p WHERE p.id = ? AND ${parentAccess}`,
@@ -117,43 +186,53 @@ export async function listMaterialsForCodexBank(
   const { results } = await db.prepare(
     `SELECT m.id, m.kind, m.title, m.source_url AS url, m.notes, m.file_key AS fileKey,
             m.file_name AS fileName, m.file_type AS fileType, m.exam_goal AS examGoal,
-            m.created_by_user_id AS createdByUserId
+            m.subject, m.created_by_user_id AS createdByUserId
      FROM shelf_materials m JOIN profiles p ON p.id = m.profile_id
-     WHERE m.profile_id = ? AND m.exam_goal = ? AND ${parentAccess}
+     WHERE m.profile_id = ? AND m.exam_goal = ? AND m.subject = ? AND ${parentAccess}
      ORDER BY m.kind, m.created_at DESC, m.id DESC`,
-  ).bind(profileId, goal, userId).all<Omit<MaterialRow, "nickname">>();
+  ).bind(profileId, goal, subject, userId).all<Omit<MaterialRow, "nickname">>();
 
   return { nickname: profile.nickname, materials: results };
 }
 
+type BankMaterial = Omit<MaterialRow, "nickname" | "examGoal" | "createdByUserId" | "subject"> & {
+  subject?: PracticeSubject;
+};
+
+function materialLines(materials: BankMaterial[]) {
+  return materials.map((item) => [
+    `- [${item.kind}] ${item.title} (material_id=${item.id})`,
+    item.fileKey ? `  r2_key=${item.fileKey} file=${item.fileName || item.id}` : null,
+    item.url ? `  url=${item.url}` : null,
+    item.notes?.trim() ? `  notes=${item.notes.trim().slice(0, 240)}` : null,
+  ].filter(Boolean).join("\n")).join("\n");
+}
+
 /**
- * One Codex task for the whole archive: coaching reports + misc practice sources → refresh practice_questions.
+ * One Codex task for the whole archive module: coaching + misc sources → refresh bank / reading prep.
  */
 export function buildCodexBankBrief(input: {
   profileId: string;
   goal: ExamGoal;
   nickname: string;
   actorUserId: string;
-  materials: Omit<MaterialRow, "nickname" | "examGoal" | "createdByUserId">[];
+  materials: BankMaterial[];
+  subject?: PracticeSubject;
 }) {
+  const subject = input.subject ?? "thinking";
+  if (subject === "reading") return buildCodexReadingBankBrief(input);
+
   const { profileId, goal, nickname, actorUserId, materials } = input;
   const stamp = nowIso();
   const coaching = materials.filter((item) => item.kind !== "study_material");
   const practiceSources = materials.filter((item) => item.kind === "study_material");
-
-  const lineFor = (item: (typeof materials)[number]) => [
-    `- [${item.kind}] ${item.title} (material_id=${item.id})`,
-    item.fileKey ? `  r2_key=${item.fileKey} file=${item.fileName || item.id}` : null,
-    item.url ? `  url=${item.url}` : null,
-    item.notes?.trim() ? `  notes=${item.notes.trim().slice(0, 240)}` : null,
-  ].filter(Boolean).join("\n");
 
   return [
     "GritRoom Codex practice-bank generation",
     "",
     "You are working in the local gritroom repo with wrangler access to remote D1/R2.",
     "Use ALL shelf inputs below (coaching reports/videos + miscellaneous practice-question sources)",
-    "plus official thinking blueprints to refresh the active practice question bank.",
+    "plus official thinking blueprints to refresh the active Thinking Skills practice question bank.",
     "Write original Selective/OC Thinking Skills items. Do NOT copy commercial or NSW sample stems.",
     "Follow each blueprint authoring_rule and verification_rule. Respect evidence limits from coaching notes.",
     "Imitate the uploaded miscellaneous practice sources for length, density and wording quality — real papers are",
@@ -164,6 +243,7 @@ export function buildCodexBankBrief(input: {
     `- profile_id: ${profileId}`,
     `- learner: ${nickname}`,
     `- exam_goal: ${goal}`,
+    `- subject: thinking`,
     `- actor_user_id: ${actorUserId}`,
     `- prepared_at: ${stamp}`,
     "",
@@ -176,45 +256,45 @@ export function buildCodexBankBrief(input: {
     `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, version, skill, title, method, authoring_rule, verification_rule FROM thinking_blueprints;"`,
     "```",
     "",
-    "Current active bank (do not delete old versions; insert new versions instead):",
+    "Current active Thinking Skills bank (do not delete old versions; insert new versions instead):",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, version, blueprint_id, substr(prompt,1,80) AS prompt, correct_option, image_key, status FROM practice_questions WHERE status = 'active' ORDER BY blueprint_id, id, version;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, version, blueprint_id, substr(prompt,1,80) AS prompt, correct_option, image_key, status FROM practice_questions WHERE status = 'active' AND subject = 'thinking' ORDER BY blueprint_id, id, version;"`,
     "```",
     "",
     "Succeeded material analyses already on file:",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT material_id, summary_en, training_directions_json, evidence_limits FROM material_analyses WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND status = 'succeeded' ORDER BY created_at DESC;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT material_id, summary_en, training_directions_json, evidence_limits FROM material_analyses WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'thinking' AND status = 'succeeded' ORDER BY created_at DESC;"`,
     "```",
     "",
     "Evolved learning evidence (analyses, attempts, parent feedback):",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT kind, summary, created_at FROM learning_evidence WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' ORDER BY created_at DESC LIMIT 200;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT kind, summary, created_at FROM learning_evidence WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'thinking' ORDER BY created_at DESC LIMIT 200;"`,
     "```",
     "",
     "Recent practice attempts (what the learner got right/wrong):",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT question_id, question_version, blueprint_id, is_correct, confidence, substr(question_prompt,1,80) AS prompt, substr(draft_notes,1,120) AS notes FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND finalized_at IS NOT NULL ORDER BY finalized_at DESC LIMIT 200;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT question_id, question_version, blueprint_id, is_correct, confidence, substr(question_prompt,1,80) AS prompt, substr(draft_notes,1,120) AS notes FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'thinking' AND finalized_at IS NOT NULL ORDER BY finalized_at DESC LIMIT 200;"`,
     "```",
     "",
     "Weak-spot blueprints for this learner (incorrect finalized attempts, highest miss count first):",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT blueprint_id, COUNT(*) AS misses FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND finalized_at IS NOT NULL AND is_correct = 0 AND blueprint_id IS NOT NULL GROUP BY blueprint_id ORDER BY misses DESC, blueprint_id LIMIT 8;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT blueprint_id, COUNT(*) AS misses FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'thinking' AND finalized_at IS NOT NULL AND is_correct = 0 AND blueprint_id IS NOT NULL GROUP BY blueprint_id ORDER BY misses DESC, blueprint_id LIMIT 8;"`,
     "```",
     "",
     "Active parent feedback:",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT body, created_at FROM shelf_feedback WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND withdrawn_at IS NULL ORDER BY created_at DESC;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT body, created_at FROM shelf_feedback WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'thinking' AND withdrawn_at IS NULL ORDER BY created_at DESC;"`,
     "```",
     "",
     `## Coaching reports & videos (${coaching.length})`,
-    coaching.length ? coaching.map(lineFor).join("\n") : "(none in this archive)",
+    coaching.length ? materialLines(coaching) : "(none in this archive)",
     "",
     `## Practice questions from miscellaneous sources (${practiceSources.length})`,
     "CRITICAL style models — download and study these pages before authoring.",
     "Match their comprehensive wording, multi-step stems, option craft, and visual density.",
     "In real Selective/OC Thinking Skills, graph / table / diagram / spatial items are a large share (target ≥ 50%).",
     "Use these sources for difficulty, method and layout cues only. Invent new scenarios; never reproduce protected text or figures.",
-    practiceSources.length ? practiceSources.map(lineFor).join("\n") : "(none in this archive — still prefer visual stems where blueprints allow)",
+    practiceSources.length ? materialLines(practiceSources) : "(none in this archive — still prefer visual stems where blueprints allow)",
     "",
     "Download each R2 file you need, e.g.:",
     "```sh",
@@ -222,7 +302,7 @@ export function buildCodexBankBrief(input: {
     "```",
     "",
     "## What to write",
-    "This refresh should ADD about 60 new active questions (new ids or new versions), not merely top up to an old floor.",
+    "This refresh should ADD about 60 new active Thinking Skills questions (subject = 'thinking').",
     goal === "selective"
       ? "Selective mix for the ~60 new items: about 25–30 on the learner’s weak-spot blueprints (from the miss counts above),"
         + " and the remaining ~30–35 spread across other blueprints so a full 40-question timed paper and mixed Practice · 10 sets stay balanced."
@@ -232,7 +312,8 @@ export function buildCodexBankBrief(input: {
     "Also honour training directions from material analyses and parent feedback when choosing which weak blueprints to reinforce.",
     "Several original items per blueprint is expected; one-per-blueprint is not enough.",
     "Prefer fresh stems over near-copies of active bank items. Keep official blueprint coverage so the bank is not only remediation.",
-    "Insert new active practice_questions rows (same id with version = previous max + 1, or new ids for added coverage).",
+    "Insert new active practice_questions rows with subject = 'thinking'",
+    "(same id with version = previous max + 1, or new ids for added coverage).",
     "Write full, exam-like stems (context + data + question), not short toy prompts.",
     "Across the refresh batch, at least half of new active items should include a figure or table image in R2",
     "(graphs, tables, diagrams, maps, nets, rotations, count grids, etc.) when the skill can use one.",
@@ -245,15 +326,88 @@ export function buildCodexBankBrief(input: {
     "",
     "Example insert shape:",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO practice_questions (id, version, blueprint_id, blueprint_version, prompt, options_json, correct_option, explanation_en, status, created_at) VALUES ('q-example', 2, 'necessary-vs-sufficient', 1, 'PROMPT', '{\\"A\\":\\"\\",\\"B\\":\\"\\",\\"C\\":\\"\\",\\"D\\":\\"\\"}', 'B', 'WHY_B_IS_RIGHT', 'active', '${stamp}');"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO practice_questions (id, version, blueprint_id, blueprint_version, prompt, options_json, correct_option, explanation_en, status, subject, created_at) VALUES ('q-example', 2, 'necessary-vs-sufficient', 1, 'PROMPT', '{\\"A\\":\\"\\",\\"B\\":\\"\\",\\"C\\":\\"\\",\\"D\\":\\"\\"}', 'B', 'WHY_B_IS_RIGHT', 'active', 'thinking', '${stamp}');"`,
     "```",
     "",
     "Confirm coverage:",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT blueprint_id, id, version, substr(prompt,1,80) AS prompt, substr(explanation_en,1,80) AS explanation FROM practice_questions WHERE status = 'active' ORDER BY blueprint_id, id;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT blueprint_id, id, version, substr(prompt,1,80) AS prompt, substr(explanation_en,1,80) AS explanation FROM practice_questions WHERE status = 'active' AND subject = 'thinking' ORDER BY blueprint_id, id;"`,
     "```",
     "",
-    "Then tell the parent to refresh Parent room → Practice bank / start a new practice session.",
+    "Then tell the parent to refresh Parent room → Thinking Skills → Practice bank / start a new practice session.",
+  ].join("\n");
+}
+
+/** Parent-room Reading prep: review shelf sources into analyses/evidence; question bank lands with learner Reading. */
+function buildCodexReadingBankBrief(input: {
+  profileId: string;
+  goal: ExamGoal;
+  nickname: string;
+  actorUserId: string;
+  materials: BankMaterial[];
+}) {
+  const { profileId, goal, nickname, actorUserId, materials } = input;
+  const stamp = nowIso();
+  const coaching = materials.filter((item) => item.kind !== "study_material");
+  const practiceSources = materials.filter((item) => item.kind === "study_material");
+
+  return [
+    "GritRoom Codex Reading module shelf review",
+    "",
+    "You are working in the local gritroom repo with wrangler access to remote D1/R2.",
+    "This task prepares the Reading module for the parent room. Learner Reading practice is not live yet —",
+    "do NOT insert Thinking Skills practice_questions, and do NOT invent reading_questions rows yet.",
+    "Read the Reading shelf sources below, then write material_analyses + learning_evidence for each useful source",
+    "so the family has clear training directions ready when Reading practice ships.",
+    "",
+    "## Scope",
+    `- profile_id: ${profileId}`,
+    `- learner: ${nickname}`,
+    `- exam_goal: ${goal}`,
+    `- subject: reading`,
+    `- actor_user_id: ${actorUserId}`,
+    `- prepared_at: ${stamp}`,
+    "",
+    "## Where to read",
+    `- D1: ${CODEX_D1_NAME} (${CODEX_D1_ID}) via wrangler.d1.jsonc`,
+    `- R2 bucket: ${CODEX_R2_BUCKET}`,
+    "",
+    "Existing Reading analyses:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT material_id, summary_en, training_directions_json, evidence_limits FROM material_analyses WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' AND status = 'succeeded' ORDER BY created_at DESC;"`,
+    "```",
+    "",
+    "Reading learning evidence:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT kind, summary, created_at FROM learning_evidence WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' ORDER BY created_at DESC LIMIT 200;"`,
+    "```",
+    "",
+    "Active Reading parent feedback:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT body, created_at FROM shelf_feedback WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' AND withdrawn_at IS NULL ORDER BY created_at DESC;"`,
+    "```",
+    "",
+    `## Coaching reports & videos (${coaching.length})`,
+    coaching.length ? materialLines(coaching) : "(none in this Reading shelf)",
+    "",
+    `## Reading practice sources (${practiceSources.length})`,
+    "Use these as style and difficulty cues for future Reading item banks. Never reproduce protected passages.",
+    practiceSources.length ? materialLines(practiceSources) : "(none in this Reading shelf)",
+    "",
+    "Download each R2 file you need, e.g.:",
+    "```sh",
+    `npx wrangler r2 object get ${CODEX_R2_BUCKET}/R2_KEY --file /tmp/source.bin --remote`,
+    "```",
+    "",
+    "## What to write",
+    "For each useful Reading shelf source, insert a succeeded material_analyses row with subject = 'reading'",
+    "(summary_en, training_directions_json, evidence_limits, optional parent_zh) and a matching learning_evidence row",
+    "with subject = 'reading' and kind = 'material_analysis'.",
+    "Focus training directions on comprehension skills useful for Selective/OC Reading",
+    "(main idea, inference, vocabulary in context, author’s purpose, compare viewpoints) — without inventing exam stems yet.",
+    "Respect evidence limits from coaching notes and parent feedback.",
+    "",
+    "Then tell the parent to refresh Parent room → Reading → Resources / Practice bank.",
   ].join("\n");
 }
 
@@ -345,6 +499,7 @@ export function buildCodexMaterialBrief(
     `- profile_id: ${profileId}`,
     `- learner: ${material.nickname}`,
     `- exam_goal: ${material.examGoal}`,
+    `- subject: ${material.subject}`,
     `- material_id: ${material.id}`,
     `- kind: ${material.kind}`,
     `- title: ${material.title}`,
@@ -391,7 +546,7 @@ export function buildCodexMaterialBrief(
     `- model: codex`,
     "",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO material_analyses (id, material_id, profile_id, exam_goal, status, summary_en, parent_zh, training_directions_json, evidence_limits, source_excerpt, model, created_by_user_id, created_at, completed_at) VALUES ('${analysisId}', '${material.id}', '${profileId}', '${material.examGoal}', 'succeeded', 'SUMMARY_EN', NULL, '[\\"DIRECTION\\"]', 'LIMITS', 'EXCERPT', 'codex', '${actorUserId}', '${stamp}', '${stamp}'); INSERT INTO learning_evidence (id, profile_id, exam_goal, kind, ref_id, summary, created_at) VALUES ('${evidenceId}', '${profileId}', '${material.examGoal}', 'material_analysis', '${analysisId}', 'SUMMARY_EN', '${stamp}');"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO material_analyses (id, material_id, profile_id, exam_goal, subject, status, summary_en, parent_zh, training_directions_json, evidence_limits, source_excerpt, model, created_by_user_id, created_at, completed_at) VALUES ('${analysisId}', '${material.id}', '${profileId}', '${material.examGoal}', '${material.subject}', 'succeeded', 'SUMMARY_EN', NULL, '[\\"DIRECTION\\"]', 'LIMITS', 'EXCERPT', 'codex', '${actorUserId}', '${stamp}', '${stamp}'); INSERT INTO learning_evidence (id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at) VALUES ('${evidenceId}', '${profileId}', '${material.examGoal}', '${material.subject}', 'material_analysis', '${analysisId}', 'SUMMARY_EN', '${stamp}');"`,
     "```",
     "",
     "Replace SUMMARY_EN / DIRECTION / LIMITS / EXCERPT (and parent_zh NULL if unused) with real values.",
@@ -465,15 +620,16 @@ export async function saveCodexMaterialAnalysis(
     await db.batch([
       db.prepare(
         `INSERT INTO material_analyses
-           (id, material_id, profile_id, exam_goal, status, summary_en, parent_zh,
+           (id, material_id, profile_id, exam_goal, subject, status, summary_en, parent_zh,
             training_directions_json, evidence_limits, source_excerpt, model,
             created_by_user_id, created_at, completed_at)
-         VALUES (?, ?, ?, ?, 'succeeded', ?, ?, ?, ?, ?, 'codex', ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, 'succeeded', ?, ?, ?, ?, ?, 'codex', ?, ?, ?)`,
       ).bind(
         analysisId,
         materialId,
         profileId,
         material.examGoal,
+        material.subject,
         input.summaryEn,
         input.parentZh || null,
         JSON.stringify(input.trainingDirections),
@@ -484,9 +640,9 @@ export async function saveCodexMaterialAnalysis(
         stamp,
       ),
       db.prepare(
-        `INSERT INTO learning_evidence (id, profile_id, exam_goal, kind, ref_id, summary, created_at)
-         VALUES (?, ?, ?, 'material_analysis', ?, ?, ?)`,
-      ).bind(evidenceId, profileId, material.examGoal, analysisId, input.summaryEn, stamp),
+        `INSERT INTO learning_evidence (id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at)
+         VALUES (?, ?, ?, ?, 'material_analysis', ?, ?, ?)`,
+      ).bind(evidenceId, profileId, material.examGoal, material.subject, analysisId, input.summaryEn, stamp),
     ]);
   } catch {
     return { ok: false as const, status: 503 as const, error: "Could not save Codex findings. Try again." };
