@@ -575,12 +575,12 @@ export function LearnerPractice({
           <>
             <h2 id="practice-heading">A short practice set.</h2>
             <p className="lede">
-              Do a mixed five-question set, or practise only the skills you miss most. Each answer gets a quick review.
+              Do a mixed ten-question set, or practise only the skills you miss most. Each answer gets a quick review.
             </p>
             <div className="actions practice-start-actions">
               {canStartPractice ? (
                 <button type="button" className="button" disabled={pending} onClick={() => start("daily")}>
-                  Practice · 5 questions
+                  Practice · 10 questions
                 </button>
               ) : (
                 <p className="meta">
@@ -593,7 +593,7 @@ export function LearnerPractice({
                 disabled={pending || !canStartFocus}
                 onClick={() => start("focus")}
               >
-                Practice weak spots · up to 5
+                Practice weak spots · up to 10
               </button>
               {canStartFocus ? (
                 <p className="meta">

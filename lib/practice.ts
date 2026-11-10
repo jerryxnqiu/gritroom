@@ -7,7 +7,7 @@ export type PracticeMode = "diagnostic" | "daily" | "timed" | "focus";
 export type PracticeOptionKey = "A" | "B" | "C" | "D";
 
 const WEAK_BLUEPRINT_LIMIT = 3;
-const FOCUS_SET_SIZE = 5;
+const SHORT_SET_SIZE = 10;
 
 /** Official paper length / minutes for a timed Thinking Skills set. */
 export function timedPaperSpec(goal: ExamGoal) {
@@ -173,7 +173,7 @@ function pickQuestions(bank: PracticeQuestion[], mode: PracticeMode, goal: ExamG
   if (mode === "timed") {
     return shuffled.slice(0, timedPaperSpec(goal).questions);
   }
-  return shuffled.slice(0, Math.min(FOCUS_SET_SIZE, shuffled.length));
+  return shuffled.slice(0, Math.min(SHORT_SET_SIZE, shuffled.length));
 }
 
 /** Blueprints this learner misses most often (for focused short rounds). */

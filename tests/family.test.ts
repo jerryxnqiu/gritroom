@@ -329,7 +329,7 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   assert.equal(started.ok, true);
   if (!started.ok) return;
   assert.equal(started.session.status, "active");
-  assert.ok(started.session.attempts.length >= 1 && started.session.attempts.length <= 5);
+  assert.ok(started.session.attempts.length >= 1 && started.session.attempts.length <= 10);
   assert.equal(started.session.attempts[0]?.correctOption, null);
   assert.equal(started.session.attempts[0]?.explanationEn, null);
 
@@ -567,7 +567,7 @@ test("timed papers need a full unused bank and allow review before submit", asyn
   assert.equal(focused.ok, true);
   if (!focused.ok) return;
   assert.equal(focused.session.mode, "focus");
-  assert.ok(focused.session.attempts.length >= 1 && focused.session.attempts.length <= 5);
+  assert.ok(focused.session.attempts.length >= 1 && focused.session.attempts.length <= 10);
   for (const attempt of focused.session.attempts) {
     assert.ok(attempt.blueprintId);
     assert.equal(weakIds.includes(attempt.blueprintId!), true);
