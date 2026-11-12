@@ -9,12 +9,14 @@ export function AskCodexBankButton({
   profileId,
   goal,
   subject = "thinking",
+  task = "bank",
   disabled = false,
   label = "Ask Codex to generate practice bank",
 }: {
   profileId: string;
   goal: ExamGoal;
   subject?: PracticeSubject;
+  task?: "bank" | "remediation";
   disabled?: boolean;
   label?: string;
 }) {
@@ -28,14 +30,18 @@ export function AskCodexBankButton({
     setNotice("");
     startTransition(async () => {
       try {
-        const params = new URLSearchParams({ goal, subject });
+        const params = new URLSearchParams({ goal, subject, task });
         const response = await fetch(
           `/api/shelf/${encodeURIComponent(profileId)}/bank-brief?${params.toString()}`,
         );
         const result = await response.json() as { brief?: string; error?: string };
         if (!response.ok || !result.brief) throw new Error(result.error || "Could not prepare the Codex bank task.");
         await navigator.clipboard.writeText(result.brief);
-        setNotice("Codex bank task copied. Paste it into a Codex chat in this gritroom repo.");
+        setNotice(
+          task === "remediation"
+            ? "Codex Reading remediation task copied. Paste it into a Codex chat in this gritroom repo."
+            : "Codex bank task copied. Paste it into a Codex chat in this gritroom repo.",
+        );
       } catch (problem) {
         setError(problem instanceof Error ? problem.message : "Could not prepare the Codex bank task.");
       }

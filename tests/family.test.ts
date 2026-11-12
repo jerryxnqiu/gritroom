@@ -270,11 +270,29 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
     actorUserId: "owner",
     materials: readingShelf.materials,
   });
-  assert.match(readingBrief, /Reading module shelf review/);
+  assert.match(readingBrief, /Reading practice generation/);
   assert.match(readingBrief, /subject: reading/);
   assert.match(readingBrief, /reading_blueprints/);
-  assert.match(readingBrief, /Passage set:/);
-  assert.match(readingBrief, /do NOT insert Thinking Skills practice_questions/);
+  assert.match(readingBrief, /PRIMARY STYLE MODELS/);
+  assert.match(readingBrief, /reading_practice_pack/);
+  assert.match(readingBrief, /Never copy or lightly paraphrase/);
+  assert.match(readingBrief, /Passage authenticity/);
+  assert.match(readingBrief, /genuine-feeling/);
+  assert.match(readingBrief, /cartoonish/);
+  const remediationBrief = buildCodexBankBrief({
+    profileId: "p1",
+    goal: "selective",
+    subject: "reading",
+    readingTask: "remediation",
+    nickname: readingShelf.nickname,
+    actorUserId: "owner",
+    materials: readingShelf.materials,
+  });
+  assert.match(remediationBrief, /Reading remediation & language drill/);
+  assert.match(remediationBrief, /Copywork drill/);
+  assert.match(remediationBrief, /Handwriting ·/);
+  assert.match(remediationBrief, /reading_remediation/);
+  assert.match(readingBrief, /Do NOT insert Thinking Skills practice_questions/);
   assert.match(
     composeReadingPassageNotes({
       passageSet: "River Otters",
@@ -610,10 +628,13 @@ test("timed papers need a full unused bank and allow review before submit", asyn
   assert.equal(early.ok, false);
   if (!early.ok) assert.match(early.error, /unanswered/);
 
+  // Fillers use correct option A; force a miss on one of those so weak-spot logic is stable.
+  const missTarget = changed.session.attempts.find((item) => item.questionId?.startsWith("q-timed-extra-"))
+    ?? second;
   for (const attempt of changed.session.attempts) {
     const saved = await saveTimedDraft(db, "learner", ready.session.id, {
       attemptId: attempt.id,
-      selectedOption: attempt.id === second.id ? "B" : "A",
+      selectedOption: attempt.id === missTarget.id ? "B" : "A",
       timeMs: 100,
     });
     assert.equal(saved.ok, true);
@@ -623,10 +644,9 @@ test("timed papers need a full unused bank and allow review before submit", asyn
   if (!submitted.ok) return;
   assert.equal(submitted.session.status, "completed");
   assert.equal(submitted.session.attempts.every((item) => Boolean(item.finalizedAt)), true);
-  assert.equal(submitted.session.attempts[0]?.selectedOption, "A");
-  assert.equal(submitted.session.attempts[1]?.selectedOption, "B");
-  assert.equal(submitted.session.attempts[0]?.isCorrect, true);
-  assert.equal(submitted.session.attempts[1]?.isCorrect, false);
+  const missAttempt = submitted.session.attempts.find((item) => item.id === missTarget.id);
+  assert.equal(missAttempt?.selectedOption, "B");
+  assert.equal(missAttempt?.isCorrect, false);
 
   const weakIds = await listWeakBlueprintIds(db, "p1", "selective");
   assert.ok(weakIds.length >= 1);

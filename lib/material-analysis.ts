@@ -208,6 +208,8 @@ function materialLines(materials: BankMaterial[]) {
   ].filter(Boolean).join("\n")).join("\n");
 }
 
+export type ReadingCodexTask = "bank" | "remediation";
+
 /**
  * One Codex task for the whole archive module: coaching + misc sources → refresh bank / reading prep.
  */
@@ -218,9 +220,14 @@ export function buildCodexBankBrief(input: {
   actorUserId: string;
   materials: BankMaterial[];
   subject?: PracticeSubject;
+  readingTask?: ReadingCodexTask;
 }) {
   const subject = input.subject ?? "thinking";
-  if (subject === "reading") return buildCodexReadingBankBrief(input);
+  if (subject === "reading") {
+    return input.readingTask === "remediation"
+      ? buildCodexReadingRemediationBrief(input)
+      : buildCodexReadingBankBrief(input);
+  }
 
   const { profileId, goal, nickname, actorUserId, materials } = input;
   const stamp = nowIso();
@@ -338,7 +345,7 @@ export function buildCodexBankBrief(input: {
   ].join("\n");
 }
 
-/** Parent-room Reading prep: review shelf sources into analyses/evidence; question bank lands with learner Reading. */
+/** Reading practice generation: mimic uploaded + official samples; save style packs + original drafts. */
 function buildCodexReadingBankBrief(input: {
   profileId: string;
   goal: ExamGoal;
@@ -350,16 +357,23 @@ function buildCodexReadingBankBrief(input: {
   const stamp = nowIso();
   const coaching = materials.filter((item) => item.kind !== "study_material");
   const practiceSources = materials.filter((item) => item.kind === "study_material");
+  const evidenceId = createId("evd");
+  const packId = createId("rdp");
 
   return [
-    "GritRoom Codex Reading module shelf review",
+    "GritRoom Codex Reading practice generation",
     "",
     "You are working in the local gritroom repo with wrangler access to remote D1/R2.",
-    "This task prepares the Reading module for the parent room. Learner Reading practice is not live yet —",
-    "do NOT insert Thinking Skills practice_questions, and do NOT invent reading practice_questions rows yet.",
-    "Official Reading format and skill blueprints are already in D1 (reading_sources / reading_blueprints).",
-    "Read those foundations plus the Reading shelf sources below, then write material_analyses + learning_evidence",
-    "for each useful coaching or practice source so training directions stay aligned with official Reading skills.",
+    `Build original ${goal === "oc" ? "OC" : "Selective"} Reading practice for ${nickname}.`,
+    "Mimic the family’s uploaded practice papers AND the official NSW Reading sample papers as closely as possible",
+    "in length, genre mix, question craft, distractor style and difficulty — but invent NEW passages and NEW stems.",
+    "Never copy or lightly paraphrase protected commercial/NSW text or figures.",
+    "Passage authenticity: prefer genuine-feeling writing, not toy or cartoonish made-up worlds.",
+    "- Non-fiction (reports, magazine-style, nature/science/history): ground claims in ordinary public knowledge;",
+    "  write fresh wording; do not invent impossible facts or gimmick topics.",
+    "- Fiction / poetry when the style models need them: keep them age-appropriate and exam-like",
+    "  (plausible settings, natural voice) — avoid slapstick, meme humour, or fantasy fluff that real papers rarely use.",
+    "Do NOT insert Thinking Skills practice_questions rows.",
     "",
     "## Scope",
     `- profile_id: ${profileId}`,
@@ -373,22 +387,24 @@ function buildCodexReadingBankBrief(input: {
     `- D1: ${CODEX_D1_NAME} (${CODEX_D1_ID}) via wrangler.d1.jsonc`,
     `- R2 bucket: ${CODEX_R2_BUCKET}`,
     "",
-    "Official Reading foundations:",
+    "Official Reading format + blueprints (structure target):",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, exam_goal, kind, label, question_count, answer_count, minutes, option_count, substr(notes,1,160) AS notes FROM reading_sources WHERE exam_goal = '${goal}';"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, exam_goal, kind, label, url, question_count, answer_count, minutes, option_count, substr(notes,1,200) AS notes FROM reading_sources WHERE exam_goal = '${goal}';"`,
     "```",
     "```sh",
     `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, version, skill, title, method, authoring_rule, verification_rule FROM reading_blueprints;"`,
     "```",
     "",
-    "Existing Reading analyses:",
-    "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT material_id, summary_en, training_directions_json, evidence_limits FROM material_analyses WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' AND status = 'succeeded' ORDER BY created_at DESC;"`,
-    "```",
+    "Download and study the official worked-example PDFs listed in reading_sources (kind = worked_examples).",
+    "Also open the official format guide URL. Capture: passage length, genre mix, multi-part question patterns,",
+    "option wording, and how inference vs literal detail is tested — then invent originals that feel the same.",
     "",
-    "Reading learning evidence:",
+    "Existing Reading analyses / evidence:",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT kind, summary, created_at FROM learning_evidence WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' ORDER BY created_at DESC LIMIT 200;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT material_id, substr(summary_en,1,160) AS summary, training_directions_json, substr(evidence_limits,1,160) AS limits FROM material_analyses WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' AND status = 'succeeded' ORDER BY created_at DESC LIMIT 50;"`,
+    "```",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT kind, substr(summary,1,200) AS summary, created_at FROM learning_evidence WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' ORDER BY created_at DESC LIMIT 100;"`,
     "```",
     "",
     "Active Reading parent feedback:",
@@ -397,34 +413,144 @@ function buildCodexReadingBankBrief(input: {
     "```",
     "",
     `## Coaching reports & videos (${coaching.length})`,
-    coaching.length ? materialLines(coaching) : "(none in this Reading shelf)",
+    coaching.length ? materialLines(coaching) : "(none)",
     "",
-    `## Reading practice sources (${practiceSources.length})`,
-    "Use these as style and difficulty cues for future Reading item banks. Never reproduce protected passages.",
-    "Group rows that share the same notes line `Passage set: …` (and `Page: N of M`). One article may be 3–4 screenshots",
-    "covering a passage plus its sample questions. Download every page in the set from R2, read in page order,",
-    "and treat the set as ONE source unit for analysis and later original-item authoring.",
-    "In evidence_limits, list all material ids in the set and note how many source questions the article showed",
-    "(from `Source questions in this article: …` when present).",
-    practiceSources.length ? materialLines(practiceSources) : "(none in this Reading shelf)",
+    `## Uploaded Reading practice sources (${practiceSources.length}) — PRIMARY STYLE MODELS`,
+    "Group rows with the same `Passage set: …` notes line. Download every page in each set, read in order,",
+    "and treat each set as one article (+ its sample questions). Match their:",
+    "- passage density and age-appropriate vocabulary",
+    "- question types (detail, inference, vocab-in-context, purpose, compare, structure)",
+    "- distractor craft (near-misses that feel plausible)",
+    "- how many questions sit with one article",
+    "Use them only as models. Invent new scenarios; never reproduce protected text.",
+    practiceSources.length ? materialLines(practiceSources) : "(none — lean harder on official samples + blueprints)",
     "",
-    "Download each R2 file you need, e.g.:",
+    "Download R2 files, e.g.:",
     "```sh",
     `npx wrangler r2 object get ${CODEX_R2_BUCKET}/R2_KEY --file /tmp/source.bin --remote`,
     "```",
     "",
-    "## What to write",
-    "For each useful Reading shelf source (or each Passage set), insert ONE succeeded material_analyses row",
-    "on the first page’s material_id with subject = 'reading'",
-    "(summary_en, training_directions_json, evidence_limits, optional parent_zh)",
-    "and a matching learning_evidence row with subject = 'reading' and kind = 'material_analysis'.",
-    "summary_en / training_directions should capture the joined passage skills and the style of the source questions",
-    "so a later Reading bank generator can invent NEW original items — never copy protected stems or passages.",
-    "Focus training directions on Selective/OC Reading skills",
-    "(main idea, inference, vocabulary in context, author’s purpose, compare viewpoints, text structure).",
-    "Respect evidence limits from coaching notes and parent feedback.",
+    "## What to produce",
+    "1) Style capture: for each Passage set / useful coaching source, upsert a succeeded material_analyses row",
+    "   (subject = 'reading') describing structure, skills tested, and evidence limits.",
+    "2) Original Reading practice pack: invent about 2–3 short original articles for this exam goal,",
+    "   each with 3–5 original multiple-choice questions that mimic the models above.",
+    "   Prefer at least one solid non-fiction piece that could pass for a real junior article;",
+    "   only add fiction/poetry if the uploaded or official mix clearly includes them.",
+    "   Cover a mix of reading_blueprints skills. Kid-facing English explanations for every key.",
+    "3) Save the pack into learning_evidence so Parent room → Reading → Evidence can show it:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO learning_evidence (id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at) VALUES ('${evidenceId}', '${profileId}', '${goal}', 'reading', 'reading_practice_pack', '${packId}', 'PACK_SUMMARY_JSON_OR_TEXT', '${stamp}');"`,
+    "```",
+    "Put in summary (≤4000 chars) a compact plain-text pack: article titles, question stems, keys, short explanations,",
+    "and which uploaded Passage set / official sample each item was modelled on (by style, not by copying).",
+    "If the summary would exceed 4000 chars, split across 2–3 learning_evidence rows with the same ref_id.",
     "",
-    "Then tell the parent to refresh Parent room → Reading → Resources / Practice bank.",
+    "Then tell the parent to refresh Parent room → Reading → Evidence / Practice bank.",
+  ].join("\n");
+}
+
+/**
+ * Reading remediation: diagnose likely misunderstandings, vocab/phrase meanings, copywork + photo check plan.
+ */
+function buildCodexReadingRemediationBrief(input: {
+  profileId: string;
+  goal: ExamGoal;
+  nickname: string;
+  actorUserId: string;
+  materials: BankMaterial[];
+}) {
+  const { profileId, goal, nickname, actorUserId, materials } = input;
+  const stamp = nowIso();
+  const coaching = materials.filter((item) => item.kind !== "study_material");
+  const practiceSources = materials.filter((item) => item.kind === "study_material");
+  const evidenceId = createId("evd");
+  const planId = createId("rrd");
+
+  return [
+    "GritRoom Codex Reading remediation & language drill",
+    "",
+    "You are working in the local gritroom repo with wrangler access to remote D1/R2.",
+    `Help ${nickname} grasp Reading mistakes — not only with new MCQs.`,
+    "From coaching notes, uploaded articles/questions, parent feedback and any Reading evidence,",
+    "infer WHY answers go wrong (vocabulary, phrases, sentence structure, inference leaps),",
+    "list the language likely misunderstood with correct kid-facing meanings,",
+    "and prescribe repeated handwriting copywork. Parents will photograph the writing for Codex to cross-check.",
+    "Do NOT insert Thinking Skills practice_questions.",
+    "",
+    "## Scope",
+    `- profile_id: ${profileId}`,
+    `- learner: ${nickname}`,
+    `- exam_goal: ${goal}`,
+    `- subject: reading`,
+    `- remediation_plan_id: ${planId}`,
+    `- actor_user_id: ${actorUserId}`,
+    `- prepared_at: ${stamp}`,
+    "",
+    "## Where to read",
+    `- D1: ${CODEX_D1_NAME} (${CODEX_D1_ID}) via wrangler.d1.jsonc`,
+    `- R2 bucket: ${CODEX_R2_BUCKET}`,
+    "",
+    "Reading blueprints (skill labels only):",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, skill, title, method FROM reading_blueprints;"`,
+    "```",
+    "",
+    "Reading analyses, evidence, feedback:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT material_id, substr(summary_en,1,200) AS summary, training_directions_json FROM material_analyses WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' AND status = 'succeeded' ORDER BY created_at DESC LIMIT 50;"`,
+    "```",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT kind, substr(summary,1,240) AS summary, created_at FROM learning_evidence WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' ORDER BY created_at DESC LIMIT 100;"`,
+    "```",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT body, created_at FROM shelf_feedback WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' AND withdrawn_at IS NULL ORDER BY created_at DESC;"`,
+    "```",
+    "",
+    "If any Reading practice attempts exist later, also check:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, selected_option, correct_option, substr(question_prompt,1,120) AS prompt, substr(draft_notes,1,120) AS notes FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' AND finalized_at IS NOT NULL AND is_correct = 0 ORDER BY finalized_at DESC LIMIT 50;"`,
+    "```",
+    "",
+    `## Coaching (${coaching.length})`,
+    coaching.length ? materialLines(coaching) : "(none)",
+    "",
+    `## Practice sources / Passage sets (${practiceSources.length})`,
+    "Join Passage sets before diagnosing language gaps in the article + its questions.",
+    practiceSources.length ? materialLines(practiceSources) : "(none)",
+    "",
+    "Download R2 files as needed:",
+    "```sh",
+    `npx wrangler r2 object get ${CODEX_R2_BUCKET}/R2_KEY --file /tmp/source.bin --remote`,
+    "```",
+    "",
+    "## What to produce (remediation plan)",
+    "Write assumptions clearly labelled as assumptions when evidence is thin.",
+    "Include:",
+    "1) Mistake diagnosis — 3–6 likely reasons ${nickname} struggles (e.g. unknown idiom, missed pronoun link,",
+    "   over-literal reading, skipped qualifier). Tie each to a shelf source or coaching note when possible.",
+    "2) Language list — vocabulary, phrases and tough sentences she may misunderstand.",
+    "   For each item give: the form as seen in context · kid-facing correct meaning · one short example sentence.",
+    "3) Copywork drill — ask her to handwrite each target item carefully several times (suggest 5–10 lines each,",
+    "   or whole sentences for longer phrases). Keep the list short enough for one sitting (about 6–12 targets).",
+    "4) Photo check protocol for the parent:",
+    "   - After writing, photograph the page(s)",
+    "   - Upload to Reading shelf as Practice questions (misc. source) with Passage set:",
+    `     Handwriting · ${planId}`,
+    "     and Page N of M",
+    "   - Then re-run this remediation task (or Ask Codex on the coaching note) so Codex can mark spelling,",
+    "     missing words, and whether meanings still look confused",
+    "5) Next Reading practice tip — one short focus for the next generated article set.",
+    "",
+    "Save the plan:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO learning_evidence (id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at) VALUES ('${evidenceId}', '${profileId}', '${goal}', 'reading', 'reading_remediation', '${planId}', 'REMEDIATION_PLAN_TEXT', '${stamp}');"`,
+    "```",
+    "Keep summary ≤4000 chars (split rows with the same ref_id if needed). Kid-facing language in English;",
+    "optional short parent_zh tips may be woven into the summary.",
+    "",
+    "Then tell the parent to refresh Parent room → Reading → Evidence, run the copywork, upload handwriting photos,",
+    "and ask Codex again to cross-check progress.",
   ].join("\n");
 }
 

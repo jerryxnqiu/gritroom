@@ -36,8 +36,8 @@ export async function PracticeEvidencePanel({
         <p className="eyebrow">05 / Practice evidence</p>
         <h2 id="practice-evidence-heading">{moduleLabel} evidence</h2>
         <p className="lede">
-          Codex findings and parent feedback for {profile.nickname}’s {examLabel(goal)} Reading shelf. Attempt-by-attempt
-          papers will join this view when learner Reading practice is live.
+          Codex findings, practice packs, remediation / copywork plans, and parent feedback for {profile.nickname}’s{" "}
+          {examLabel(goal)} Reading shelf. Attempt papers will join this view when learner Reading practice is live.
         </p>
         <ReadingEvidencePanel
           nickname={profile.nickname}

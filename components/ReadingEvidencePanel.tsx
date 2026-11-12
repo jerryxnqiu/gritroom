@@ -30,8 +30,8 @@ export function ReadingEvidencePanel({
     return (
       <div className="reading-evidence-empty">
         <p className="meta">
-          No Reading Codex findings or parent feedback yet for {nickname}’s {archiveLabel} archive. Add sources under
-          Resources, then ask Codex to review the Reading shelf.
+          No Reading Codex findings or parent feedback yet for {nickname}’s {archiveLabel} archive. Add Passage sets under
+          Resources, then ask Codex to generate Reading practice or a remediation / copywork plan.
         </p>
         <div className="actions">
           <button type="button" className="button secondary" onClick={() => setSection("shelf")}>
