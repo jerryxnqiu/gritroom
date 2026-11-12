@@ -8,6 +8,7 @@ import { parentArchiveHref, subjectLabel, type PracticeSubject } from "@/lib/sub
 import { AddResourceDialog } from "./AddResourceDialog";
 import { ParentModuleSwitch } from "./ParentModuleSwitch";
 import { QuestionFoundations } from "./QuestionFoundations";
+import { ReadingFoundations } from "./ReadingFoundations";
 import { ShelfFeedbackForm } from "./ShelfFeedbackForm";
 import { ShelfMaterialList } from "./ShelfMaterialList";
 
@@ -69,11 +70,8 @@ export async function ResourceShelf({
         </details>
       ) : (
         <details className="family-subsection" open>
-          <summary>01 · Reading module notes</summary>
-          <p className="meta">
-            Collect Selective/OC Reading coaching reports, sample passages and workbook pages here. Learner Reading
-            practice will use this shelf later; for now Codex can only review sources and write training directions.
-          </p>
+          <summary>01 · Official Reading information</summary>
+          <ReadingFoundations goal={goal} />
         </details>
       )}
 

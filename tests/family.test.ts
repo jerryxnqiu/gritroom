@@ -28,6 +28,7 @@ import {
   submitTimedPaper,
 } from "../lib/practice.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
+import { readingKnowledge } from "../lib/reading-knowledge.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
 const core = readFileSync(new URL("../migrations/0002_core_schema.sql", import.meta.url), "utf8");
@@ -202,6 +203,11 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   sql.exec(readFileSync(new URL("../migrations/0004_thinking_knowledge.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0012_practice_subjects.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0014_reading_knowledge.sql", import.meta.url), "utf8"));
+  const readingFormat = await readingKnowledge(db, "selective");
+  assert.equal(readingFormat.format?.minutes, 45);
+  assert.equal(readingFormat.format?.answerCount, 38);
+  assert.ok(readingFormat.blueprints.length >= 5);
   sql.exec(`
     INSERT INTO shelf_materials(id,profile_id,exam_goal,kind,title,file_key,file_name,file_type,created_by_user_id,created_at)
     VALUES('report','p1','selective','coaching_report','Report','private/report','report.pdf','application/pdf','owner',datetime('now'));
@@ -260,6 +266,7 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   });
   assert.match(readingBrief, /Reading module shelf review/);
   assert.match(readingBrief, /subject: reading/);
+  assert.match(readingBrief, /reading_blueprints/);
   assert.match(readingBrief, /do NOT insert Thinking Skills practice_questions/);
   assert.equal((await readShelf(db, "p1", "selective", "owner", "reading")).materials[0]?.id, "reading-notes");
   assert.equal((await listSucceededMaterialEvidence(db, "p1", "selective", "owner", "reading")).length, 0);
