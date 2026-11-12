@@ -29,6 +29,7 @@ import {
 } from "../lib/practice.ts";
 import {
   countUnusedReadingQuestions,
+  readingRemediationAvailability,
   startReadingPracticeSession,
 } from "../lib/reading-practice.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
@@ -704,6 +705,7 @@ test("learners can practise from the Reading question bank", async (t) => {
   sql.exec(readFileSync(new URL("../migrations/0013_practice_subject_sessions.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0014_reading_knowledge.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0015_reading_questions.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0016_reading_evidence_kinds.sql", import.meta.url), "utf8"));
 
   const invite = await issueInvitation(
     db,
@@ -717,6 +719,9 @@ test("learners can practise from the Reading question bank", async (t) => {
   assert.equal(await countUnusedReadingQuestions(db, "p1", "selective"), 0);
   assert.equal((await startReadingPracticeSession(db, "learner", "daily")).ok, false);
   assert.equal((await startReadingPracticeSession(db, "learner", "focus")).ok, false);
+  const remediationBefore = await readingRemediationAvailability(db, "p1", "selective");
+  assert.equal(remediationBefore.enabled, false);
+  assert.match(remediationBefore.reason, /No Reading mistakes yet/);
 
   const stamp = "2026-11-12T03:00:00.000Z";
   for (let index = 0; index < 4; index += 1) {
@@ -779,4 +784,28 @@ test("learners can practise from the Reading question bank", async (t) => {
   }
   assert.equal(await countUnusedReadingQuestions(db, "p1", "selective"), 0);
   assert.equal((await startReadingPracticeSession(db, "learner", "daily")).ok, false);
+
+  // All answers above were correct — still no remediation unlock.
+  assert.equal((await readingRemediationAvailability(db, "p1", "selective")).enabled, false);
+
+  sql.exec(`
+    INSERT INTO practice_sessions(id, profile_id, exam_goal, mode, status, started_at, completed_at, is_focus, subject)
+    VALUES('psn-read-miss','p1','selective','daily','completed','2026-11-12T04:00:00.000Z','2026-11-12T04:05:00.000Z',0,'reading');
+    INSERT INTO practice_attempts
+      (id, session_id, profile_id, exam_goal, subject, question_id, question_version,
+       question_prompt, options_json, correct_option, selected_option, is_correct, finalized_at, created_at)
+    VALUES('pat-read-miss','psn-read-miss','p1','selective','reading','rq-otter-0',1,
+           'miss prompt','{"A":"Fish","B":"Cars"}','A','B',0,'2026-11-12T04:01:00.000Z','2026-11-12T04:00:30.000Z');
+  `);
+  const remediationReady = await readingRemediationAvailability(db, "p1", "selective");
+  assert.equal(remediationReady.enabled, true);
+  assert.match(remediationReady.reason, /incorrect Reading attempt/);
+
+  sql.exec(`
+    INSERT INTO learning_evidence(id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at)
+    VALUES('evd-remediation','p1','selective','reading','reading_remediation','rrd1','Plan done.','2026-11-12T05:00:00.000Z');
+  `);
+  const remediationDone = await readingRemediationAvailability(db, "p1", "selective");
+  assert.equal(remediationDone.enabled, false);
+  assert.match(remediationDone.reason, /already on file/);
 });

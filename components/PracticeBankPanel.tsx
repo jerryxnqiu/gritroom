@@ -4,6 +4,7 @@ import { env } from "cloudflare:workers";
 import { examLabel, type ExamGoal, type ParentProfile } from "@/lib/family";
 import { listMaterialsForCodexBank } from "@/lib/material-analysis";
 import { countIncorrectAttemptsNeedingReview } from "@/lib/practice";
+import { readingRemediationAvailability } from "@/lib/reading-practice";
 import { parentArchiveHref, subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { AskCodexAttemptReviewButton } from "./AskCodexAttemptReviewButton";
 import { AskCodexBankButton } from "./AskCodexBankButton";
@@ -20,14 +21,18 @@ export async function PracticeBankPanel({
   subject: PracticeSubject;
   userId: string;
 }) {
-  const [shelf, pendingReviews] = await Promise.all([
+  const [shelf, pendingReviews, remediation] = await Promise.all([
     listMaterialsForCodexBank(env.DB, profile.id, goal, userId, subject),
     subject === "thinking"
       ? countIncorrectAttemptsNeedingReview(env.DB, profile.id, goal, userId)
       : Promise.resolve(0),
+    subject === "reading"
+      ? readingRemediationAvailability(env.DB, profile.id, goal)
+      : Promise.resolve(null),
   ]);
   const materialCount = shelf?.materials.length ?? 0;
   const moduleLabel = subjectLabel(subject);
+  const remediationDisabled = !remediation?.enabled;
 
   return (
     <section className="panel family-panel" id="bank" aria-labelledby="practice-bank-heading">
@@ -72,13 +77,14 @@ export async function PracticeBankPanel({
             goal={goal}
             subject="reading"
             task="remediation"
-            disabled={materialCount === 0}
+            disabled={remediationDisabled}
             label="Ask Codex for Reading remediation & copywork"
           />
           <p className="meta">
             Diagnoses likely misunderstandings, lists vocab/phrases with meanings, sets handwriting drills, and explains how to
             upload writing photos for Codex to cross-check.
           </p>
+          {remediation ? <p className="meta">{remediation.reason}</p> : null}
         </>
       ) : (
         <AskCodexBankButton

@@ -38,6 +38,94 @@ export async function countUnusedReadingQuestions(
   return unused.length;
 }
 
+export async function countIncorrectReadingAttempts(
+  db: D1Database,
+  profileId: string,
+  examGoal: ExamGoal,
+) {
+  const row = await db.prepare(
+    `SELECT COUNT(*) AS n FROM practice_attempts
+     WHERE profile_id = ? AND exam_goal = ? AND subject = 'reading'
+       AND finalized_at IS NOT NULL AND is_correct = 0`,
+  ).bind(profileId, examGoal).first<{ n: number }>();
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Remediation unlocks on Reading misses; after a plan exists it stays locked until
+ * new misses or handwriting photos arrive for a re-check.
+ */
+export async function readingRemediationAvailability(
+  db: D1Database,
+  profileId: string,
+  examGoal: ExamGoal,
+) {
+  const [incorrectCount, lastPlan, handwritingCount] = await Promise.all([
+    countIncorrectReadingAttempts(db, profileId, examGoal),
+    db.prepare(
+      `SELECT created_at AS createdAt FROM learning_evidence
+       WHERE profile_id = ? AND exam_goal = ? AND subject = 'reading' AND kind = 'reading_remediation'
+       ORDER BY created_at DESC LIMIT 1`,
+    ).bind(profileId, examGoal).first<{ createdAt: string }>(),
+    db.prepare(
+      `SELECT COUNT(*) AS n FROM shelf_materials
+       WHERE profile_id = ? AND exam_goal = ? AND subject = 'reading'
+         AND (notes LIKE 'Passage set: Handwriting ·%' OR title LIKE 'Handwriting ·%')`,
+    ).bind(profileId, examGoal).first<{ n: number }>(),
+  ]);
+
+  const handwritingUploads = Number(handwritingCount?.n ?? 0);
+
+  if (!lastPlan) {
+    if (incorrectCount === 0) {
+      return {
+        enabled: false,
+        incorrectCount,
+        reason: "No Reading mistakes yet. Remediation unlocks after incorrect Reading practice answers.",
+      };
+    }
+    return {
+      enabled: true,
+      incorrectCount,
+      reason: `${incorrectCount} incorrect Reading attempt${incorrectCount === 1 ? "" : "s"} ready to diagnose.`,
+    };
+  }
+
+  const [newMisses, newHandwriting] = await Promise.all([
+    db.prepare(
+      `SELECT COUNT(*) AS n FROM practice_attempts
+       WHERE profile_id = ? AND exam_goal = ? AND subject = 'reading'
+         AND finalized_at IS NOT NULL AND is_correct = 0 AND finalized_at > ?`,
+    ).bind(profileId, examGoal, lastPlan.createdAt).first<{ n: number }>(),
+    db.prepare(
+      `SELECT COUNT(*) AS n FROM shelf_materials
+       WHERE profile_id = ? AND exam_goal = ? AND subject = 'reading'
+         AND created_at > ?
+         AND (notes LIKE 'Passage set: Handwriting ·%' OR title LIKE 'Handwriting ·%')`,
+    ).bind(profileId, examGoal, lastPlan.createdAt).first<{ n: number }>(),
+  ]);
+
+  const freshMisses = Number(newMisses?.n ?? 0);
+  const freshHandwriting = Number(newHandwriting?.n ?? 0);
+  if (freshMisses === 0 && freshHandwriting === 0) {
+    return {
+      enabled: false,
+      incorrectCount,
+      reason: handwritingUploads > 0
+        ? "Remediation plan already on file. Upload newer handwriting photos, or wait for new Reading misses, then run again."
+        : "Remediation plan already on file. Unlock again after new Reading misses, or after uploading handwriting photos for a re-check.",
+    };
+  }
+
+  return {
+    enabled: true,
+    incorrectCount,
+    reason: freshHandwriting > 0
+      ? `${freshHandwriting} new handwriting upload${freshHandwriting === 1 ? "" : "s"} ready for Codex to cross-check.`
+      : `${freshMisses} new incorrect Reading attempt${freshMisses === 1 ? "" : "s"} since the last remediation plan.`,
+  };
+}
+
 export async function loadUnusedReadingQuestions(
   db: D1Database,
   profileId: string,
