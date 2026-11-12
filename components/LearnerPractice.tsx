@@ -20,6 +20,12 @@ function timedPaperSpec(goal: Profile["examGoal"]) {
     : { questions: 40, minutes: 40, label: "40-question timed paper" };
 }
 
+/** Whole-set allowance: timed paper uses official minutes; short practice is 1 min × question count. */
+function sessionClockMinutes(session: PracticeSessionView) {
+  if (session.mode === "timed") return timedPaperSpec(session.examGoal).minutes;
+  return Math.max(1, session.attempts.length);
+}
+
 function modeLabel(mode: string) {
   if (mode === "diagnostic") return "Starting-point check";
   if (mode === "timed") return "Timed paper";
@@ -92,18 +98,18 @@ export function LearnerPractice({
   }, [current?.id, current?.selectedOption, current?.confidence, current?.draftNotes, review]);
 
   useEffect(() => {
-    if (!session || session.mode !== "timed" || session.status !== "active") {
+    if (!session || session.status !== "active") {
       setRemainingSeconds(null);
       return;
     }
-    const endsAt = Date.parse(session.startedAt) + timedPaperSpec(session.examGoal).minutes * 60_000;
+    const endsAt = Date.parse(session.startedAt) + sessionClockMinutes(session) * 60_000;
     function tick() {
       setRemainingSeconds(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
     }
     tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [session?.id, session?.mode, session?.status, session?.startedAt, session?.examGoal]);
+  }, [session?.id, session?.mode, session?.status, session?.startedAt, session?.examGoal, session?.attempts.length]);
 
   function go(next: LearnerSection, options?: { keepQuestion?: boolean }) {
     setStatus(undefined);
@@ -310,7 +316,8 @@ export function LearnerPractice({
   );
 
   if (inQuestion && section === sectionForActive) {
-    const timeUp = timed && remainingSeconds === 0;
+    const timeUp = remainingSeconds === 0;
+    const timerLow = remainingSeconds !== null && remainingSeconds <= (timed ? 5 * 60 : 60);
     return (
       <>
         {sectionNav}
@@ -322,13 +329,17 @@ export function LearnerPractice({
             {timed
               ? ` · ${timedAnswered} answered`
               : left > 0 ? ` · ${left} left` : ""}
-            {timed && remainingSeconds !== null ? ` · ${formatClock(remainingSeconds)} left` : ""}
+            {remainingSeconds !== null ? ` · ${formatClock(remainingSeconds)} left` : ""}
           </p>
-          {timed && remainingSeconds !== null ? (
-            <p className={`practice-timer${remainingSeconds <= 5 * 60 ? " is-low" : ""}${timeUp ? " is-up" : ""}`} role="timer" aria-live="polite">
+          {remainingSeconds !== null ? (
+            <p className={`practice-timer${timerLow ? " is-low" : ""}${timeUp ? " is-up" : ""}`} role="timer" aria-live="polite">
               {timeUp
-                ? "Time is up — check your answers, then submit the paper."
-                : `Paper time left · ${formatClock(remainingSeconds)}`}
+                ? timed
+                  ? "Time is up — check your answers, then submit the paper."
+                  : "Time is up for this set — finish any open questions, then continue to results."
+                : timed
+                  ? `Paper time left · ${formatClock(remainingSeconds)}`
+                  : `Set time left · ${formatClock(remainingSeconds)}`}
             </p>
           ) : null}
 
@@ -522,7 +533,7 @@ export function LearnerPractice({
                 : answered.length === 0
                   ? `This practice still has all ${total} question${total === 1 ? "" : "s"} waiting — none are saved yet.`
                   : `Saved progress: ${answered.length} of ${total} done. Next up is question ${answered.length + 1} of ${total} (${left} left).`}
-              {wantTimed && remainingSeconds !== null ? ` · ${formatClock(remainingSeconds)} left on the clock.` : ""}
+              {remainingSeconds !== null ? ` · ${formatClock(remainingSeconds)} left on the clock.` : ""}
             </p>
             <div className="actions">
               <button
@@ -575,12 +586,12 @@ export function LearnerPractice({
           <>
             <h2 id="practice-heading">A short practice set.</h2>
             <p className="lede">
-              Do a mixed ten-question set, or practise only the skills you miss most. Each answer gets a quick review.
+              Do a mixed ten-question set, or practise only the skills you miss most. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews.
             </p>
             <div className="actions practice-start-actions">
               {canStartPractice ? (
                 <button type="button" className="button" disabled={pending} onClick={() => start("daily")}>
-                  Practice · 10 questions
+                  Practice · 10 questions · 10 min
                 </button>
               ) : (
                 <p className="meta">
@@ -593,7 +604,7 @@ export function LearnerPractice({
                 disabled={pending || !canStartFocus}
                 onClick={() => start("focus")}
               >
-                Practice weak spots · up to 10
+                Practice weak spots · up to 10 · timed
               </button>
               {canStartFocus ? (
                 <p className="meta">
