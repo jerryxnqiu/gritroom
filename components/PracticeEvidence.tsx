@@ -8,6 +8,7 @@ import type {
   PracticeEvidenceSession,
   PracticeResultSessionSummary,
 } from "@/lib/practice";
+import type { PracticeSubject } from "@/lib/subjects";
 
 type AnswerFilter = "incorrect" | "all";
 type ModeFilter = "all" | "daily" | "timed" | "diagnostic" | "focus";
@@ -86,11 +87,13 @@ function AttemptDetail({ item, index }: { item: PracticeEvidenceItem; index: num
 export function PracticeEvidence({
   profileId,
   goal,
+  subject = "thinking",
   initialSessions,
   initialHasMore = false,
 }: {
   profileId: string;
   goal: ExamGoal;
+  subject?: PracticeSubject;
   initialSessions: PracticeResultSessionSummary[];
   initialHasMore?: boolean;
 }) {
@@ -151,6 +154,7 @@ export function PracticeEvidence({
         const params = new URLSearchParams({
           profileId,
           goal,
+          subject,
           mode,
           offset: String(offset),
           limit: "20",

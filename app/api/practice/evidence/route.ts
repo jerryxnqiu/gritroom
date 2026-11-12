@@ -5,6 +5,7 @@ import { getSessionTokenFromCookies, json } from "@/lib/http";
 import { childAccess } from "@/lib/invitations";
 import { listPracticeEvidenceSummaries, parseEvidenceModeFilter } from "@/lib/practice";
 import { shelfGoal } from "@/lib/shelf-fields";
+import { shelfSubject } from "@/lib/subjects";
 
 export async function GET(request: Request) {
   const session = await getSession(await getSessionTokenFromCookies());
@@ -16,6 +17,7 @@ export async function GET(request: Request) {
   const profileId = url.searchParams.get("profileId")?.trim() || "";
   const goal = shelfGoal(url.searchParams.get("goal"));
   const mode = parseEvidenceModeFilter(url.searchParams.get("mode"));
+  const subject = shelfSubject(url.searchParams.get("subject"));
   const offset = Number(url.searchParams.get("offset") || "0");
   const limit = Number(url.searchParams.get("limit") || "20");
 
@@ -30,6 +32,7 @@ export async function GET(request: Request) {
   const sessionLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.floor(limit), 1), 50) : 20;
   const sessions = await listPracticeEvidenceSummaries(env.DB, profileId, goal, session.user_id, {
     mode,
+    subject,
     sessionOffset,
     sessionLimit: sessionLimit + 1,
   });
@@ -39,5 +42,6 @@ export async function GET(request: Request) {
     hasMore,
     offset: sessionOffset,
     limit: sessionLimit,
+    subject,
   });
 }
