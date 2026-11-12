@@ -8,21 +8,24 @@ import type {
   PracticeResultSessionSummary,
   PracticeSessionView,
 } from "@/lib/practice";
+import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { LearnerResults } from "./LearnerResults";
 import { useLearnerSection, type LearnerSection } from "./LearnerSectionContext";
 
 type Profile = { id: string; examGoal: "selective" | "oc"; nickname: string };
 type Phase = "hub" | "question";
 
-function timedPaperSpec(goal: Profile["examGoal"]) {
+function thinkingTimedPaperSpec(goal: Profile["examGoal"]) {
   return goal === "oc"
     ? { questions: 30, minutes: 30, label: "30-question timed paper" }
     : { questions: 40, minutes: 40, label: "40-question timed paper" };
 }
 
-/** Whole-set allowance: timed paper uses official minutes; short practice is 1 min × question count. */
+/** Whole-set allowance: Thinking timed papers use official minutes; short sets are 1 min × question count. */
 function sessionClockMinutes(session: PracticeSessionView) {
-  if (session.mode === "timed") return timedPaperSpec(session.examGoal).minutes;
+  if (session.mode === "timed" && session.subject !== "reading") {
+    return thinkingTimedPaperSpec(session.examGoal).minutes;
+  }
   return Math.max(1, session.attempts.length);
 }
 
@@ -41,6 +44,7 @@ function formatClock(totalSeconds: number) {
 }
 
 export function LearnerPractice({
+  subject = "thinking",
   initialSession,
   initialRemainingCount,
   initialWeakRemainingCount = 0,
@@ -48,6 +52,7 @@ export function LearnerPractice({
   initialResultsHasMore = false,
   profile,
 }: {
+  subject?: PracticeSubject;
   initialSession: PracticeSessionView | null;
   initialRemainingCount: number;
   initialWeakRemainingCount?: number;
@@ -56,7 +61,8 @@ export function LearnerPractice({
   profile: Profile;
 }) {
   const { section, setSection } = useLearnerSection();
-  const paper = timedPaperSpec(profile.examGoal);
+  const reading = subject === "reading";
+  const paper = thinkingTimedPaperSpec(profile.examGoal);
   const [session, setSession] = useState(initialSession);
   const [remainingCount, setRemainingCount] = useState(initialRemainingCount);
   const [weakRemainingCount, setWeakRemainingCount] = useState(initialWeakRemainingCount);
@@ -84,8 +90,8 @@ export function LearnerPractice({
     ? session.attempts.findIndex((item) => item.id === current.id) + 1
     : answered.length + 1;
   const canStartPractice = remainingCount > 0 && !active;
-  const canStartFocus = weakRemainingCount > 0 && !active;
-  const canStartTimed = remainingCount >= paper.questions && !active;
+  const canStartFocus = !reading && weakRemainingCount > 0 && !active;
+  const canStartTimed = remainingCount > 0 && !active && (reading || remainingCount >= paper.questions);
   const inQuestion = phase === "question" && Boolean(current) && (active || Boolean(review));
   const sectionForActive = session?.mode === "timed" ? "timed" : "practice";
 
@@ -138,7 +144,7 @@ export function LearnerPractice({
         const response = await fetch("/api/practice/sessions", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ mode }),
+          body: JSON.stringify({ mode, subject }),
         });
         const data = await response.json() as {
           session?: PracticeSessionView;
@@ -361,7 +367,9 @@ export function LearnerPractice({
             </div>
           ) : null}
 
-          <h2 id="practice-heading">{current?.blueprintTitle || "Your next question"}</h2>
+          <h2 id="practice-heading">
+            {current?.blueprintTitle || (reading ? "Reading question" : "Your next question")}
+          </h2>
           {current?.skill ? <p className="meta">{current.skill}</p> : null}
           {current?.imageKey ? (
             <p className="practice-figure">
@@ -508,6 +516,7 @@ export function LearnerPractice({
       <>
         {sectionNav}
         <LearnerResults
+          subject={subject}
           initialSessions={initialResultSessions}
           initialHasMore={initialResultsHasMore}
         />
@@ -560,9 +569,13 @@ export function LearnerPractice({
           </>
         ) : wantTimed ? (
           <>
-            <h2 id="practice-heading">Sit a full Thinking Skills paper.</h2>
+            <h2 id="practice-heading">
+              {reading ? "Sit a short Reading timed set." : "Sit a full Thinking Skills paper."}
+            </h2>
             <p className="lede">
-              {paper.questions} questions · {paper.minutes} minutes. Move between questions freely, change answers anytime, then submit once at the end.
+              {reading
+                ? "Up to 10 unused Reading questions · one minute each on the set clock. Move between questions freely, change answers anytime, then submit once at the end."
+                : `${paper.questions} questions · ${paper.minutes} minutes. Move between questions freely, change answers anytime, then submit once at the end.`}
             </p>
             <div className="actions practice-start-actions">
               <button
@@ -571,11 +584,13 @@ export function LearnerPractice({
                 disabled={pending || !canStartTimed}
                 onClick={() => start("timed")}
               >
-                Start {paper.label}
+                {reading ? "Start Reading timed set" : `Start ${paper.label}`}
               </button>
               {!canStartTimed ? (
                 <p className="meta">
-                  Needs {paper.questions} unused questions ({remainingCount} ready). Use Practice for a short set, or ask your family to refresh the bank.
+                  {reading
+                    ? "No unused Reading questions ready. Ask your family to generate the Reading practice bank."
+                    : `Needs ${paper.questions} unused questions (${remainingCount} ready). Use Practice for a short set, or ask your family to refresh the bank.`}
                 </p>
               ) : (
                 <p className="meta">{remainingCount} unused questions ready in the bank.</p>
@@ -584,37 +599,47 @@ export function LearnerPractice({
           </>
         ) : (
           <>
-            <h2 id="practice-heading">A short practice set.</h2>
+            <h2 id="practice-heading">A short {subjectLabel(subject)} practice set.</h2>
             <p className="lede">
-              Do a mixed ten-question set, or practise only the skills you miss most. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews.
+              {reading
+                ? "Do up to ten unused Reading questions from the family bank. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."
+                : "Do a mixed ten-question set, or practise only the skills you miss most. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."}
             </p>
             <div className="actions practice-start-actions">
               {canStartPractice ? (
                 <button type="button" className="button" disabled={pending} onClick={() => start("daily")}>
-                  Practice · 10 questions · 10 min
+                  Practice · up to 10 questions · timed
                 </button>
               ) : (
                 <p className="meta">
-                  You have finished every practice question available right now. Ask your family to refresh the practice bank when they are ready.
+                  {reading
+                    ? "No unused Reading questions yet. Ask your family to generate the Reading practice bank when they are ready."
+                    : "You have finished every practice question available right now. Ask your family to refresh the practice bank when they are ready."}
                 </p>
               )}
-              <button
-                type="button"
-                className="button secondary"
-                disabled={pending || !canStartFocus}
-                onClick={() => start("focus")}
-              >
-                Practice weak spots · up to 10 · timed
-              </button>
-              {canStartFocus ? (
-                <p className="meta">
-                  {weakRemainingCount} unused question{weakRemainingCount === 1 ? "" : "s"} ready in your weak-spot skills
-                  {canStartPractice ? ` · ${remainingCount} unused in the whole bank` : ""}.
-                </p>
+              {!reading ? (
+                <>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={pending || !canStartFocus}
+                    onClick={() => start("focus")}
+                  >
+                    Practice weak spots · up to 10 · timed
+                  </button>
+                  {canStartFocus ? (
+                    <p className="meta">
+                      {weakRemainingCount} unused question{weakRemainingCount === 1 ? "" : "s"} ready in your weak-spot skills
+                      {canStartPractice ? ` · ${remainingCount} unused in the whole bank` : ""}.
+                    </p>
+                  ) : canStartPractice ? (
+                    <p className="meta">
+                      {remainingCount} unused questions ready. Weak-spot practice unlocks after a few incorrect answers, or when your family refreshes the bank for those skills.
+                    </p>
+                  ) : null}
+                </>
               ) : canStartPractice ? (
-                <p className="meta">
-                  {remainingCount} unused questions ready. Weak-spot practice unlocks after a few incorrect answers, or when your family refreshes the bank for those skills.
-                </p>
+                <p className="meta">{remainingCount} unused Reading question{remainingCount === 1 ? "" : "s"} ready.</p>
               ) : null}
             </div>
           </>

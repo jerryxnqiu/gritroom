@@ -10,6 +10,7 @@ import {
   saveTimedDraft,
   submitPracticeAttempt,
 } from "@/lib/practice";
+import { countUnusedReadingQuestions } from "@/lib/reading-practice";
 
 export async function POST(request: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const session = await getSession(await getSessionTokenFromCookies());
@@ -33,9 +34,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
 
   const result = await submitPracticeAttempt(env.DB, session.user_id, sessionId, input);
   if (!result.ok) return json({ error: result.error }, { status: result.status });
+  const reading = result.session.subject === "reading";
   const [remainingCount, weakRemainingCount] = await Promise.all([
-    countUnusedPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
-    countUnusedWeakPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
+    reading
+      ? countUnusedReadingQuestions(env.DB, result.session.profileId, result.session.examGoal)
+      : countUnusedPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
+    reading
+      ? Promise.resolve(0)
+      : countUnusedWeakPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
   ]);
   return json({ session: result.session, attempt: result.attempt, remainingCount, weakRemainingCount });
 }

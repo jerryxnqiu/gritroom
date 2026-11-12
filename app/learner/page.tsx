@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { env } from "cloudflare:workers";
 
 import { GrowthArtwork } from "@/components/Brand";
+import { LearnerModuleSwitch } from "@/components/LearnerModuleSwitch";
 import { LearnerPractice } from "@/components/LearnerPractice";
 import { LearnerRoomShell } from "@/components/LearnerRoomShell";
 import { RoomLayout } from "@/components/RoomLayout";
@@ -16,11 +17,23 @@ import {
   latestPracticeSession,
   listLearnerPracticeResults,
 } from "@/lib/practice";
+import {
+  countUnusedReadingQuestions,
+  latestReadingSession,
+} from "@/lib/reading-practice";
+import { shelfSubject, subjectLabel } from "@/lib/subjects";
 
-export default async function LearnerPage() {
+export default async function LearnerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ subject?: string }>;
+}) {
   const session = await getSession(await getSessionTokenFromCookies());
   if (!session) redirect("/?entry=learner");
   if (session.entry !== "learner") redirect("/parent");
+
+  const params = await searchParams;
+  const subject = shelfSubject(params.subject);
 
   const [profile, hasInvites] = await Promise.all([
     linkedLearner(env.DB, session.user_id),
@@ -28,21 +41,29 @@ export default async function LearnerPage() {
   ]);
 
   const latest = profile
-    ? await latestPracticeSession(env.DB, profile.id, profile.examGoal)
+    ? subject === "reading"
+      ? await latestReadingSession(env.DB, profile.id, profile.examGoal)
+      : await latestPracticeSession(env.DB, profile.id, profile.examGoal)
     : null;
   const [practice, remainingCount, weakRemainingCount, resultPage] = profile
     ? await Promise.all([
       latest ? getPracticeSession(env.DB, latest.id, session.user_id) : Promise.resolve(null),
-      countUnusedPracticeQuestions(env.DB, profile.id, profile.examGoal),
-      countUnusedWeakPracticeQuestions(env.DB, profile.id, profile.examGoal),
-      listLearnerPracticeResults(env.DB, session.user_id, { sessionLimit: 11 }),
+      subject === "reading"
+        ? countUnusedReadingQuestions(env.DB, profile.id, profile.examGoal)
+        : countUnusedPracticeQuestions(env.DB, profile.id, profile.examGoal),
+      subject === "reading"
+        ? Promise.resolve(0)
+        : countUnusedWeakPracticeQuestions(env.DB, profile.id, profile.examGoal),
+      listLearnerPracticeResults(env.DB, session.user_id, { sessionLimit: 11, subject }),
     ])
     : [null, 0, 0, [] as Awaited<ReturnType<typeof listLearnerPracticeResults>>];
   const resultsHasMore = resultPage.length > 10;
   const resultSessions = resultsHasMore ? resultPage.slice(0, 10) : resultPage;
 
   const name = profile?.nickname || "Learner";
-  const badge = profile ? `${examLabel(profile.examGoal)} · Personal practice` : "Your account";
+  const badge = profile
+    ? `${examLabel(profile.examGoal)} · ${subjectLabel(subject)}`
+    : "Your account";
   const body = (
     <>
       <header className="room-heading">
@@ -52,14 +73,18 @@ export default async function LearnerPage() {
       </header>
       {hasInvites ? <Link className="button secondary invitation-back" href="/invitations">Review invitations</Link> : null}
       {profile ? (
-        <LearnerPractice
-          initialSession={practice}
-          initialRemainingCount={remainingCount}
-          initialWeakRemainingCount={weakRemainingCount}
-          initialResultSessions={resultSessions}
-          initialResultsHasMore={resultsHasMore}
-          profile={{ id: profile.id, examGoal: profile.examGoal, nickname: profile.nickname }}
-        />
+        <>
+          <LearnerModuleSwitch subject={subject} />
+          <LearnerPractice
+            subject={subject}
+            initialSession={practice}
+            initialRemainingCount={remainingCount}
+            initialWeakRemainingCount={weakRemainingCount}
+            initialResultSessions={resultSessions}
+            initialResultsHasMore={resultsHasMore}
+            profile={{ id: profile.id, examGoal: profile.examGoal, nickname: profile.nickname }}
+          />
+        </>
       ) : (
         <section className="learner-feature" aria-labelledby="learner-feature-heading">
           <div>

@@ -505,7 +505,7 @@ p { margin: 0; }
 @media (max-width: 760px) {
   .practice-result-layout { grid-template-columns: minmax(0, 1fr); }
 }
-.practice-prompt { margin: .85rem 0 1rem; font-size: 1.05rem; line-height: 1.65; max-width: 62ch; }
+.practice-prompt { margin: .85rem 0 1rem; font-size: 1.05rem; line-height: 1.65; max-width: 62ch; white-space: pre-wrap; }
 .practice-figure { margin: .75rem 0; }
 .practice-figure img {
   display: block; max-width: min(100%, 28rem); height: auto;

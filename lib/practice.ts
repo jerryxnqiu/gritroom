@@ -55,6 +55,7 @@ export type PracticeSessionView = {
   id: string;
   profileId: string;
   examGoal: ExamGoal;
+  subject: PracticeSubject;
   mode: PracticeMode;
   status: "active" | "completed" | "abandoned";
   startedAt: string;
@@ -335,7 +336,7 @@ const sessionModeSelect = `CASE WHEN s.is_focus = 1 THEN 'focus' ELSE s.mode END
 
 export async function getPracticeSession(db: D1Database, sessionId: string, userId: string) {
   const session = await db.prepare(
-    `SELECT s.id, s.profile_id AS profileId, s.exam_goal AS examGoal, ${sessionModeSelect}, s.status,
+    `SELECT s.id, s.profile_id AS profileId, s.exam_goal AS examGoal, s.subject, ${sessionModeSelect}, s.status,
             s.started_at AS startedAt, s.completed_at AS completedAt
      FROM practice_sessions s
      JOIN learner_links l ON l.profile_id = s.profile_id AND l.user_id = ?
@@ -344,6 +345,7 @@ export async function getPracticeSession(db: D1Database, sessionId: string, user
     id: string;
     profileId: string;
     examGoal: ExamGoal;
+    subject: PracticeSubject;
     mode: PracticeMode;
     status: "active" | "completed" | "abandoned";
     startedAt: string;
@@ -353,6 +355,7 @@ export async function getPracticeSession(db: D1Database, sessionId: string, user
   const attempts = await loadAttempts(db, session.id);
   return {
     ...session,
+    subject: session.subject === "reading" ? "reading" : "thinking",
     attempts: attempts.map((row) => toAttemptView(row, session.status !== "active")),
   } satisfies PracticeSessionView;
 }
@@ -437,17 +440,17 @@ export async function startPracticeSession(
   try {
     await db.batch([
       db.prepare(
-        `INSERT INTO practice_sessions (id, profile_id, exam_goal, mode, status, started_at, is_focus)
-         VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+        `INSERT INTO practice_sessions (id, profile_id, exam_goal, mode, status, started_at, is_focus, subject)
+         VALUES (?, ?, ?, ?, 'active', ?, ?, 'thinking')`,
       ).bind(sessionId, profile.id, profile.examGoal, stored.mode, startedAt, stored.isFocus),
       ...questions.map((question, index) => {
         const stamp = new Date(Date.parse(startedAt) + index).toISOString();
         return db.prepare(
           `INSERT INTO practice_attempts
-             (id, session_id, profile_id, exam_goal, question_id, question_version,
+             (id, session_id, profile_id, exam_goal, subject, question_id, question_version,
               blueprint_id, blueprint_version, question_prompt, options_json, correct_option,
               image_key, explanation_en, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, 'thinking', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           createId("pat"),
           sessionId,
@@ -483,9 +486,17 @@ async function writeAttemptEvidence(
   stamp: string,
 ) {
   await db.prepare(
-    `INSERT INTO learning_evidence (id, profile_id, exam_goal, kind, ref_id, summary, created_at)
-     VALUES (?, ?, ?, 'attempt', ?, ?, ?)`,
-  ).bind(createId("evd"), session.profileId, session.examGoal, attemptId, summary.slice(0, 4000), stamp).run();
+    `INSERT INTO learning_evidence (id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at)
+     VALUES (?, ?, ?, ?, 'attempt', ?, ?, ?)`,
+  ).bind(
+    createId("evd"),
+    session.profileId,
+    session.examGoal,
+    session.subject,
+    attemptId,
+    summary.slice(0, 4000),
+    stamp,
+  ).run();
 }
 
 /** Timed paper: save or change an answer without locking the paper. */
@@ -933,6 +944,7 @@ export async function listLearnerPracticeResults(
     sessionLimit?: number;
     sessionOffset?: number;
     mode?: PracticeEvidenceModeFilter;
+    subject?: PracticeSubject;
   },
 ) {
   const profile = await learnerProfile(db, userId);

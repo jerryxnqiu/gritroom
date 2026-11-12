@@ -27,6 +27,10 @@ import {
   submitPracticeAttempt,
   submitTimedPaper,
 } from "../lib/practice.ts";
+import {
+  countUnusedReadingQuestions,
+  startReadingPracticeSession,
+} from "../lib/reading-practice.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
 import { readingKnowledge } from "../lib/reading-knowledge.ts";
 import { composeReadingPassageNotes } from "../lib/shelf-fields.ts";
@@ -275,6 +279,8 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(readingBrief, /reading_blueprints/);
   assert.match(readingBrief, /PRIMARY STYLE MODELS/);
   assert.match(readingBrief, /reading_practice_pack/);
+  assert.match(readingBrief, /INSERT INTO reading_questions/);
+  assert.match(readingBrief, /Learner room → Reading/);
   assert.match(readingBrief, /Never copy or lightly paraphrase/);
   assert.match(readingBrief, /Passage authenticity/);
   assert.match(readingBrief, /genuine-feeling/);
@@ -678,4 +684,95 @@ test("timed papers need a full unused bank and allow review before submit", asyn
     assert.ok(attempt.blueprintId);
     assert.equal(weakIds.includes(attempt.blueprintId!), true);
   }
+});
+
+test("learners can practise from the Reading question bank", async (t) => {
+  const { sql, db } = fixture();
+  t.after(() => sql.close());
+  sql.exec(readFileSync(new URL("../migrations/0004_thinking_knowledge.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0005_resource_shelf.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0007_practice_questions.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0008_practice_explanations.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0010_timed_draft_answers.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0011_focus_practice_mode.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0012_practice_subjects.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0013_practice_subject_sessions.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0014_reading_knowledge.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0015_reading_questions.sql", import.meta.url), "utf8"));
+
+  const invite = await issueInvitation(
+    db,
+    actor("owner"),
+    { profileId: "p1", email: actor("learner").email, role: "learner" },
+    accepted,
+  );
+  assert.ok(invite.ok);
+  assert.equal((await acceptInvitation(db, actor("learner"), invite.id)).ok, true);
+
+  assert.equal(await countUnusedReadingQuestions(db, "p1", "selective"), 0);
+  assert.equal((await startReadingPracticeSession(db, "learner", "daily")).ok, false);
+  assert.equal((await startReadingPracticeSession(db, "learner", "focus")).ok, false);
+
+  const stamp = "2026-11-12T03:00:00.000Z";
+  for (let index = 0; index < 4; index += 1) {
+    sql.prepare(
+      `INSERT INTO reading_questions
+         (id, version, exam_goal, blueprint_id, passage_group, passage_title, passage_text,
+          prompt, options_json, correct_option, explanation_en, status, created_at)
+       VALUES (?, 1, 'selective', NULL, 'pg-otters', 'River Otters',
+               'Otters live near clean rivers and hunt for fish.',
+               ?, '{"A":"Fish","B":"Cars","C":"Clouds","D":"Shoes"}', 'A',
+               'The passage says otters hunt for fish.', 'active', ?)`,
+    ).run(`rq-otter-${index}`, `What do the otters hunt for? (${index})`, stamp);
+  }
+  assert.equal(await countUnusedReadingQuestions(db, "p1", "selective"), 4);
+
+  const started = await startReadingPracticeSession(db, "learner", "daily");
+  assert.equal(started.ok, true);
+  if (!started.ok) return;
+  assert.equal(started.session.subject, "reading");
+  assert.equal(started.session.status, "active");
+  assert.equal(started.session.attempts.length, 4);
+  assert.match(started.session.attempts[0]?.prompt || "", /River Otters/);
+  assert.match(started.session.attempts[0]?.prompt || "", /What do the otters hunt for/);
+  assert.equal(started.session.attempts[0]?.correctOption, null);
+
+  const resumed = await startReadingPracticeSession(db, "learner", "timed");
+  assert.equal(resumed.ok, true);
+  if (!resumed.ok) return;
+  assert.equal(resumed.session.id, started.session.id);
+
+  const first = started.session.attempts[0]!;
+  const bank = sql.prepare(
+    "SELECT correct_option AS correctOption FROM reading_questions WHERE id = ? AND version = ?",
+  ).get(first.questionId, first.questionVersion) as { correctOption: string };
+  const answered = await submitPracticeAttempt(db, "learner", started.session.id, {
+    attemptId: first.id,
+    selectedOption: bank.correctOption as "A" | "B" | "C" | "D",
+    confidence: 4,
+    timeMs: 1200,
+    draftNotes: "",
+  });
+  assert.equal(answered.ok, true);
+  if (!answered.ok) return;
+  assert.equal(answered.attempt.isCorrect, true);
+  assert.equal(answered.session.subject, "reading");
+  assert.equal(await countUnusedReadingQuestions(db, "p1", "selective"), 3);
+
+  for (const attempt of answered.session.attempts.filter((item) => !item.finalizedAt)) {
+    const key = sql.prepare(
+      "SELECT correct_option AS correctOption FROM reading_questions WHERE id = ? AND version = ?",
+    ).get(attempt.questionId, attempt.questionVersion) as { correctOption: string };
+    const next = await submitPracticeAttempt(db, "learner", started.session.id, {
+      attemptId: attempt.id,
+      selectedOption: key.correctOption as "A" | "B" | "C" | "D",
+      confidence: 3,
+      timeMs: 900,
+      draftNotes: "",
+    });
+    assert.equal(next.ok, true);
+  }
+  assert.equal(await countUnusedReadingQuestions(db, "p1", "selective"), 0);
+  assert.equal((await startReadingPracticeSession(db, "learner", "daily")).ok, false);
 });

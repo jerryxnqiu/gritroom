@@ -30,3 +30,12 @@ export function parentArchiveHref(input: {
   const hash = input.hash ? `#${input.hash.replace(/^#/, "")}` : "";
   return `/parent?${params.toString()}${hash}`;
 }
+
+export function learnerArchiveHref(input: {
+  subject: PracticeSubject;
+  hash?: string;
+}) {
+  const params = new URLSearchParams({ subject: input.subject });
+  const hash = input.hash ? `#${input.hash.replace(/^#/, "")}` : "";
+  return `/learner?${params.toString()}${hash}`;
+}

@@ -65,7 +65,7 @@ export async function PracticeBankPanel({
             label="Ask Codex to generate Reading practice"
           />
           <p className="meta">
-            Mimics uploaded Passage sets + official samples. Saves style notes and an original practice pack into Reading evidence.
+            Mimics uploaded Passage sets + official samples. Inserts live items into reading_questions for Learner room → Reading, and saves a pack summary into Reading evidence.
           </p>
           <AskCodexBankButton
             profileId={profile.id}

@@ -7,6 +7,7 @@ import type {
   PracticeEvidenceSession,
   PracticeResultSessionSummary,
 } from "@/lib/practice";
+import type { PracticeSubject } from "@/lib/subjects";
 
 type ModeFilter = "all" | "daily" | "timed" | "diagnostic" | "focus";
 type AnswerFilter = "incorrect" | "all";
@@ -68,9 +69,11 @@ function AttemptRow({ item, index }: { item: PracticeEvidenceItem; index: number
 }
 
 export function LearnerResults({
+  subject = "thinking",
   initialSessions,
   initialHasMore = false,
 }: {
+  subject?: PracticeSubject;
   initialSessions: PracticeResultSessionSummary[];
   initialHasMore?: boolean;
 }) {
@@ -103,6 +106,7 @@ export function LearnerResults({
       try {
         const params = new URLSearchParams({
           mode,
+          subject,
           offset: String(offset),
           limit: "10",
         });

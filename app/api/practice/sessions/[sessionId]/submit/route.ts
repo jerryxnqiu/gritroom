@@ -7,6 +7,7 @@ import {
   countUnusedWeakPracticeQuestions,
   submitTimedPaper,
 } from "@/lib/practice";
+import { countUnusedReadingQuestions } from "@/lib/reading-practice";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const session = await getSession(await getSessionTokenFromCookies());
@@ -15,9 +16,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ se
   const { sessionId } = await params;
   const result = await submitTimedPaper(env.DB, session.user_id, sessionId);
   if (!result.ok) return json({ error: result.error }, { status: result.status });
+  const reading = result.session.subject === "reading";
   const [remainingCount, weakRemainingCount] = await Promise.all([
-    countUnusedPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
-    countUnusedWeakPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
+    reading
+      ? countUnusedReadingQuestions(env.DB, result.session.profileId, result.session.examGoal)
+      : countUnusedPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
+    reading
+      ? Promise.resolve(0)
+      : countUnusedWeakPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
   ]);
   return json({ session: result.session, remainingCount, weakRemainingCount });
 }
