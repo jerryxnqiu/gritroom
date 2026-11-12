@@ -76,6 +76,7 @@ export default async function LearnerPage({
         <>
           <LearnerModuleSwitch subject={subject} />
           <LearnerPractice
+            key={subject}
             subject={subject}
             initialSession={practice}
             initialRemainingCount={remainingCount}
