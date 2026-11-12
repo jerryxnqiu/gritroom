@@ -93,7 +93,7 @@ export async function ResourceShelf({
           <p className="meta">
             {subject === "thinking"
               ? "Workbook pages and other miscellaneous practice papers used as style exemplars. No per-file Codex click — use Generate practice bank above."
-              : "Reading passages and workbook pages used as style exemplars. No per-file Codex click — use Ask Codex to review Reading shelf above."}
+              : "Reading passages and workbook pages used as style exemplars. No per-file Codex click — use Ask Codex to review Reading shelf above in bulk. For one article across several screenshots, add each photo with the same Passage set name and page N of M; the bulk review joins the set and keeps it as a style model for later original questions."}
           </p>
           <ShelfMaterialList
             profileId={profile.id}

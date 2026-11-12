@@ -21,7 +21,9 @@ export function AddResourceDialog({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [pending, startTransition] = useTransition();
+  const [kind, setKind] = useState<string>("coaching_report");
   const profile = encodeURIComponent(profileId);
+  const showPassageSet = subject === "reading" && kind === "study_material";
 
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,6 +36,7 @@ export function AddResourceDialog({
         const result = await response.json() as { error?: string };
         if (!response.ok) throw new Error(result.error || "Could not save the resource. Try again.");
         form.reset();
+        setKind("coaching_report");
         dialog.current?.close();
         const nextGoal = body.get("goal") === "oc" ? "oc" : "selective";
         const nextSubject = (body.get("subject") === "reading" ? "reading" : "thinking") as PracticeSubject;
@@ -65,7 +68,7 @@ export function AddResourceDialog({
           <fieldset className="stack-form" disabled={pending}>
             <div className="shelf-form-pair">
               <label className="field"><span>Resource type</span>
-                <select name="kind" defaultValue="coaching_report">
+                <select name="kind" value={kind} onChange={(event) => setKind(event.target.value)}>
                   {Object.entries(materialKinds).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
               </label>
@@ -82,17 +85,52 @@ export function AddResourceDialog({
                 <option value="reading">{subjectLabel("reading")}</option>
               </select>
             </label>
-            <label className="field"><span>Title</span><input name="title" maxLength={140} required /></label>
+            <label className="field"><span>Title</span><input name="title" maxLength={140} required placeholder={showPassageSet ? "e.g. River Otters · page 1" : undefined} /></label>
+            {showPassageSet ? (
+              <>
+                <label className="field"><span>Passage set name</span>
+                  <input name="passageSet" maxLength={120} required placeholder="e.g. River Otters" aria-describedby="passage-set-help" />
+                </label>
+                <div className="shelf-form-pair">
+                  <label className="field"><span>Page number</span>
+                    <input name="passagePage" inputMode="numeric" maxLength={2} required placeholder="1" />
+                  </label>
+                  <label className="field"><span>Total pages in set</span>
+                    <input name="passagePageCount" inputMode="numeric" maxLength={2} required placeholder="4" />
+                  </label>
+                </div>
+                <label className="field"><span>Questions in this article (optional)</span>
+                  <input name="sourceQuestions" maxLength={40} placeholder="e.g. 3" />
+                </label>
+                <p id="passage-set-help" className="meta">
+                  Save each screenshot as its own resource with the same passage set name (page 1 of 4, 2 of 4, …).
+                  Bulk Ask Codex to review Reading shelf joins the set and uses it as a style model for new items.
+                </p>
+              </>
+            ) : null}
             <label className="field"><span>Video or resource link (optional)</span><input name="url" type="url" placeholder="https://youtube.com/watch?v=…" maxLength={2000} /></label>
             <label className="field"><span>Notes (optional)</span>
-              <textarea name="notes" rows={3} maxLength={6000} placeholder="Optional context for a later Codex review" />
+              <textarea
+                name="notes"
+                rows={3}
+                maxLength={6000}
+                placeholder={
+                  showPassageSet
+                    ? "Optional extra context for this page"
+                    : "Optional context for a later Codex review"
+                }
+              />
             </label>
             <label className="field"><span>Attach a file (optional)</span><input name="file" type="file" accept={materialTypes.join(",")} aria-describedby="resource-file-help" /></label>
-            <p id="resource-file-help" className="meta">PDF, JPG, PNG or WebP · up to 8 MB. Coaching items can be reviewed with Ask Codex; practice-question sources feed Ask Codex to generate practice bank.</p>
+            <p id="resource-file-help" className="meta">
+              {subject === "reading"
+                ? "PDF, JPG, PNG or WebP · up to 8 MB. Coaching reports can use Ask Codex one-by-one. Practice-question screenshots use a passage set and go through Ask Codex to review Reading shelf in bulk."
+                : "PDF, JPG, PNG or WebP · up to 8 MB. Coaching items can be reviewed with Ask Codex; practice-question sources feed Ask Codex to generate practice bank."}
+            </p>
             {error ? <p className="error" role="alert">{error}</p> : null}
             <div className="shelf-actions">
               <button type="submit" className="button">{pending ? "Saving…" : "Save resource"}</button>
-              <button type="button" className="button secondary" onClick={() => { formReset(dialog.current); dialog.current?.close(); }}>Cancel</button>
+              <button type="button" className="button secondary" onClick={() => { formReset(dialog.current); setKind("coaching_report"); dialog.current?.close(); }}>Cancel</button>
             </div>
           </fieldset>
         </form>

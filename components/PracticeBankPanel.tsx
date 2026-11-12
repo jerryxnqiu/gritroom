@@ -35,7 +35,7 @@ export async function PracticeBankPanel({
       <h2 id="practice-bank-heading">Generate {moduleLabel.toLowerCase()} bank</h2>
       <p className="lede">
         {subject === "reading"
-          ? `Ask Codex to review ${profile.nickname}’s Reading shelf for the ${examLabel(goal)} archive — coaching notes, sample passages, analyses and parent feedback — and write training directions ready for when Reading practice ships.`
+          ? `Ask Codex to review ${profile.nickname}’s whole Reading shelf for the ${examLabel(goal)} archive in one go — coaching notes, sample passages (including multi-page photo joins), analyses and parent feedback — and write training directions ready for when Reading practice ships.`
           : `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Thinking Skills archive — blueprints, coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback — then add about 60 new questions (with kid-facing explanations): enough for weak-spot practice, with the rest balanced across other skills for timed papers and mixed sets.`}
       </p>
       <div className="shelf-toolbar">

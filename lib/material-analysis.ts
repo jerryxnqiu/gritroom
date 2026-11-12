@@ -401,6 +401,11 @@ function buildCodexReadingBankBrief(input: {
     "",
     `## Reading practice sources (${practiceSources.length})`,
     "Use these as style and difficulty cues for future Reading item banks. Never reproduce protected passages.",
+    "Group rows that share the same notes line `Passage set: …` (and `Page: N of M`). One article may be 3–4 screenshots",
+    "covering a passage plus its sample questions. Download every page in the set from R2, read in page order,",
+    "and treat the set as ONE source unit for analysis and later original-item authoring.",
+    "In evidence_limits, list all material ids in the set and note how many source questions the article showed",
+    "(from `Source questions in this article: …` when present).",
     practiceSources.length ? materialLines(practiceSources) : "(none in this Reading shelf)",
     "",
     "Download each R2 file you need, e.g.:",
@@ -409,11 +414,14 @@ function buildCodexReadingBankBrief(input: {
     "```",
     "",
     "## What to write",
-    "For each useful Reading shelf source, insert a succeeded material_analyses row with subject = 'reading'",
-    "(summary_en, training_directions_json, evidence_limits, optional parent_zh) and a matching learning_evidence row",
-    "with subject = 'reading' and kind = 'material_analysis'.",
-    "Focus training directions on comprehension skills useful for Selective/OC Reading",
-    "(main idea, inference, vocabulary in context, author’s purpose, compare viewpoints) — without inventing exam stems yet.",
+    "For each useful Reading shelf source (or each Passage set), insert ONE succeeded material_analyses row",
+    "on the first page’s material_id with subject = 'reading'",
+    "(summary_en, training_directions_json, evidence_limits, optional parent_zh)",
+    "and a matching learning_evidence row with subject = 'reading' and kind = 'material_analysis'.",
+    "summary_en / training_directions should capture the joined passage skills and the style of the source questions",
+    "so a later Reading bank generator can invent NEW original items — never copy protected stems or passages.",
+    "Focus training directions on Selective/OC Reading skills",
+    "(main idea, inference, vocabulary in context, author’s purpose, compare viewpoints, text structure).",
     "Respect evidence limits from coaching notes and parent feedback.",
     "",
     "Then tell the parent to refresh Parent room → Reading → Resources / Practice bank.",
@@ -497,6 +505,25 @@ export function buildCodexMaterialBrief(
   const evidenceId = createId("evd");
   const stamp = nowIso();
 
+  const readingJoin = material.subject === "reading"
+    ? [
+        "",
+        "## Multi-page Reading passages (join images)",
+        "A Reading article may need several screenshots (e.g. 4 pages for a passage + 3 sample questions).",
+        "If this item belongs to a Passage set:",
+        "1. List sibling Reading shelf rows for the same child/archive:",
+        "```sh",
+        `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, title, notes, file_key, file_name FROM shelf_materials WHERE profile_id = '${profileId}' AND exam_goal = '${material.examGoal}' AND subject = 'reading' ORDER BY created_at DESC, id DESC;"`,
+        "```",
+        "2. Match partners by the same `Passage set: …` notes line (preferred), or Part/Page N of M / shared stem title.",
+        "3. Download every matched image/PDF from R2, read them in page order, and treat them as ONE continuous source unit.",
+        "4. Write a single analysis for THIS material_id that summarises the joined passage and the style of any source questions.",
+        "   Put a short joined excerpt in source_excerpt and list all partner material ids in evidence_limits.",
+        "5. Do not invent missing lines between photos; if a join is uncertain, say so in evidence_limits.",
+        "Prefer using the bulk Reading shelf review for practice-question sets; use this per-item path mainly for coaching reports.",
+      ]
+    : [];
+
   return [
     "GritRoom Codex material analysis",
     "",
@@ -528,7 +555,7 @@ export function buildCodexMaterialBrief(
     "",
     "Read the material row:",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, profile_id, exam_goal, kind, title, source_url, notes, file_key, file_name, file_type, created_by_user_id FROM shelf_materials WHERE id = '${material.id}' AND profile_id = '${profileId}';"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, profile_id, exam_goal, subject, kind, title, source_url, notes, file_key, file_name, file_type, created_by_user_id FROM shelf_materials WHERE id = '${material.id}' AND profile_id = '${profileId}';"`,
     "```",
     material.fileKey
       ? [
@@ -539,13 +566,16 @@ export function buildCodexMaterialBrief(
           "```",
         ].join("\n")
       : "",
+    ...readingJoin,
     "",
     "## What to produce",
     "- summary_en: English practice signals from the source",
     "- parent_zh: optional Chinese parent reading, or empty",
     "- training_directions: up to 5 concrete next practice directions (JSON array string)",
     "- evidence_limits: what this source does NOT prove",
-    "- source_excerpt: short excerpt/notes used (max 8000 chars)",
+    material.subject === "reading"
+      ? "- source_excerpt: short excerpt from the joined continuous passage when pages were merged (max 8000 chars)"
+      : "- source_excerpt: short excerpt/notes used (max 8000 chars)",
     "",
     "## Where to save (remote D1)",
     "Insert one succeeded analysis and one learning_evidence row. Use these ids/timestamps unless collisions force new ones:",
