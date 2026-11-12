@@ -35,7 +35,7 @@ export async function PracticeBankPanel({
       <h2 id="practice-bank-heading">Generate {moduleLabel.toLowerCase()} bank</h2>
       <p className="lede">
         {subject === "reading"
-          ? `Ask Codex to mimic ${profile.nickname}’s uploaded Reading papers and the official NSW samples — invent original articles and questions — and separately build language remediation (vocab / phrases / copywork with handwriting photo checks) from coaching notes and Passage sets.`
+          ? `Ask Codex to mimic ${profile.nickname}’s uploaded Reading papers and the official NSW samples — invent original articles and questions, weighting about half toward Reading skills ${profile.nickname} misses most — and separately build language remediation (vocab / phrases / copywork with handwriting photo checks) from coaching notes and Passage sets.`
           : `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Thinking Skills archive — blueprints, coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback — then add about 60 new questions (with kid-facing explanations): enough for weak-spot practice, with the rest balanced across other skills for timed papers and mixed sets.`}
       </p>
       <div className="shelf-toolbar">
@@ -65,7 +65,7 @@ export async function PracticeBankPanel({
             label="Ask Codex to generate Reading practice"
           />
           <p className="meta">
-            Mimics uploaded Passage sets + official samples. Inserts live items into reading_questions for Learner room → Reading, and saves a pack summary into Reading evidence.
+            Mimics uploaded Passage sets + official samples, biases new stems toward weak Reading skills from past misses, inserts live items into reading_questions for Learner room → Reading, and saves a pack summary into Reading evidence.
           </p>
           <AskCodexBankButton
             profileId={profile.id}

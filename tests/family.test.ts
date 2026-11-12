@@ -281,6 +281,10 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(readingBrief, /reading_practice_pack/);
   assert.match(readingBrief, /INSERT INTO reading_questions/);
   assert.match(readingBrief, /Learner room → Reading/);
+  assert.match(readingBrief, /Weak-spot Reading skills/);
+  assert.match(readingBrief, /about half of the new stems/);
+  assert.match(readingBrief, /reading_questions q ON q.id = a.question_id/);
+  assert.match(readingBrief, /ALWAYS set blueprint_id/);
   assert.match(readingBrief, /Never copy or lightly paraphrase/);
   assert.match(readingBrief, /Passage authenticity/);
   assert.match(readingBrief, /genuine-feeling/);
