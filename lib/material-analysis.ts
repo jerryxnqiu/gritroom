@@ -156,6 +156,55 @@ export async function listSucceededMaterialEvidence(
   })) satisfies MaterialAnalysisEvidence[];
 }
 
+/** Kid-facing coach tips for the learner room (English summary + practice directions only). */
+export type LearnerCoachTip = {
+  id: string;
+  materialKind: string;
+  summaryEn: string;
+  trainingDirections: string[];
+  createdAt: string;
+  completedAt: string | null;
+};
+
+export async function listLearnerCoachTips(
+  db: D1Database,
+  userId: string,
+  subject: PracticeSubject = "thinking",
+) {
+  const rows = await db.prepare(
+    `SELECT a.id, a.summary_en AS summaryEn, a.training_directions_json AS trainingJson,
+            a.created_at AS createdAt, a.completed_at AS completedAt, m.kind AS materialKind
+     FROM material_analyses a
+     JOIN shelf_materials m ON m.id = a.material_id
+     JOIN learner_links l ON l.profile_id = a.profile_id AND l.user_id = ?
+     JOIN profiles p ON p.id = a.profile_id
+     WHERE a.exam_goal = p.exam_goal AND a.subject = ? AND a.status = 'succeeded'
+       AND a.summary_en IS NOT NULL AND length(trim(a.summary_en)) > 0
+       AND a.id = (
+         SELECT a2.id FROM material_analyses a2
+         WHERE a2.material_id = a.material_id AND a2.status = 'succeeded'
+         ORDER BY a2.created_at DESC, a2.id DESC LIMIT 1
+       )
+     ORDER BY a.created_at DESC, a.id DESC`,
+  ).bind(userId, subject).all<{
+    id: string;
+    summaryEn: string;
+    trainingJson: string | null;
+    createdAt: string;
+    completedAt: string | null;
+    materialKind: string;
+  }>();
+
+  return rows.results.map((row): LearnerCoachTip => ({
+    id: row.id,
+    materialKind: row.materialKind,
+    summaryEn: row.summaryEn,
+    trainingDirections: parseDirections(row.trainingJson),
+    createdAt: row.createdAt,
+    completedAt: row.completedAt,
+  }));
+}
+
 export async function getMaterialForCodex(
   db: D1Database,
   profileId: string,

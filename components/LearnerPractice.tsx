@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 
+import type { LearnerCoachTip } from "@/lib/material-analysis";
 import type {
   PracticeAttemptView,
   PracticeMode,
@@ -9,6 +10,7 @@ import type {
   PracticeSessionView,
 } from "@/lib/practice";
 import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
+import { LearnerCoachTips } from "./LearnerCoachTips";
 import { LearnerResults } from "./LearnerResults";
 import { useLearnerSection, type LearnerSection } from "./LearnerSectionContext";
 
@@ -50,6 +52,7 @@ export function LearnerPractice({
   initialWeakRemainingCount = 0,
   initialResultSessions,
   initialResultsHasMore = false,
+  initialCoachTips = [],
   profile,
 }: {
   subject?: PracticeSubject;
@@ -58,6 +61,7 @@ export function LearnerPractice({
   initialWeakRemainingCount?: number;
   initialResultSessions: PracticeResultSessionSummary[];
   initialResultsHasMore?: boolean;
+  initialCoachTips?: LearnerCoachTip[];
   profile: Profile;
 }) {
   const { section, setSection } = useLearnerSection();
@@ -306,6 +310,7 @@ export function LearnerPractice({
       {([
         ["practice", "Practice"],
         ["timed", "Timed paper"],
+        ["tips", "Coach tips"],
         ["results", "Last results"],
       ] as const).map(([value, label]) => (
         <button
@@ -507,6 +512,15 @@ export function LearnerPractice({
           </div>
           {status ? <p className={status.error ? "error" : "notice"} role={status.error ? "alert" : "status"}>{status.text}</p> : null}
         </section>
+      </>
+    );
+  }
+
+  if (section === "tips") {
+    return (
+      <>
+        {sectionNav}
+        <LearnerCoachTips subject={subject} tips={initialCoachTips} />
       </>
     );
   }

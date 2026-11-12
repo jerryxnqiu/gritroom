@@ -10,6 +10,7 @@ import { RoomLayout } from "@/components/RoomLayout";
 import { getSession } from "@/lib/auth";
 import { examLabel, hasOpenInvitations, linkedLearner } from "@/lib/family";
 import { getSessionTokenFromCookies } from "@/lib/http";
+import { listLearnerCoachTips } from "@/lib/material-analysis";
 import {
   countUnusedPracticeQuestions,
   countUnusedWeakPracticeQuestions,
@@ -45,7 +46,7 @@ export default async function LearnerPage({
       ? await latestReadingSession(env.DB, profile.id, profile.examGoal)
       : await latestPracticeSession(env.DB, profile.id, profile.examGoal)
     : null;
-  const [practice, remainingCount, weakRemainingCount, resultPage] = profile
+  const [practice, remainingCount, weakRemainingCount, resultPage, coachTips] = profile
     ? await Promise.all([
       latest ? getPracticeSession(env.DB, latest.id, session.user_id) : Promise.resolve(null),
       subject === "reading"
@@ -55,8 +56,9 @@ export default async function LearnerPage({
         ? Promise.resolve(0)
         : countUnusedWeakPracticeQuestions(env.DB, profile.id, profile.examGoal),
       listLearnerPracticeResults(env.DB, session.user_id, { sessionLimit: 11, subject }),
+      listLearnerCoachTips(env.DB, session.user_id, subject),
     ])
-    : [null, 0, 0, [] as Awaited<ReturnType<typeof listLearnerPracticeResults>>];
+    : [null, 0, 0, [] as Awaited<ReturnType<typeof listLearnerPracticeResults>>, [] as Awaited<ReturnType<typeof listLearnerCoachTips>>];
   const resultsHasMore = resultPage.length > 10;
   const resultSessions = resultsHasMore ? resultPage.slice(0, 10) : resultPage;
 
@@ -83,6 +85,7 @@ export default async function LearnerPage({
             initialWeakRemainingCount={weakRemainingCount}
             initialResultSessions={resultSessions}
             initialResultsHasMore={resultsHasMore}
+            initialCoachTips={coachTips}
             profile={{ id: profile.id, examGoal: profile.examGoal, nickname: profile.nickname }}
           />
         </>

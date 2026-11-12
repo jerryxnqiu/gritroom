@@ -44,6 +44,7 @@ export function LearnerRoomShell({
   const navItems: RoomNavItem[] = useMemo(() => [
     { href: "#practice", label: "Practice", current: section === "practice" },
     { href: "#timed", label: "Timed paper", current: section === "timed" },
+    { href: "#tips", label: "Coach tips", current: section === "tips" },
     { href: "#results", label: "Last results", current: section === "results" },
   ], [section]);
 

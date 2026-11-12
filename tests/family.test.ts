@@ -11,6 +11,7 @@ import {
   getMaterialForCodex,
   listMaterialAnalyses,
   listMaterialsForCodexBank,
+  listLearnerCoachTips,
   listSucceededMaterialEvidence,
   parseCodexAnalysisInput,
   saveCodexMaterialAnalysis,
@@ -316,10 +317,11 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   );
   assert.equal((await readShelf(db, "p1", "selective", "owner", "reading")).materials[0]?.id, "reading-notes");
   assert.equal((await listSucceededMaterialEvidence(db, "p1", "selective", "owner", "reading")).length, 0);
+  assert.equal((await listLearnerCoachTips(db, "learner", "reading")).length, 0);
   const readingParsed = parseCodexAnalysisInput({
     json: JSON.stringify({
       summary_en: "Practise inference from short informational passages.",
-      parent_zh: "",
+      parent_zh: "给家长的备注",
       training_directions: ["Ask what the author implies, not only what is stated."],
       evidence_limits: "One coaching note; not a full Reading diagnostic.",
     }),
@@ -333,6 +335,20 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
     assert.equal(readingEvidence[0]?.materialTitle, "Reading coach note");
     assert.match(readingEvidence[0]?.summaryEn || "", /inference/);
   }
+  const tipInvite = await issueInvitation(
+    db,
+    actor("owner"),
+    { profileId: "p1", email: actor("learner").email, role: "learner" },
+    accepted,
+  );
+  assert.ok(tipInvite.ok);
+  assert.equal((await acceptInvitation(db, actor("learner"), tipInvite.id)).ok, true);
+  const learnerTips = await listLearnerCoachTips(db, "learner", "reading");
+  assert.equal(learnerTips.length, 1);
+  assert.match(learnerTips[0]?.summaryEn || "", /inference/);
+  assert.equal(learnerTips[0]?.trainingDirections[0], "Ask what the author implies, not only what is stated.");
+  assert.equal((await listLearnerCoachTips(db, "learner", "thinking")).length, 0);
+  assert.equal((await listLearnerCoachTips(db, "other", "reading")).length, 0);
   const reviewBrief = buildCodexAttemptReviewBrief({
     profileId: "p1",
     goal: "selective",

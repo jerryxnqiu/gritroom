@@ -2,7 +2,7 @@
 
 import { createContext, useContext } from "react";
 
-export type LearnerSection = "practice" | "timed" | "results";
+export type LearnerSection = "practice" | "timed" | "results" | "tips";
 
 type LearnerSectionContextValue = {
   section: LearnerSection;
@@ -35,6 +35,6 @@ export function useLearnerSection() {
 
 export function sectionFromHash(hash: string, fallback: LearnerSection = "practice"): LearnerSection {
   const value = hash.replace(/^#/, "");
-  if (value === "timed" || value === "results" || value === "practice") return value;
+  if (value === "timed" || value === "results" || value === "practice" || value === "tips") return value;
   return fallback;
 }
