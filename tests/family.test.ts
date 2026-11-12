@@ -29,6 +29,7 @@ import {
 } from "../lib/practice.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
 import { readingKnowledge } from "../lib/reading-knowledge.ts";
+import { composeReadingPassageNotes } from "../lib/shelf-fields.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
 const core = readFileSync(new URL("../migrations/0002_core_schema.sql", import.meta.url), "utf8");
@@ -229,6 +230,11 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(brief, /material_analyses/);
   assert.match(brief, /gritroom-db/);
   assert.match(brief, /learning_evidence/);
+  const readingMaterial = await getMaterialForCodex(db, "p1", "reading-notes", "owner");
+  assert.ok(readingMaterial);
+  const readingMaterialBrief = buildCodexMaterialBrief(readingMaterial, "p1", "owner");
+  assert.match(readingMaterialBrief, /Multi-page Reading passages/);
+  assert.match(readingMaterialBrief, /ONE continuous source unit/);
   const bankShelf = await listMaterialsForCodexBank(db, "p1", "selective", "owner");
   assert.ok(bankShelf);
   assert.equal(bankShelf.materials.length, 2);
@@ -267,7 +273,18 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(readingBrief, /Reading module shelf review/);
   assert.match(readingBrief, /subject: reading/);
   assert.match(readingBrief, /reading_blueprints/);
+  assert.match(readingBrief, /Passage set:/);
   assert.match(readingBrief, /do NOT insert Thinking Skills practice_questions/);
+  assert.match(
+    composeReadingPassageNotes({
+      passageSet: "River Otters",
+      page: "2",
+      pageCount: "4",
+      sourceQuestions: "3",
+      notes: "Extra",
+    }),
+    /Passage set: River Otters\nPage: 2 of 4\nSource questions in this article: 3\nExtra/,
+  );
   assert.equal((await readShelf(db, "p1", "selective", "owner", "reading")).materials[0]?.id, "reading-notes");
   assert.equal((await listSucceededMaterialEvidence(db, "p1", "selective", "owner", "reading")).length, 0);
   const readingParsed = parseCodexAnalysisInput({

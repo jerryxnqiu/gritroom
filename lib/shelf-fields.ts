@@ -1,5 +1,5 @@
 import type { ExamGoal } from "./family";
-import { parseSubject, type PracticeSubject } from "./subjects";
+import { parseSubject, type PracticeSubject } from "./subjects.ts";
 
 export const materialKinds = {
   coaching_report: "Coaching report",
@@ -27,13 +27,44 @@ function httpLink(input: string): string | null {
   }
 }
 
+/** Structured notes so Codex can group multi-screenshot Reading passages in bulk review. */
+export function composeReadingPassageNotes(input: {
+  notes?: string;
+  passageSet?: string;
+  page?: string;
+  pageCount?: string;
+  sourceQuestions?: string;
+}) {
+  const lines: string[] = [];
+  const passageSet = input.passageSet?.trim();
+  const page = input.page?.trim();
+  const pageCount = input.pageCount?.trim();
+  const sourceQuestions = input.sourceQuestions?.trim();
+  if (passageSet) lines.push(`Passage set: ${passageSet}`);
+  if (page && pageCount) lines.push(`Page: ${page} of ${pageCount}`);
+  else if (page) lines.push(`Page: ${page}`);
+  if (sourceQuestions) lines.push(`Source questions in this article: ${sourceQuestions}`);
+  const extra = input.notes?.trim();
+  if (extra) lines.push(extra);
+  return lines.join("\n").trim();
+}
+
 export async function parseMaterial(form: FormData) {
   const goal = shelfGoal(form.get("goal"));
   const subject = parseSubject(form.get("subject")) ?? "thinking";
   const kind = form.get("kind");
   const title = String(form.get("title") ?? "").trim();
   const rawLink = String(form.get("url") ?? "").trim();
-  const notes = String(form.get("notes") ?? "").trim();
+  const rawNotes = String(form.get("notes") ?? "").trim();
+  const notes = subject === "reading"
+    ? composeReadingPassageNotes({
+      notes: rawNotes,
+      passageSet: String(form.get("passageSet") ?? ""),
+      page: String(form.get("passagePage") ?? ""),
+      pageCount: String(form.get("passagePageCount") ?? ""),
+      sourceQuestions: String(form.get("sourceQuestions") ?? ""),
+    })
+    : rawNotes;
   const upload = form.get("file");
   const file = upload instanceof File && (upload.size || upload.name) ? upload : null;
 
