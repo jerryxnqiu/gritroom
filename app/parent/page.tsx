@@ -21,6 +21,7 @@ import {
   countUnusedPracticeQuestions,
   listPracticeEvidenceSummaries,
 } from "@/lib/practice";
+import { countUnusedReadingQuestions } from "@/lib/reading-practice";
 import { shelfGoal } from "@/lib/shelf-fields";
 import { shelfSubject, subjectLabel } from "@/lib/subjects";
 
@@ -47,7 +48,9 @@ export default async function ParentPage({
 
   const [unusedCount, evidencePage] = selected
     ? await Promise.all([
-      countUnusedPracticeQuestions(env.DB, selected.id, goal, subject),
+      subject === "reading"
+        ? countUnusedReadingQuestions(env.DB, selected.id, goal)
+        : countUnusedPracticeQuestions(env.DB, selected.id, goal, subject),
       listPracticeEvidenceSummaries(env.DB, selected.id, goal, session.user_id, {
         sessionLimit: 21,
         subject,

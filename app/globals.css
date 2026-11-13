@@ -605,6 +605,24 @@ p { margin: 0; }
   letter-spacing: -.03em;
   color: var(--green);
 }
+.collapsible-section { margin: 0 0 1.1rem; }
+.collapsible-section-summary {
+  cursor: pointer;
+  list-style: none;
+  margin: 0 0 .7rem;
+  color: var(--green);
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+.collapsible-section-summary::-webkit-details-marker { display: none; }
+.collapsible-section-summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform .15s ease;
+}
+.collapsible-section[open] > .collapsible-section-summary::before { transform: rotate(90deg); }
+.collapsible-section-body { display: grid; gap: .85rem; }
+.collapse-toggle { margin-top: .55rem; }
 .progress-session-heading { margin: .4rem 0 .7rem; font-size: 1.05rem; }
 .progress-session-list {
   display: grid;

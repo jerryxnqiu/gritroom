@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import type { LearnerCoachTip } from "@/lib/material-analysis";
 import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
+import { CollapseToggle, useCollapsedList } from "./CollapsedList";
 
 function tipLabel(kind: string) {
   if (kind === "coaching_report") return "From your coach";
@@ -20,6 +21,7 @@ export function LearnerCoachTips({
   tips: LearnerCoachTip[];
 }) {
   const moduleLabel = subjectLabel(subject);
+  const list = useCollapsedList(tips);
   const [selectedId, setSelectedId] = useState(tips[0]?.id ?? null);
   const selected = useMemo(
     () => tips.find((item) => item.id === selectedId) ?? tips[0] ?? null,
@@ -48,7 +50,7 @@ export function LearnerCoachTips({
       <div className="reading-evidence-layout">
         <aside className="reading-evidence-rail" aria-label="Coach tips list">
           <ul className="progress-session-list">
-            {tips.map((item) => {
+            {list.visible.map((item) => {
               const active = selected?.id === item.id;
               return (
                 <li key={item.id}>
@@ -67,6 +69,13 @@ export function LearnerCoachTips({
               );
             })}
           </ul>
+          <CollapseToggle
+            expanded={list.expanded}
+            hiddenCount={list.hiddenCount}
+            noun="older tips"
+            onShowOlder={list.showOlder}
+            onShowLatestOnly={list.showLatestOnly}
+          />
         </aside>
         <div className="reading-evidence-detail">
           {selected ? (
