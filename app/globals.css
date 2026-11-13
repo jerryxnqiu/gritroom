@@ -511,13 +511,32 @@ p { margin: 0; }
 }
 .practice-result-attempt > summary {
   display: grid;
-  gap: .15rem;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  column-gap: .45rem;
+  row-gap: .15rem;
   padding: .7rem 0 .55rem;
   cursor: pointer;
   list-style: none;
 }
 .practice-result-attempt > summary::-webkit-details-marker { display: none; }
+.practice-result-attempt > summary::before {
+  content: "";
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  width: .45rem;
+  height: .45rem;
+  margin-top: .45rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform .15s ease;
+}
+.practice-result-attempt > summary > * { grid-column: 2; }
+.practice-result-attempt[open] > summary::before { transform: rotate(45deg); margin-top: .35rem; }
+.practice-result-attempt[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: .55rem; }
 .practice-result-attempt-body { display: grid; gap: .55rem; padding-bottom: .35rem; }
+.practice-result-attempt-body .practice-prompt { margin: 0; }
 @media (max-width: 760px) {
   .practice-result-layout { grid-template-columns: minmax(0, 1fr); }
 }

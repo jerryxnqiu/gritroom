@@ -209,82 +209,89 @@ export function LearnerResults({
         <p className="meta">No sessions in this filter yet.</p>
       ) : (
         <div className="practice-result-layout">
-          <ul className="practice-result-sessions">
-            {list.visible.map((session) => {
-              const when = (session.completedAt || session.startedAt).slice(0, 10);
-              const selected = openId === session.id;
-              return (
-                <li key={session.id}>
-                  <button
-                    type="button"
-                    className={`practice-result-session${selected ? " is-selected" : ""}`}
-                    aria-pressed={selected}
-                    disabled={pending}
-                    onClick={() => openSessionDetail(session.id)}
-                  >
-                    <span className="practice-result-session-title">{modeLabel(session.mode)}</span>
-                    <span className="meta">
-                      {session.correct} of {session.total} correct
-                      {session.incorrect ? ` · ${session.incorrect} to review` : ""}
-                      {" · "}
-                      {when}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          <CollapseToggle
-            expanded={list.expanded}
-            hiddenCount={list.hiddenCount}
-            noun="older papers"
-            onShowOlder={list.showOlder}
-            onShowLatestOnly={list.showLatestOnly}
-          />
+          <div>
+            <p className="eyebrow">Bird’s-eye</p>
+            <ul className="practice-result-sessions">
+              {list.visible.map((session) => {
+                const when = (session.completedAt || session.startedAt).slice(0, 10);
+                const selected = openId === session.id;
+                return (
+                  <li key={session.id}>
+                    <button
+                      type="button"
+                      className={`practice-result-session${selected ? " is-selected" : ""}`}
+                      aria-pressed={selected}
+                      disabled={pending}
+                      onClick={() => openSessionDetail(session.id)}
+                    >
+                      <span className="practice-result-session-title">{modeLabel(session.mode)}</span>
+                      <span className="meta">
+                        {session.correct} of {session.total} correct
+                        {session.incorrect ? ` · ${session.incorrect} to review` : ""}
+                        {" · "}
+                        {when}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <CollapseToggle
+              expanded={list.expanded}
+              hiddenCount={list.hiddenCount}
+              noun="older papers"
+              onShowOlder={list.showOlder}
+              onShowLatestOnly={list.showLatestOnly}
+            />
+          </div>
 
           <div className="practice-result-detail">
+            <div className="practice-result-detail-head">
+              <div>
+                <p className="eyebrow">Detail</p>
+                {!openSession ? (
+                  <h3>{openId ? "Loading…" : "Choose a paper"}</h3>
+                ) : (
+                  <h3>
+                    {modeLabel(openSession.mode)} · {openSession.correct} of {openSession.total}
+                  </h3>
+                )}
+              </div>
+              {openSession ? (
+                <div className="practice-evidence-filters" role="group" aria-label="Answer filter">
+                  <button
+                    type="button"
+                    className={answerFilter === "incorrect" ? "button" : "button secondary"}
+                    aria-pressed={answerFilter === "incorrect"}
+                    onClick={() => setAnswerFilter("incorrect")}
+                  >
+                    Incorrect{openSession.incorrect ? ` · ${openSession.incorrect}` : ""}
+                  </button>
+                  <button
+                    type="button"
+                    className={answerFilter === "all" ? "button" : "button secondary"}
+                    aria-pressed={answerFilter === "all"}
+                    onClick={() => setAnswerFilter("all")}
+                  >
+                    All answers
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
             {!openId ? (
               <p className="meta">Choose a paper on the left to review it.</p>
             ) : !openSession ? (
               <p className="meta">Loading that paper…</p>
+            ) : answerFilter === "incorrect" && openSession.incorrect === 0 ? (
+              <p className="meta">No incorrect answers in this paper — nice.</p>
             ) : (
-              <>
-                <div className="practice-result-detail-head">
-                  <div>
-                    <p className="eyebrow">{modeLabel(openSession.mode)} complete</p>
-                    <h3>{openSession.correct} of {openSession.total} correct</h3>
-                  </div>
-                  <div className="practice-evidence-filters" role="group" aria-label="Answer filter">
-                    <button
-                      type="button"
-                      className={answerFilter === "incorrect" ? "button" : "button secondary"}
-                      aria-pressed={answerFilter === "incorrect"}
-                      onClick={() => setAnswerFilter("incorrect")}
-                    >
-                      Misses{openSession.incorrect ? ` · ${openSession.incorrect}` : ""}
-                    </button>
-                    <button
-                      type="button"
-                      className={answerFilter === "all" ? "button" : "button secondary"}
-                      aria-pressed={answerFilter === "all"}
-                      onClick={() => setAnswerFilter("all")}
-                    >
-                      All answers
-                    </button>
-                  </div>
-                </div>
-
-                {answerFilter === "incorrect" && openSession.incorrect === 0 ? (
-                  <p className="meta">No misses in this paper — nice.</p>
-                ) : (
-                  <div className="practice-result-attempts">
-                    {visibleAttempts.map((item) => {
-                      const index = openSession.attempts.findIndex((attempt) => attempt.id === item.id);
-                      return <AttemptRow key={item.id} item={item} index={index} />;
-                    })}
-                  </div>
-                )}
-              </>
+              <div className="practice-result-attempts">
+                {visibleAttempts.map((item) => {
+                  const index = openSession.attempts.findIndex((attempt) => attempt.id === item.id);
+                  return <AttemptRow key={item.id} item={item} index={index} />;
+                })}
+              </div>
             )}
           </div>
         </div>
