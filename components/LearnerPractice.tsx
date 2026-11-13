@@ -344,13 +344,18 @@ export function LearnerPractice({
           </p>
           {remainingSeconds !== null ? (
             <p className={`practice-timer${timerLow ? " is-low" : ""}${timeUp ? " is-up" : ""}`} role="timer" aria-live="polite">
-              {timeUp
-                ? timed
-                  ? "Time is up — check your answers, then submit the paper."
-                  : "Time is up for this set — finish any open questions, then continue to results."
-                : timed
-                  ? `Paper time left · ${formatClock(remainingSeconds)}`
-                  : `Set time left · ${formatClock(remainingSeconds)}`}
+              {timeUp ? (
+                <span className="practice-timer-label">
+                  {timed
+                    ? "Time is up — check your answers, then submit the paper."
+                    : "Time is up for this set — finish any open questions, then continue to results."}
+                </span>
+              ) : (
+                <>
+                  <span className="practice-timer-label">{timed ? "Paper time left" : "Set time left"}</span>
+                  <span className="practice-timer-clock">{formatClock(remainingSeconds)}</span>
+                </>
+              )}
             </p>
           ) : null}
 

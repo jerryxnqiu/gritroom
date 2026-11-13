@@ -398,13 +398,29 @@ p { margin: 0; }
 .practice-panel .notice, .practice-panel .error { margin-top: .85rem; }
 .practice-start-actions { display: grid; gap: .65rem; justify-items: start; }
 .practice-timer {
-  margin: .55rem 0 0;
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .45rem .7rem;
+  margin: .7rem 0 .15rem;
   color: var(--green);
 }
-.practice-timer.is-low { color: #9a5b12; }
-.practice-timer.is-up { color: var(--danger); }
+.practice-timer-label {
+  font-size: .92rem;
+  font-weight: 650;
+}
+.practice-timer-clock {
+  font-family: var(--font-display, var(--font-body));
+  font-size: clamp(1.85rem, 4.5vw, 2.6rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+  line-height: 1.1;
+}
+.practice-timer.is-low,
+.practice-timer.is-low .practice-timer-clock { color: #9a5b12; }
+.practice-timer.is-up,
+.practice-timer.is-up .practice-timer-clock { color: var(--danger); }
 .practice-question-nav {
   display: flex;
   flex-wrap: wrap;
