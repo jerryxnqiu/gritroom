@@ -509,7 +509,6 @@ p { margin: 0; }
   background: var(--panel);
   padding: .15rem .85rem .55rem;
 }
-.practice-result-attempt.is-miss { border-color: #e0b8ae; background: #fffaf8; }
 .practice-result-attempt > summary {
   display: grid;
   gap: .15rem;
@@ -581,7 +580,6 @@ p { margin: 0; }
   border-radius: 10px;
   background: var(--panel);
 }
-.practice-evidence-attempt-card.is-miss { border-color: #e0b8ae; background: #fffaf8; }
 .practice-evidence-attempt-card > header { display: grid; gap: .15rem; }
 .practice-evidence-options {
   display: grid;

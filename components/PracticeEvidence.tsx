@@ -31,7 +31,7 @@ function modeLabel(mode: string) {
 function AttemptDetail({ item, index }: { item: PracticeEvidenceItem; index: number }) {
   const optionEntries = Object.entries(item.options || {});
   return (
-    <details className={`practice-result-attempt${item.isCorrect ? "" : " is-miss"}`}>
+    <details className="practice-result-attempt">
       <summary>
         <span className="meta">Q{index + 1}</span>
         <strong className={item.isCorrect ? "practice-ok" : "practice-miss"}>
