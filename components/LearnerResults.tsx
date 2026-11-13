@@ -28,8 +28,9 @@ function AttemptRow({ item, index }: { item: PracticeEvidenceItem; index: number
       <summary>
         <span className="meta">Q{index + 1}</span>
         <strong className={item.isCorrect ? "practice-ok" : "practice-miss"}>
-          {item.isCorrect ? "Correct" : "Not yet"} · {item.selectedOption}
-          {!item.isCorrect && item.correctOption ? ` · answer ${item.correctOption}` : ""}
+          {item.isCorrect
+            ? `Correct · answered ${item.selectedOption}`
+            : `Incorrect · answered ${item.selectedOption} · correct ${item.correctOption}`}
         </strong>
         {item.blueprintTitle ? <span className="meta">{item.blueprintTitle}</span> : null}
       </summary>
