@@ -509,6 +509,7 @@ p { margin: 0; }
   background: var(--panel);
   padding: .15rem .85rem .55rem;
 }
+.practice-result-attempt.is-miss { border-color: #e0b8ae; background: #fffaf8; }
 .practice-result-attempt > summary {
   display: grid;
   gap: .15rem;

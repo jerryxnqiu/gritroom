@@ -31,8 +31,8 @@ function modeLabel(mode: string) {
 function AttemptDetail({ item, index }: { item: PracticeEvidenceItem; index: number }) {
   const optionEntries = Object.entries(item.options || {});
   return (
-    <article className={`practice-evidence-attempt-card${item.isCorrect ? "" : " is-miss"}`}>
-      <header>
+    <details className={`practice-result-attempt${item.isCorrect ? "" : " is-miss"}`}>
+      <summary>
         <span className="meta">Q{index + 1}</span>
         <strong className={item.isCorrect ? "practice-ok" : "practice-miss"}>
           {item.isCorrect
@@ -41,47 +41,48 @@ function AttemptDetail({ item, index }: { item: PracticeEvidenceItem; index: num
         </strong>
         {item.blueprintTitle ? <span className="meta">{item.blueprintTitle}</span> : null}
         {item.skill ? <span className="meta">{item.skill}</span> : null}
-      </header>
+      </summary>
+      <div className="practice-result-attempt-body">
+        {item.imageKey ? (
+          <p className="practice-figure">
+            <img src={`/api/practice/attempts/${encodeURIComponent(item.id)}/image`} alt="Question figure" />
+          </p>
+        ) : null}
+        <p className="shelf-copy practice-prompt">{item.prompt}</p>
 
-      {item.imageKey ? (
-        <p className="practice-figure">
-          <img src={`/api/practice/attempts/${encodeURIComponent(item.id)}/image`} alt="Question figure" />
+        {optionEntries.length ? (
+          <ul className="practice-evidence-options">
+            {optionEntries.map(([key, label]) => {
+              const selected = key === item.selectedOption;
+              const correct = key === item.correctOption;
+              return (
+                <li
+                  key={key}
+                  className={`practice-evidence-option${selected ? " is-selected" : ""}${correct ? " is-correct" : ""}`}
+                >
+                  <span className="practice-key">{key}</span>
+                  <span>{label}</span>
+                  {selected && !item.isCorrect ? <span className="meta">Chosen</span> : null}
+                  {correct ? <span className="meta">Correct</span> : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+
+        <p className="meta">
+          Confidence {item.confidence ?? "—"}/5 · {formatTime(item.timeMs)} · {item.finalizedAt.slice(0, 10)}
         </p>
-      ) : null}
-      <p className="shelf-copy practice-prompt">{item.prompt}</p>
-
-      {optionEntries.length ? (
-        <ul className="practice-evidence-options">
-          {optionEntries.map(([key, label]) => {
-            const selected = key === item.selectedOption;
-            const correct = key === item.correctOption;
-            return (
-              <li
-                key={key}
-                className={`practice-evidence-option${selected ? " is-selected" : ""}${correct ? " is-correct" : ""}`}
-              >
-                <span className="practice-key">{key}</span>
-                <span>{label}</span>
-                {selected && !item.isCorrect ? <span className="meta">Chosen</span> : null}
-                {correct ? <span className="meta">Correct</span> : null}
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-
-      <p className="meta">
-        Confidence {item.confidence ?? "—"}/5 · {formatTime(item.timeMs)} · {item.finalizedAt.slice(0, 10)}
-      </p>
-      {item.draftNotes ? <p className="shelf-notes shelf-copy"><strong>Working notes · </strong>{item.draftNotes}</p> : null}
-      {item.attemptReviewEn ? (
-        <p className="shelf-notes shelf-copy"><strong>Codex review · </strong>{item.attemptReviewEn}</p>
-      ) : item.explanationEn ? (
-        <p className="shelf-notes shelf-copy"><strong>Explanation · </strong>{item.explanationEn}</p>
-      ) : !item.isCorrect ? (
-        <p className="meta">No Codex review yet — use Ask Codex to review incorrect attempts.</p>
-      ) : null}
-    </article>
+        {item.draftNotes ? <p className="shelf-notes shelf-copy"><strong>Working notes · </strong>{item.draftNotes}</p> : null}
+        {item.attemptReviewEn ? (
+          <p className="shelf-notes shelf-copy"><strong>Codex review · </strong>{item.attemptReviewEn}</p>
+        ) : item.explanationEn ? (
+          <p className="shelf-notes shelf-copy"><strong>Explanation · </strong>{item.explanationEn}</p>
+        ) : !item.isCorrect ? (
+          <p className="meta">No Codex review yet — use Ask Codex to review incorrect attempts.</p>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
