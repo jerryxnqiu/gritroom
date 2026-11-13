@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import type { MaterialAnalysisEvidence } from "@/lib/material-analysis";
 import { materialKinds } from "@/lib/shelf-fields";
+import { CollapseToggle, useCollapsedList } from "./CollapsedList";
 import { useParentSection } from "./ParentSectionContext";
 
 type FeedbackItem = { id: string; body: string; createdAt: string };
@@ -22,6 +23,8 @@ export function SubjectFindingsPanel({
   feedback: FeedbackItem[];
 }) {
   const { setSection } = useParentSection();
+  const findings = useCollapsedList(analyses);
+  const notes = useCollapsedList(feedback);
   const [selectedId, setSelectedId] = useState(analyses[0]?.id ?? null);
   const selected = useMemo(
     () => analyses.find((item) => item.id === selectedId) ?? analyses[0] ?? null,
@@ -50,43 +53,61 @@ export function SubjectFindingsPanel({
         <aside className="reading-evidence-rail" aria-label={`${moduleLabel} findings`}>
           <h3 className="progress-session-heading">Codex findings</h3>
           {analyses.length ? (
-            <ul className="progress-session-list">
-              {analyses.map((item) => {
-                const active = selected?.id === item.id;
-                const kind = materialKinds[item.materialKind as keyof typeof materialKinds] || item.materialKind;
-                return (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      className={`progress-session-card${active ? " is-current" : ""}`}
-                      aria-current={active ? "true" : undefined}
-                      onClick={() => setSelectedId(item.id)}
-                    >
-                      <span className="practice-result-session-title">{item.materialTitle}</span>
-                      <span className="meta">
-                        {kind} · {(item.completedAt || item.createdAt).slice(0, 10)}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <ul className="progress-session-list">
+                {findings.visible.map((item) => {
+                  const active = selected?.id === item.id;
+                  const kind = materialKinds[item.materialKind as keyof typeof materialKinds] || item.materialKind;
+                  return (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className={`progress-session-card${active ? " is-current" : ""}`}
+                        aria-current={active ? "true" : undefined}
+                        onClick={() => setSelectedId(item.id)}
+                      >
+                        <span className="practice-result-session-title">{item.materialTitle}</span>
+                        <span className="meta">
+                          {kind} · {(item.completedAt || item.createdAt).slice(0, 10)}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <CollapseToggle
+                expanded={findings.expanded}
+                hiddenCount={findings.hiddenCount}
+                noun="older findings"
+                onShowOlder={findings.showOlder}
+                onShowLatestOnly={findings.showLatestOnly}
+              />
+            </>
           ) : (
             <p className="meta">No Codex {moduleLabel} findings yet.</p>
           )}
 
           <h3 className="progress-session-heading">Parent feedback</h3>
           {feedback.length ? (
-            <ul className="shelf-items reading-feedback-list">
-              {feedback.map((item) => (
-                <li key={item.id} className="shelf-item">
-                  <div>
-                    <p className="shelf-copy">{item.body}</p>
-                    <time className="meta" dateTime={item.createdAt}>{item.createdAt.slice(0, 10)}</time>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="shelf-items reading-feedback-list">
+                {notes.visible.map((item) => (
+                  <li key={item.id} className="shelf-item">
+                    <div>
+                      <p className="shelf-copy">{item.body}</p>
+                      <time className="meta" dateTime={item.createdAt}>{item.createdAt.slice(0, 10)}</time>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <CollapseToggle
+                expanded={notes.expanded}
+                hiddenCount={notes.hiddenCount}
+                noun="older notes"
+                onShowOlder={notes.showOlder}
+                onShowLatestOnly={notes.showLatestOnly}
+              />
+            </>
           ) : (
             <p className="meta">No active {moduleLabel} feedback yet.</p>
           )}

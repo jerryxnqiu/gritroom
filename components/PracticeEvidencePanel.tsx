@@ -6,6 +6,7 @@ import { listSucceededMaterialEvidence } from "@/lib/material-analysis";
 import type { PracticeResultSessionSummary } from "@/lib/practice";
 import { readShelf } from "@/lib/resource-shelf";
 import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
+import { CollapsibleSection } from "./CollapsedList";
 import { PracticeEvidence } from "./PracticeEvidence";
 import { SubjectFindingsPanel } from "./SubjectFindingsPanel";
 
@@ -41,8 +42,7 @@ export async function PracticeEvidencePanel({
           : `Codex findings from ${profile.nickname}’s ${examLabel(goal)} Thinking Skills coaching reports, plus bird’s-eye scores for finished practice papers. Open a paper for the full question, options, and review.`}
       </p>
 
-      <div className="family-subsection">
-        <h3>Shelf findings</h3>
+      <CollapsibleSection title="Shelf findings">
         <SubjectFindingsPanel
           nickname={profile.nickname}
           archiveLabel={examLabel(goal)}
@@ -50,7 +50,7 @@ export async function PracticeEvidencePanel({
           analyses={analyses}
           feedback={feedback}
         />
-      </div>
+      </CollapsibleSection>
 
       {subject === "thinking" || sessions.length > 0 ? (
         <div className="family-subsection">

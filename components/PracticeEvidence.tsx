@@ -9,6 +9,7 @@ import type {
   PracticeResultSessionSummary,
 } from "@/lib/practice";
 import type { PracticeSubject } from "@/lib/subjects";
+import { CollapseToggle, useCollapsedList } from "./CollapsedList";
 
 type AnswerFilter = "incorrect" | "all";
 type ModeFilter = "all" | "daily" | "timed" | "diagnostic" | "focus";
@@ -105,6 +106,7 @@ export function PracticeEvidence({
   const [details, setDetails] = useState<Record<string, PracticeEvidenceSession>>({});
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<{ text: string; error?: boolean }>();
+  const list = useCollapsedList(sessions);
 
   const openSession = details[openId || ""] ?? null;
   const visibleAttempts = useMemo(() => {
@@ -174,6 +176,9 @@ export function PracticeEvidence({
         if (!append) {
           setOpenId(data.sessions[0]?.id ?? null);
           setDetails({});
+          list.showLatestOnly();
+        } else {
+          list.showOlder();
         }
       } catch (error) {
         setStatus({
@@ -224,7 +229,7 @@ export function PracticeEvidence({
           <div>
             <p className="eyebrow">Bird’s-eye</p>
             <ul className="practice-result-sessions">
-              {sessions.map((session) => {
+              {list.visible.map((session) => {
                 const when = (session.completedAt || session.startedAt).slice(0, 10);
                 const selected = openId === session.id;
                 const pct = session.total ? Math.round((session.correct / session.total) * 100) : 0;
@@ -252,6 +257,13 @@ export function PracticeEvidence({
                 );
               })}
             </ul>
+            <CollapseToggle
+              expanded={list.expanded}
+              hiddenCount={list.hiddenCount}
+              noun="older sessions"
+              onShowOlder={list.showOlder}
+              onShowLatestOnly={list.showLatestOnly}
+            />
           </div>
 
           <div className="practice-result-detail">
