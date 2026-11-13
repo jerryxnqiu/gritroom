@@ -23,10 +23,20 @@ function thinkingTimedPaperSpec(goal: Profile["examGoal"]) {
     : { questions: 40, minutes: 40, label: "40-question timed paper" };
 }
 
-/** Whole-set allowance: Thinking timed papers use official minutes; short sets are 1 min × question count. */
+function readingTimedPaperSpec(goal: Profile["examGoal"]) {
+  return goal === "oc"
+    ? { questions: 33, minutes: 40, label: "33-answer timed Reading paper" }
+    : { questions: 38, minutes: 45, label: "38-answer timed Reading paper" };
+}
+
+function timedPaperForSubject(subject: PracticeSubject, goal: Profile["examGoal"]) {
+  return subject === "reading" ? readingTimedPaperSpec(goal) : thinkingTimedPaperSpec(goal);
+}
+
+/** Whole-set allowance: timed papers use official minutes; short sets are 1 min × question count. */
 function sessionClockMinutes(session: PracticeSessionView) {
-  if (session.mode === "timed" && session.subject !== "reading") {
-    return thinkingTimedPaperSpec(session.examGoal).minutes;
+  if (session.mode === "timed") {
+    return timedPaperForSubject(session.subject === "reading" ? "reading" : "thinking", session.examGoal).minutes;
   }
   return Math.max(1, session.attempts.length);
 }
@@ -66,7 +76,7 @@ export function LearnerPractice({
 }) {
   const { section, setSection } = useLearnerSection();
   const reading = subject === "reading";
-  const paper = thinkingTimedPaperSpec(profile.examGoal);
+  const paper = timedPaperForSubject(subject, profile.examGoal);
   const [session, setSession] = useState(initialSession);
   const [remainingCount, setRemainingCount] = useState(initialRemainingCount);
   const [weakRemainingCount, setWeakRemainingCount] = useState(initialWeakRemainingCount);
@@ -95,7 +105,7 @@ export function LearnerPractice({
     : answered.length + 1;
   const canStartPractice = remainingCount > 0 && !active;
   const canStartFocus = !reading && weakRemainingCount > 0 && !active;
-  const canStartTimed = remainingCount > 0 && !active && (reading || remainingCount >= paper.questions);
+  const canStartTimed = !active && remainingCount >= paper.questions;
   const inQuestion = phase === "question" && Boolean(current) && (active || Boolean(review));
   const sectionForActive = session?.mode === "timed" ? "timed" : "practice";
 
@@ -589,12 +599,10 @@ export function LearnerPractice({
         ) : wantTimed ? (
           <>
             <h2 id="practice-heading">
-              {reading ? "Sit a short Reading timed set." : "Sit a full Thinking Skills paper."}
+              {reading ? "Sit a full Reading timed paper." : "Sit a full Thinking Skills paper."}
             </h2>
             <p className="lede">
-              {reading
-                ? "Up to 10 unused Reading questions · one minute each on the set clock. Move between questions freely, change answers anytime, then submit once at the end."
-                : `${paper.questions} questions · ${paper.minutes} minutes. Move between questions freely, change answers anytime, then submit once at the end.`}
+              {`${paper.questions} ${reading ? "answers" : "questions"} · ${paper.minutes} minutes. Move between questions freely, change answers anytime, then submit once at the end.`}
             </p>
             <div className="actions practice-start-actions">
               <button
@@ -603,16 +611,14 @@ export function LearnerPractice({
                 disabled={pending || !canStartTimed}
                 onClick={() => start("timed")}
               >
-                {reading ? "Start Reading timed set" : `Start ${paper.label}`}
+                {`Start ${paper.label}`}
               </button>
               {!canStartTimed ? (
                 <p className="meta">
-                  {reading
-                    ? "No unused Reading questions ready. Ask your family to generate the Reading practice bank."
-                    : `Needs ${paper.questions} unused questions (${remainingCount} ready). Use Practice for a short set, or ask your family to refresh the bank.`}
+                  {`Needs ${paper.questions} unused ${reading ? "answers" : "questions"} (${remainingCount} ready). Use Practice for a short set, or ask your family to refresh the bank.`}
                 </p>
               ) : (
-                <p className="meta">{remainingCount} unused questions ready in the bank.</p>
+                <p className="meta">{remainingCount} unused {reading ? "answers" : "questions"} ready in the bank.</p>
               )}
             </div>
           </>

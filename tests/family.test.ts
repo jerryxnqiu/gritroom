@@ -285,6 +285,10 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(readingBrief, /Learner room → Reading/);
   assert.match(readingBrief, /Weak-spot Reading skills/);
   assert.match(readingBrief, /about half of the new stems/);
+  assert.match(readingBrief, /at least 38 active answers/);
+  assert.match(readingBrief, /FULL official timed Reading paper/);
+  assert.match(readingBrief, /multiple matching/);
+  assert.match(readingBrief, /COUNT\(DISTINCT passage_group\) AS articles/);
   assert.match(readingBrief, /reading_questions q ON q.id = a.question_id/);
   assert.match(readingBrief, /ALWAYS set blueprint_id/);
   assert.match(readingBrief, /Never copy or lightly paraphrase/);
@@ -752,6 +756,13 @@ test("learners can practise from the Reading question bank", async (t) => {
     ).run(`rq-otter-${index}`, `What do the otters hunt for? (${index})`, stamp);
   }
   assert.equal(await countUnusedReadingQuestions(db, "p1", "selective"), 4);
+
+  const timedTooSmall = await startReadingPracticeSession(db, "learner", "timed");
+  assert.equal(timedTooSmall.ok, false);
+  if (!timedTooSmall.ok) {
+    assert.equal(timedTooSmall.status, 409);
+    assert.match(timedTooSmall.error, /38 unused answers/);
+  }
 
   const started = await startReadingPracticeSession(db, "learner", "daily");
   assert.equal(started.ok, true);

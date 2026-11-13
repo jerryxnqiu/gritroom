@@ -5,6 +5,13 @@ import { nowIso } from "./time.ts";
 
 const SHORT_SET_SIZE = 10;
 
+/** Official Reading timed paper length (answers + minutes) from NSW format guides. */
+export function readingTimedPaperSpec(goal: ExamGoal) {
+  return goal === "oc"
+    ? { answers: 33, minutes: 40, label: "33-answer timed Reading paper" }
+    : { answers: 38, minutes: 45, label: "38-answer timed Reading paper" };
+}
+
 export type ReadingQuestion = {
   id: string;
   version: number;
@@ -153,15 +160,18 @@ export async function loadUnusedReadingQuestions(
   return results;
 }
 
-function pickReadingQuestions(unused: ReadingQuestion[], mode: PracticeMode) {
+function pickReadingQuestions(
+  unused: ReadingQuestion[],
+  mode: PracticeMode,
+  examGoal: ExamGoal,
+) {
   const shuffled = [...unused];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const swap = Math.floor(Math.random() * (index + 1));
     [shuffled[index], shuffled[swap]] = [shuffled[swap]!, shuffled[index]!];
   }
   if (mode === "timed") {
-    // Short Reading timed set until a full official paper bank exists.
-    return shuffled.slice(0, Math.min(SHORT_SET_SIZE, shuffled.length));
+    return shuffled.slice(0, readingTimedPaperSpec(examGoal).answers);
   }
   return shuffled.slice(0, Math.min(SHORT_SET_SIZE, shuffled.length));
 }
@@ -222,7 +232,18 @@ export async function startReadingPracticeSession(
     };
   }
 
-  const questions = pickReadingQuestions(unused, mode);
+  if (mode === "timed") {
+    const paper = readingTimedPaperSpec(profile.examGoal);
+    if (unused.length < paper.answers) {
+      return {
+        ok: false,
+        status: 409,
+        error: `A ${paper.label} needs ${paper.answers} unused answers. ${unused.length} left in the bank — ask your family to refresh, or use Practice for a short set.`,
+      };
+    }
+  }
+
+  const questions = pickReadingQuestions(unused, mode, profile.examGoal);
   const sessionId = createId("psn");
   const startedAt = nowIso();
   const storedMode = mode === "timed" ? "timed" : "daily";
