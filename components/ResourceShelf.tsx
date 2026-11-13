@@ -69,13 +69,13 @@ export async function ResourceShelf({
           <QuestionFoundations goal={goal} />
         </details>
       ) : (
-        <details className="family-subsection" open>
+        <details className="family-subsection">
           <summary>01 · Official Reading information</summary>
           <ReadingFoundations goal={goal} />
         </details>
       )}
 
-      <details className="family-subsection" open={coaching.length > 0}>
+      <details className="family-subsection">
         <summary id="shelf-coaching">02 · Coaching reports &amp; videos</summary>
         <div className="shelf-nest">
           <ShelfMaterialList
@@ -87,7 +87,7 @@ export async function ResourceShelf({
         </div>
       </details>
 
-      <details className="family-subsection" open={study.length > 0}>
+      <details className="family-subsection">
         <summary id="shelf-study">03 · Practice questions from other sources</summary>
         <div className="shelf-nest">
           <p className="meta">
@@ -105,7 +105,7 @@ export async function ResourceShelf({
         </div>
       </details>
 
-      <details className="family-subsection shelf-anchor" id="parent-feedback" open={feedback.length > 0}>
+      <details className="family-subsection shelf-anchor" id="parent-feedback">
         <summary id="shelf-feedback">04 · Feedback &amp; question preferences</summary>
         <div className="shelf-nest">
           <p className="meta">
