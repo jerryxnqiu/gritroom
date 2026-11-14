@@ -81,8 +81,9 @@ export async function PracticeBankPanel({
             label="Ask Codex for Reading remediation & copywork"
           />
           <p className="meta">
-            Diagnoses likely misunderstandings, lists vocab/phrases with meanings, sets handwriting drills, and explains how to
-            upload writing photos for Codex to cross-check.
+            For Reading misses this also writes the per-question kid reviews (same role as Thinking’s “review incorrect attempts”),
+            then diagnoses language gaps, lists vocab/phrases with meanings, sets handwriting drills, and explains how to upload
+            writing photos for Codex to cross-check.
           </p>
           {remediation ? <p className="meta">{remediation.reason}</p> : null}
         </>
@@ -125,7 +126,7 @@ export async function PracticeBankPanel({
           <h3>After copywork</h3>
           <p className="meta">
             Upload handwriting photos to Resources with Passage set <code>Handwriting · …</code> (page N of M), then run
-            remediation again so Codex can mark progress. Full learner Reading practice will use these packs later.
+            remediation again so Codex can refresh miss reviews and mark copywork progress.
           </p>
         </div>
       )}

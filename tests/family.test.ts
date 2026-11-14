@@ -308,6 +308,9 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(remediationBrief, /Copywork drill/);
   assert.match(remediationBrief, /Handwriting ·/);
   assert.match(remediationBrief, /reading_remediation/);
+  assert.match(remediationBrief, /attempt_review_en/);
+  assert.match(remediationBrief, /Per-miss kid reviews/);
+  assert.match(remediationBrief, /subject = 'reading'/);
   assert.match(readingBrief, /Do NOT insert Thinking Skills practice_questions/);
   assert.match(
     composeReadingPassageNotes({

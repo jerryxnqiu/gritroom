@@ -28,7 +28,15 @@ function modeLabel(mode: string) {
   return "Practice";
 }
 
-function AttemptDetail({ item, index }: { item: PracticeEvidenceItem; index: number }) {
+function AttemptDetail({
+  item,
+  index,
+  subject,
+}: {
+  item: PracticeEvidenceItem;
+  index: number;
+  subject: PracticeSubject;
+}) {
   const optionEntries = Object.entries(item.options || {});
   return (
     <details className="practice-result-attempt">
@@ -79,7 +87,11 @@ function AttemptDetail({ item, index }: { item: PracticeEvidenceItem; index: num
         ) : item.explanationEn ? (
           <p className="shelf-notes shelf-copy"><strong>Explanation · </strong>{item.explanationEn}</p>
         ) : !item.isCorrect ? (
-          <p className="meta">No Codex review yet — use Ask Codex to review incorrect attempts.</p>
+          <p className="meta">
+            {subject === "reading"
+              ? "No Codex review yet — use Ask Codex for Reading remediation & copywork on the Practice bank."
+              : "No Codex review yet — use Ask Codex to review incorrect attempts."}
+          </p>
         ) : null}
       </div>
     </details>
@@ -311,7 +323,7 @@ export function PracticeEvidence({
               <div className="practice-evidence-attempt-list">
                 {visibleAttempts.map((item) => {
                   const index = openSession.attempts.findIndex((attempt) => attempt.id === item.id);
-                  return <AttemptDetail key={item.id} item={item} index={index} />;
+                  return <AttemptDetail key={item.id} item={item} index={index} subject={subject} />;
                 })}
               </div>
             )}
