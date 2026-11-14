@@ -88,7 +88,7 @@ export default async function ParentPage({
 
       {selected ? (
         <>
-          <ParentModuleSwitch profileId={selected.id} goal={goal} subject={subject} hash="progress" />
+          <ParentModuleSwitch profileId={selected.id} goal={goal} subject={subject} />
           <ParentSectionNav />
           <ParentSectionView id="progress">
             <ParentProgressPanel

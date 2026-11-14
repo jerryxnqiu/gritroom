@@ -6,7 +6,6 @@ import { listMaterialAnalyses } from "@/lib/material-analysis";
 import { readShelf } from "@/lib/resource-shelf";
 import { parentArchiveHref, subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { AddResourceDialog } from "./AddResourceDialog";
-import { ParentModuleSwitch } from "./ParentModuleSwitch";
 import { QuestionFoundations } from "./QuestionFoundations";
 import { ReadingFoundations } from "./ReadingFoundations";
 import { ShelfFeedbackForm } from "./ShelfFeedbackForm";
@@ -43,21 +42,18 @@ export async function ResourceShelf({
           : " Use Practice bank when you want Codex to turn these into Reading training directions."}
       </p>
       <div className="shelf-toolbar">
-        <div className="shelf-switch-stack">
-          <ParentModuleSwitch profileId={profile.id} goal={goal} subject={subject} hash="shelf" />
-          <nav className="shelf-actions" aria-label="Exam archive">
-            {(["selective", "oc"] as const).map((archive) => (
-              <Link
-                key={archive}
-                className={archive === goal ? "button" : "button secondary"}
-                aria-current={archive === goal ? "true" : undefined}
-                href={parentArchiveHref({ profileId: profile.id, goal: archive, subject, hash: "shelf" })}
-              >
-                {examLabel(archive)}
-              </Link>
-            ))}
-          </nav>
-        </div>
+        <nav className="shelf-actions" aria-label="Exam archive">
+          {(["selective", "oc"] as const).map((archive) => (
+            <Link
+              key={archive}
+              className={archive === goal ? "button" : "button secondary"}
+              aria-current={archive === goal ? "true" : undefined}
+              href={parentArchiveHref({ profileId: profile.id, goal: archive, subject, hash: "shelf" })}
+            >
+              {examLabel(archive)}
+            </Link>
+          ))}
+        </nav>
         <div className="shelf-actions">
           <AddResourceDialog key={scope} profileId={profile.id} goal={goal} subject={subject} />
         </div>

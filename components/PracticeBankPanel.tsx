@@ -8,7 +8,6 @@ import { readingRemediationAvailability } from "@/lib/reading-practice";
 import { parentArchiveHref, subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { AskCodexAttemptReviewButton } from "./AskCodexAttemptReviewButton";
 import { AskCodexBankButton } from "./AskCodexBankButton";
-import { ParentModuleSwitch } from "./ParentModuleSwitch";
 
 export async function PracticeBankPanel({
   profile,
@@ -44,7 +43,6 @@ export async function PracticeBankPanel({
           : `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Thinking Skills archive — blueprints, coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback — then add about 60 new questions (with kid-facing explanations): enough for weak-spot practice, with the rest balanced across other skills for timed papers and mixed sets.`}
       </p>
       <div className="shelf-toolbar">
-        <ParentModuleSwitch profileId={profile.id} goal={goal} subject={subject} hash="bank" />
         <nav className="shelf-actions" aria-label="Exam archive">
           {(["selective", "oc"] as const).map((archive) => (
             <Link
