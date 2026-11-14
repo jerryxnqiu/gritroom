@@ -362,6 +362,8 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   });
   assert.match(reviewBrief, /attempt_review_en/);
   assert.match(reviewBrief, /incorrect/);
+  assert.match(reviewBrief, /subject = 'thinking'/);
+  assert.match(reviewBrief, /Thinking Skills only/);
   assert.equal("error" in parseCodexAnalysisInput({ json: "{" }), true);
   const parsed = parseCodexAnalysisInput({
     json: JSON.stringify({
