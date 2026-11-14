@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import type { LearnerCoachTip } from "@/lib/material-analysis";
 import type {
@@ -13,6 +13,9 @@ import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { LearnerCoachTips } from "./LearnerCoachTips";
 import { LearnerResults } from "./LearnerResults";
 import { useLearnerSection, type LearnerSection } from "./LearnerSectionContext";
+
+const WARN_10_SECONDS = 10 * 60;
+const WARN_5_SECONDS = 5 * 60;
 
 type Profile = { id: string; examGoal: "selective" | "oc"; nickname: string };
 type Phase = "hub" | "question";
@@ -90,10 +93,14 @@ export function LearnerPractice({
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [timedIndex, setTimedIndex] = useState(0);
+  const warned10Ref = useRef(false);
+  const warned5Ref = useRef(false);
+  const forceExitRef = useRef(false);
 
   const open = session?.attempts.find((item) => !item.finalizedAt) ?? null;
   const timed = session?.mode === "timed";
   const active = Boolean(session && session.status === "active");
+  const timedTimeUp = timed && active && remainingSeconds === 0;
   const answered = session?.attempts.filter((item) => item.finalizedAt) ?? [];
   const total = session?.attempts.length ?? 0;
   const left = session?.attempts.filter((item) => !item.finalizedAt).length ?? 0;
@@ -118,6 +125,12 @@ export function LearnerPractice({
   }, [current?.id, current?.selectedOption, current?.confidence, current?.draftNotes, review]);
 
   useEffect(() => {
+    warned10Ref.current = false;
+    warned5Ref.current = false;
+    forceExitRef.current = false;
+  }, [session?.id]);
+
+  useEffect(() => {
     if (!session || session.status !== "active") {
       setRemainingSeconds(null);
       return;
@@ -129,7 +142,28 @@ export function LearnerPractice({
     tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [session?.id, session?.mode, session?.status, session?.startedAt, session?.examGoal, session?.attempts.length]);
+  }, [session?.id, session?.mode, session?.status, session?.startedAt, session?.examGoal, session?.subject, session?.attempts.length]);
+
+  useEffect(() => {
+    if (!session || session.status !== "active" || session.mode !== "timed") return;
+    if (remainingSeconds === null) return;
+
+    if (remainingSeconds <= WARN_10_SECONDS && remainingSeconds > WARN_5_SECONDS && !warned10Ref.current) {
+      warned10Ref.current = true;
+      setStatus({ text: "10 minutes left on this paper." });
+    } else if (remainingSeconds <= WARN_5_SECONDS && remainingSeconds > 0 && !warned5Ref.current) {
+      warned5Ref.current = true;
+      setStatus({ text: "5 minutes left on this paper." });
+    }
+
+    if (remainingSeconds === 0 && !forceExitRef.current) {
+      forceExitRef.current = true;
+      setStatus({ text: "Time is up — submitting your paper now." });
+      submitPaper({ force: true });
+    }
+    // submitPaper reads latest session/selection via closure on each render; fire only once per session via forceExitRef.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remainingSeconds, session?.id, session?.status, session?.mode]);
 
   function go(next: LearnerSection, options?: { keepQuestion?: boolean }) {
     setStatus(undefined);
@@ -256,9 +290,10 @@ export function LearnerPractice({
     });
   }
 
-  function submitPaper() {
+  function submitPaper(options: { force?: boolean } = {}) {
     if (!session || !timed) return;
-    setStatus(undefined);
+    const force = Boolean(options.force);
+    if (!force) setStatus(undefined);
     startTransition(async () => {
       try {
         if (selected && timedCurrent && selected !== (timedCurrent.selectedOption || "")) {
@@ -281,7 +316,11 @@ export function LearnerPractice({
         }
         const response = await fetch(
           `/api/practice/sessions/${encodeURIComponent(session.id)}/submit`,
-          { method: "POST" },
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ force }),
+          },
         );
         const data = await response.json() as {
           session?: PracticeSessionView;
@@ -295,7 +334,11 @@ export function LearnerPractice({
         if (typeof data.weakRemainingCount === "number") setWeakRemainingCount(data.weakRemainingCount);
         setPhase("hub");
         go("results");
+        if (force) {
+          setStatus({ text: "Time ran out — your paper was submitted with the answers you had saved." });
+        }
       } catch (error) {
+        if (force) forceExitRef.current = false;
         setStatus({ text: error instanceof Error ? error.message : "Could not submit the paper.", error: true });
       }
     });
@@ -338,7 +381,8 @@ export function LearnerPractice({
 
   if (inQuestion && section === sectionForActive) {
     const timeUp = remainingSeconds === 0;
-    const timerLow = remainingSeconds !== null && remainingSeconds <= (timed ? 5 * 60 : 60);
+    const timerWarn10 = timed && remainingSeconds !== null && remainingSeconds <= WARN_10_SECONDS && remainingSeconds > WARN_5_SECONDS;
+    const timerLow = remainingSeconds !== null && remainingSeconds <= (timed ? WARN_5_SECONDS : 60);
     return (
       <>
         {sectionNav}
@@ -353,16 +397,28 @@ export function LearnerPractice({
             {remainingSeconds !== null ? ` · ${formatClock(remainingSeconds)} left` : ""}
           </p>
           {remainingSeconds !== null ? (
-            <p className={`practice-timer${timerLow ? " is-low" : ""}${timeUp ? " is-up" : ""}`} role="timer" aria-live="polite">
+            <p
+              className={`practice-timer${timerWarn10 ? " is-warn" : ""}${timerLow ? " is-low" : ""}${timeUp ? " is-up" : ""}`}
+              role="timer"
+              aria-live="polite"
+            >
               {timeUp ? (
                 <span className="practice-timer-label">
                   {timed
-                    ? "Time is up — check your answers, then submit the paper."
+                    ? "Time is up — submitting your paper now. Unanswered questions count as misses."
                     : "Time is up for this set — finish any open questions, then continue to results."}
                 </span>
               ) : (
                 <>
-                  <span className="practice-timer-label">{timed ? "Paper time left" : "Set time left"}</span>
+                  <span className="practice-timer-label">
+                    {timed
+                      ? timerLow
+                        ? "5 minutes or less left"
+                        : timerWarn10
+                          ? "10 minutes or less left"
+                          : "Paper time left"
+                      : "Set time left"}
+                  </span>
                   <span className="practice-timer-clock">{formatClock(remainingSeconds)}</span>
                 </>
               )}
@@ -378,7 +434,7 @@ export function LearnerPractice({
                   className={`practice-q-chip${index === timedIndex ? " is-current" : ""}${item.selectedOption ? " is-answered" : ""}`}
                   aria-current={index === timedIndex ? "true" : undefined}
                   aria-label={`Question ${index + 1}${item.selectedOption ? ", answered" : ", unanswered"}`}
-                  disabled={pending}
+                  disabled={pending || timedTimeUp}
                   onClick={() => jumpTimed(index)}
                 >
                   {index + 1}
@@ -400,7 +456,7 @@ export function LearnerPractice({
             </p>
           ) : null}
           <p className="practice-prompt">{current?.prompt}</p>
-          <fieldset className="practice-options" disabled={pending || Boolean(review)}>
+          <fieldset className="practice-options" disabled={pending || Boolean(review) || timedTimeUp}>
             <legend className="field"><span>Choose an answer</span></legend>
             {Object.entries(current?.options || {}).map(([key, label]) => (
               <label key={key} className={`practice-option${selected === key ? " is-selected" : ""}`}>
@@ -444,7 +500,9 @@ export function LearnerPractice({
             </>
           ) : (
             <p className="meta">
-              You can jump back to any question and change answers until you submit the paper. Correct answers stay hidden until then.
+              {timedTimeUp
+                ? "Time is up — this paper is being submitted. Unanswered questions count as misses."
+                : "You can jump back to any question and change answers until time runs out or you submit. You’ll get warnings at 10 and 5 minutes left. Correct answers stay hidden until submit."}
             </p>
           )}
           {review ? (
@@ -486,7 +544,7 @@ export function LearnerPractice({
                 <button
                   type="button"
                   className="button secondary"
-                  disabled={pending || timedIndex === 0}
+                  disabled={pending || timedTimeUp || timedIndex === 0}
                   onClick={() => jumpTimed(timedIndex - 1)}
                 >
                   Previous
@@ -494,7 +552,7 @@ export function LearnerPractice({
                 <button
                   type="button"
                   className="button"
-                  disabled={pending || !selected}
+                  disabled={pending || timedTimeUp || !selected}
                   onClick={() => saveTimedAnswer(timedIndex < total - 1 ? "next" : "stay")}
                 >
                   {timedIndex < total - 1 ? "Save & next" : "Save answer"}
@@ -502,7 +560,7 @@ export function LearnerPractice({
                 <button
                   type="button"
                   className="button secondary"
-                  disabled={pending || timedIndex >= total - 1}
+                  disabled={pending || timedTimeUp || timedIndex >= total - 1}
                   onClick={() => jumpTimed(timedIndex + 1)}
                 >
                   Next
@@ -510,10 +568,12 @@ export function LearnerPractice({
                 <button
                   type="button"
                   className="button"
-                  disabled={pending || timedAnswered < total}
-                  onClick={submitPaper}
+                  disabled={pending || timedTimeUp || timedAnswered < total}
+                  onClick={() => submitPaper()}
                 >
-                  Submit paper{timedAnswered < total ? ` · ${total - timedAnswered} left` : ""}
+                  {timedTimeUp
+                    ? "Submitting…"
+                    : `Submit paper${timedAnswered < total ? ` · ${total - timedAnswered} left` : ""}`}
                 </button>
               </>
             ) : (
@@ -521,7 +581,7 @@ export function LearnerPractice({
                 Save answer
               </button>
             )}
-            <button type="button" className="button secondary" disabled={pending} onClick={pauseForLater}>
+            <button type="button" className="button secondary" disabled={pending || timedTimeUp} onClick={pauseForLater}>
               Pause for later
             </button>
           </div>
@@ -602,7 +662,7 @@ export function LearnerPractice({
               {reading ? "Sit a full Reading timed paper." : "Sit a full Thinking Skills paper."}
             </h2>
             <p className="lede">
-              {`${paper.questions} ${reading ? "answers" : "questions"} · ${paper.minutes} minutes. Move between questions freely, change answers anytime, then submit once at the end.`}
+              {`${paper.questions} ${reading ? "answers" : "questions"} · ${paper.minutes} minutes. Move between questions freely and change answers anytime. You’ll get warnings at 10 and 5 minutes left; when time runs out the paper submits automatically and unanswered items count as misses.`}
             </p>
             <div className="actions practice-start-actions">
               <button

@@ -17,6 +17,22 @@ export function timedPaperSpec(goal: ExamGoal) {
     : { questions: 40, minutes: 40, label: "40-question timed paper" };
 }
 
+/** Official clock minutes for any timed paper (Thinking or Reading). */
+export function timedPaperLimitMinutes(subject: PracticeSubject, goal: ExamGoal) {
+  if (subject === "reading") return goal === "oc" ? 40 : 45;
+  return timedPaperSpec(goal).minutes;
+}
+
+/** True once the official timed-paper clock has run out (5s early skew allowed). */
+export function timedPaperExpired(
+  session: { mode: string; subject: PracticeSubject; examGoal: ExamGoal; startedAt: string },
+  now = Date.now(),
+) {
+  if (session.mode !== "timed") return false;
+  const endsAt = Date.parse(session.startedAt) + timedPaperLimitMinutes(session.subject, session.examGoal) * 60_000;
+  return now + 5_000 >= endsAt;
+}
+
 export type PracticeQuestion = {
   id: string;
   version: number;
@@ -551,14 +567,24 @@ export async function submitTimedPaper(
   db: D1Database,
   userId: string,
   sessionId: string,
+  options: { force?: boolean } = {},
 ): Promise<{ ok: true; session: PracticeSessionView } | { ok: false; status: number; error: string }> {
   const session = await getPracticeSession(db, sessionId, userId);
   if (!session) return { ok: false, status: 404, error: "That practice session is unavailable." };
   if (session.status !== "active") return { ok: false, status: 409, error: "This practice session is already finished." };
   if (session.mode !== "timed") return { ok: false, status: 409, error: "Only timed papers use a final submit." };
 
+  const force = Boolean(options.force);
+  if (force && !timedPaperExpired(session)) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Time is still left on this paper. Finish unanswered questions, then submit.",
+    };
+  }
+
   const unanswered = session.attempts.filter((item) => !item.selectedOption).length;
-  if (unanswered > 0) {
+  if (unanswered > 0 && !force) {
     return {
       ok: false,
       status: 409,
@@ -575,7 +601,7 @@ export async function submitTimedPaper(
   ).bind(sessionId).all<{
     id: string;
     correctOption: string;
-    selectedOption: string;
+    selectedOption: string | null;
     prompt: string;
     confidence: number | null;
     timeMs: number | null;
@@ -584,7 +610,8 @@ export async function submitTimedPaper(
   try {
     await db.batch([
       ...openRows.results.map((row) => {
-        const correct = row.selectedOption === row.correctOption;
+        const answered = Boolean(row.selectedOption);
+        const correct = answered && row.selectedOption === row.correctOption;
         return db.prepare(
           `UPDATE practice_attempts
            SET is_correct = ?, confidence = COALESCE(confidence, 3), finalized_at = ?
@@ -600,14 +627,15 @@ export async function submitTimedPaper(
   }
 
   for (const row of openRows.results) {
-    const correct = row.selectedOption === row.correctOption;
+    const answered = Boolean(row.selectedOption);
+    const correct = answered && row.selectedOption === row.correctOption;
     const summary = [
-      correct ? "Correct" : "Incorrect",
-      `answer ${row.selectedOption}`,
+      !answered ? "Unanswered · time expired" : correct ? "Correct" : "Incorrect",
+      answered ? `answer ${row.selectedOption}` : null,
       `confidence ${row.confidence ?? 3}/5`,
       `${Math.round(Number(row.timeMs ?? 0) / 1000)}s`,
       row.prompt.slice(0, 180),
-    ].join(" · ");
+    ].filter(Boolean).join(" · ");
     await writeAttemptEvidence(db, session, row.id, summary, stamp);
   }
 

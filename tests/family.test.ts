@@ -659,18 +659,53 @@ test("timed papers need a full unused bank and allow review before submit", asyn
   assert.equal(early.ok, false);
   if (!early.ok) assert.match(early.error, /unanswered/);
 
+  const forceBeforeExpiry = await submitTimedPaper(db, "learner", ready.session.id, { force: true });
+  assert.equal(forceBeforeExpiry.ok, false);
+  if (!forceBeforeExpiry.ok) assert.match(forceBeforeExpiry.error, /Time is still left/);
+
+  sql.prepare(
+    `UPDATE practice_sessions SET started_at = ? WHERE id = ?`,
+  ).run("2020-01-01T00:00:00.000Z", ready.session.id);
+  const forced = await submitTimedPaper(db, "learner", ready.session.id, { force: true });
+  assert.equal(forced.ok, true);
+  if (!forced.ok) return;
+  assert.equal(forced.session.status, "completed");
+  assert.equal(forced.session.attempts.every((item) => Boolean(item.finalizedAt)), true);
+  assert.equal(forced.session.attempts.filter((item) => !item.selectedOption).every((item) => item.isCorrect === false), true);
+
+  // Top up the bank — the forced paper already consumed 40 unused items.
+  for (let index = 0; index < 40; index += 1) {
+    sql.prepare(
+      `INSERT INTO practice_questions
+         (id, version, blueprint_id, blueprint_version, prompt, options_json, correct_option, status, created_at)
+       VALUES (?, 1, ?, ?, ?, '{"A":"A","B":"B","C":"C","D":"D"}', 'A', 'active', ?)`,
+    ).run(
+      `q-timed-extra-b-${index}`,
+      blueprint.id,
+      blueprint.version,
+      `Timed filler prompt B ${index} for paper sizing.`,
+      `2026-11-08T03:${String(index).padStart(2, "0")}:00.000Z`,
+    );
+  }
+
+  // Fresh timed paper for the happy-path submit below.
+  const restart = await startPracticeSession(db, "learner", "timed");
+  assert.equal(restart.ok, true);
+  if (!restart.ok) return;
+  assert.equal(restart.session.attempts.length, 40);
+
   // Fillers use correct option A; force a miss on one of those so weak-spot logic is stable.
-  const missTarget = changed.session.attempts.find((item) => item.questionId?.startsWith("q-timed-extra-"))
-    ?? second;
-  for (const attempt of changed.session.attempts) {
-    const saved = await saveTimedDraft(db, "learner", ready.session.id, {
+  const missTarget = restart.session.attempts.find((item) => item.questionId?.startsWith("q-timed-extra-"))
+    ?? restart.session.attempts[1]!;
+  for (const attempt of restart.session.attempts) {
+    const saved = await saveTimedDraft(db, "learner", restart.session.id, {
       attemptId: attempt.id,
       selectedOption: attempt.id === missTarget.id ? "B" : "A",
       timeMs: 100,
     });
     assert.equal(saved.ok, true);
   }
-  const submitted = await submitTimedPaper(db, "learner", ready.session.id);
+  const submitted = await submitTimedPaper(db, "learner", restart.session.id);
   assert.equal(submitted.ok, true);
   if (!submitted.ok) return;
   assert.equal(submitted.session.status, "completed");
