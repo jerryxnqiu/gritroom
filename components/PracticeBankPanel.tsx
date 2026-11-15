@@ -127,8 +127,8 @@ export async function PracticeBankPanel({
               After Reading misses, click <strong>Ask Codex for Reading remediation & copywork</strong>.
             </li>
             <li>
-              {profile.nickname} opens Learner room → Last results / Coach tips, learns the words, handwrites the
-              copywork, and uploads the page photos (Passage set <code>Handwriting · …</code>).
+              {profile.nickname} opens Learner room → Last results, learns the words, handwrites the copywork, and
+              uploads the page photos there.
             </li>
             <li>
               Ask Codex for Reading remediation again so those handwriting photos are reviewed and commented on with the
