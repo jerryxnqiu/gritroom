@@ -8,9 +8,10 @@ import type {
   PracticeEvidenceSession,
   PracticeResultSessionSummary,
 } from "@/lib/practice";
-import type { PracticeSubject } from "@/lib/subjects";
+import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { CollapseToggle, useCollapsedList } from "./CollapsedList";
 import { PracticePrompt } from "./PracticePrompt";
+import { PracticeScoreChart } from "./PracticeScoreChart";
 import { ReadingLanguagePack } from "./ReadingLanguagePack";
 
 type ModeFilter = "all" | "daily" | "timed" | "diagnostic" | "focus";
@@ -215,6 +216,12 @@ export function LearnerResults({
           limit={2}
         />
       ) : null}
+
+      <PracticeScoreChart
+        sessions={sessions}
+        subjectLabel={subjectLabel(subject)}
+        onSelect={(sessionId) => openSessionDetail(sessionId)}
+      />
 
       <div className="practice-evidence-filters" role="group" aria-label="Result mode filter">
         {([

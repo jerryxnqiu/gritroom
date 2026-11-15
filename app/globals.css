@@ -930,6 +930,66 @@ p { margin: 0; }
   letter-spacing: -.03em;
   color: var(--green);
 }
+.practice-score-chart,
+.practice-score-chart-empty {
+  display: grid;
+  gap: .55rem;
+  margin: 0 0 1.25rem;
+  padding: .95rem 1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fcfdf9;
+}
+.practice-score-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: .45rem 1rem;
+}
+.practice-score-chart-head strong {
+  display: block;
+  margin-top: .1rem;
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+.practice-score-chart-scroll {
+  overflow-x: auto;
+  padding-bottom: .25rem;
+}
+.practice-score-chart-svg { display: block; max-width: none; }
+.practice-score-grid {
+  stroke: #d7e0cf;
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+.practice-score-axis {
+  fill: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+.practice-score-bar {
+  fill: #6f9a63;
+  cursor: pointer;
+  outline: none;
+}
+.practice-score-bar.is-timed { fill: #3f6f4d; }
+.practice-score-bar.is-active,
+.practice-score-bar:hover,
+.practice-score-bar:focus {
+  fill: #2f5d3a;
+}
+.practice-score-value {
+  fill: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+.practice-score-label {
+  fill: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+.practice-score-caption { margin: 0; min-height: 1.35rem; }
 .collapsible-section { margin: 0 0 1.1rem; }
 .collapsible-section-summary {
   cursor: pointer;

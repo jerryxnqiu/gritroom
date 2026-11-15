@@ -44,6 +44,7 @@ import {
   remediationPlanAudience,
   scrubRemediationSummaryForLearner,
 } from "../lib/reading-remediation.ts";
+import { buildPracticeScorePoints } from "../lib/practice-score-chart.ts";
 import { composeReadingPassageNotes } from "../lib/shelf-fields.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
@@ -257,6 +258,55 @@ test("reading remediation plans split learner vs parent audience", () => {
     scrubRemediationSummaryForLearner("Meaning · sure.\nPlan ID: rrd_abc123\nCOPYWORK: write five times."),
     "Meaning · sure.\nCOPYWORK: write five times.",
   );
+});
+
+test("practice score chart tags same-day papers as date-1 date-2", () => {
+  const points = buildPracticeScorePoints([
+    {
+      id: "s3",
+      mode: "timed",
+      status: "completed",
+      startedAt: "2026-11-14T16:00:00.000Z",
+      completedAt: "2026-11-14T16:40:00.000Z",
+      total: 40,
+      correct: 28,
+    },
+    {
+      id: "s2",
+      mode: "daily",
+      status: "completed",
+      startedAt: "2026-11-14T09:00:00.000Z",
+      completedAt: "2026-11-14T09:20:00.000Z",
+      total: 10,
+      correct: 7,
+    },
+    {
+      id: "s1",
+      mode: "daily",
+      status: "completed",
+      startedAt: "2026-11-13T10:00:00.000Z",
+      completedAt: "2026-11-13T10:15:00.000Z",
+      total: 10,
+      correct: 9,
+    },
+    {
+      id: "open",
+      mode: "timed",
+      status: "active",
+      startedAt: "2026-11-15T10:00:00.000Z",
+      completedAt: null,
+      total: 5,
+      correct: 2,
+    },
+  ]);
+  assert.deepEqual(points.map((point) => point.label), [
+    "2026-11-13",
+    "2026-11-14-1",
+    "2026-11-14-2",
+  ]);
+  assert.equal(points[0]?.percent, 90);
+  assert.equal(points[1]?.percent, 70);
+  assert.equal(points[2]?.percent, 70);
 });
 
 test("reading remediation plans parse model sentences for handwriting UI", () => {

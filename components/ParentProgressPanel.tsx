@@ -3,6 +3,7 @@
 import type { PracticeResultSessionSummary } from "@/lib/practice";
 import type { PracticeSubject } from "@/lib/subjects";
 import { CollapseToggle, useCollapsedList } from "./CollapsedList";
+import { PracticeScoreChart } from "./PracticeScoreChart";
 import { useParentSection } from "./ParentSectionContext";
 
 function modeLabel(mode: string) {
@@ -61,6 +62,12 @@ export function ParentProgressPanel({
           </span>
         </div>
       </div>
+
+      <PracticeScoreChart
+        sessions={sessions}
+        subjectLabel={moduleLabel}
+        onSelect={() => setSection("evidence")}
+      />
 
       {sessions.length ? (
         <>
