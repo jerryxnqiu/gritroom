@@ -597,6 +597,47 @@ p { margin: 0; }
   line-height: 1.55;
   color: var(--ink);
 }
+.practice-extract-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .2rem;
+  margin-top: .15rem;
+  border-bottom: 1px solid var(--line);
+}
+.practice-extract-tab {
+  appearance: none;
+  margin: 0;
+  padding: .55rem .85rem .5rem;
+  border: 0;
+  border-top: 2px solid transparent;
+  border-radius: 8px 8px 0 0;
+  background: #e4ecda;
+  color: var(--green);
+  font: 650 .88rem/1.2 var(--font-body);
+  cursor: pointer;
+}
+.practice-extract-tab:hover { background: #d7e4ca; }
+.practice-extract-tab.is-active {
+  background: #fff;
+  border-top-color: var(--moss);
+  color: var(--ink);
+}
+.practice-extract-panel {
+  display: grid;
+  gap: .45rem;
+  padding: .85rem .9rem;
+  border: 1px solid var(--line);
+  border-radius: 0 10px 10px 10px;
+  background: #fff;
+}
+.practice-extract-label {
+  margin: 0;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .practice-figure { margin: .75rem 0; }
 .practice-figure img {
   display: block; max-width: min(100%, 28rem); height: auto;

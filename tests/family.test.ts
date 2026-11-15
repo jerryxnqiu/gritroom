@@ -224,7 +224,31 @@ test("reading prompts split into passage instruction article and stem", () => {
   assert.match(parsed.passage || "", /Sand is not just sand/);
   assert.doesNotMatch(parsed.passage || "", /^A handful of differences/);
   assert.match(parsed.stem, /gap \[8\]/);
+  assert.equal(parsed.extracts.length, 0);
   assert.equal(parsePracticePrompt("Plain thinking stem", "thinking").stem, "Plain thinking stem");
+
+  const multi = parsePracticePrompt(
+    [
+      "Finding a way",
+      "",
+      "Read four original extracts about finding a way. For each statement, choose the one extract that supports it.",
+      "",
+      "Extract A\nFirst extract body about maps.",
+      "",
+      "Extract B\nSecond extract body about scenic routes.",
+      "",
+      "Extract C\nThird extract body.",
+      "",
+      "Extract D\nFourth extract body.",
+      "",
+      "Which extract supports the idea that plans improve after a mistake?",
+    ].join("\n"),
+    "reading",
+  );
+  assert.equal(multi.extracts.length, 4);
+  assert.equal(multi.extracts[0]?.label, "Extract A");
+  assert.match(multi.extracts[0]?.body || "", /maps/);
+  assert.equal(multi.extracts[3]?.label, "Extract D");
 });
 
 test("shelf evidence is limited to the authorised child and chosen exam archive", async (t) => {
