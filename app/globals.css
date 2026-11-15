@@ -980,16 +980,19 @@ p { margin: 0; }
   color: var(--ink);
   font-size: 1.05rem;
 }
-.practice-score-chart-plot {
+.practice-score-chart-host {
+  width: 100%;
+  padding-top: 3.25rem;
+}
+.practice-score-chart-stage {
   position: relative;
-  overflow: visible;
+  width: 100%;
 }
-.practice-score-chart-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: .15rem;
+.practice-score-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
-.practice-score-chart-svg { display: block; max-width: none; }
 .practice-score-tooltip {
   position: absolute;
   z-index: 6;
