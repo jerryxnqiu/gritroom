@@ -609,6 +609,7 @@ export function LearnerPractice({
           subject={subject}
           initialSessions={initialResultSessions}
           initialHasMore={initialResultsHasMore}
+          languageTips={initialCoachTips.filter((tip) => tip.materialKind === "reading_remediation")}
         />
       </>
     );

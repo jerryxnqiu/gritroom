@@ -156,6 +156,43 @@ export async function listSucceededMaterialEvidence(
   })) satisfies MaterialAnalysisEvidence[];
 }
 
+/** Reading remediation / copywork plans (vocab, phrases, slang) for parent + learner surfaces. */
+export type ReadingRemediationPlan = {
+  id: string;
+  summary: string;
+  createdAt: string;
+  refId: string;
+};
+
+export async function listReadingRemediationPlans(
+  db: D1Database,
+  profileId: string,
+  goal: ExamGoal,
+  userId: string,
+  limit = 20,
+) {
+  // Parents (guardian grants) and the linked learner may both read these plans.
+  const canView = `(
+    ${parentAccess}
+    OR EXISTS (
+      SELECT 1 FROM learner_links l
+      WHERE l.profile_id = e.profile_id AND l.user_id = ?
+    )
+  )`;
+  const { results } = await db.prepare(
+    `SELECT e.id, e.summary, e.created_at AS createdAt, e.ref_id AS refId
+     FROM learning_evidence e
+     JOIN profiles p ON p.id = e.profile_id
+     WHERE e.profile_id = ? AND e.exam_goal = ? AND e.subject = 'reading'
+       AND e.kind = 'reading_remediation'
+       AND e.summary IS NOT NULL AND length(trim(e.summary)) > 0
+       AND ${canView}
+     ORDER BY e.created_at DESC, e.id DESC
+     LIMIT ?`,
+  ).bind(profileId, goal, userId, userId, limit).all<ReadingRemediationPlan>();
+  return results;
+}
+
 /** Kid-facing coach tips for the learner room (English summary + practice directions only). */
 export type LearnerCoachTip = {
   id: string;
@@ -195,7 +232,7 @@ export async function listLearnerCoachTips(
     materialKind: string;
   }>();
 
-  return rows.results.map((row): LearnerCoachTip => ({
+  const tips: LearnerCoachTip[] = rows.results.map((row) => ({
     id: row.id,
     materialKind: row.materialKind,
     summaryEn: row.summaryEn,
@@ -203,6 +240,37 @@ export async function listLearnerCoachTips(
     createdAt: row.createdAt,
     completedAt: row.completedAt,
   }));
+
+  // Reading remediation plans hold the vocab / phrases / slang list for memorising.
+  if (subject === "reading") {
+    const link = await db.prepare(
+      `SELECT profile_id AS profileId, p.exam_goal AS examGoal
+       FROM learner_links l JOIN profiles p ON p.id = l.profile_id
+       WHERE l.user_id = ?`,
+    ).bind(userId).first<{ profileId: string; examGoal: ExamGoal }>();
+    if (link) {
+      const remediation = await listReadingRemediationPlans(
+        db,
+        link.profileId,
+        link.examGoal,
+        userId,
+        20,
+      );
+      for (const row of remediation) {
+        tips.push({
+          id: row.id,
+          materialKind: "reading_remediation",
+          summaryEn: row.summary,
+          trainingDirections: [],
+          createdAt: row.createdAt,
+          completedAt: row.createdAt,
+        });
+      }
+      tips.sort((a, b) => String(b.completedAt || b.createdAt).localeCompare(String(a.completedAt || a.createdAt)));
+    }
+  }
+
+  return tips;
 }
 
 export async function getMaterialForCodex(
@@ -681,8 +749,9 @@ function buildCodexReadingRemediationBrief(input: {
     `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT COUNT(*) AS still_open FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'reading' AND is_correct = 0 AND finalized_at IS NOT NULL AND attempt_review_en IS NULL;"`,
     "```",
     "",
-    "Then tell the parent to refresh Parent room → Reading → Evidence / Last results, run the copywork,",
-    "upload handwriting photos, and ask Codex again to cross-check progress.",
+    "Then tell the parent to refresh Parent room → Reading → Evidence (Words & phrases),",
+    "and that the same list appears for the learner under Last results and Coach tips.",
+    "Ask them to run the copywork, upload handwriting photos, and ask Codex again to cross-check progress.",
   ].join("\n");
 }
 

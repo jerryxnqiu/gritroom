@@ -7,10 +7,16 @@ import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { CollapseToggle, useCollapsedList } from "./CollapsedList";
 
 function tipLabel(kind: string) {
+  if (kind === "reading_remediation") return "Words & phrases";
   if (kind === "coaching_report") return "From your coach";
   if (kind === "study_material") return "From your practice papers";
   if (kind === "video") return "From a practice video";
   return "Coach tip";
+}
+
+function tipHeading(kind: string) {
+  if (kind === "reading_remediation") return "Memorise these";
+  return "Remember this";
 }
 
 export function LearnerCoachTips({
@@ -34,7 +40,9 @@ export function LearnerCoachTips({
         <p className="eyebrow">Coach tips</p>
         <h2 id="coach-tips-heading">No {moduleLabel} tips yet.</h2>
         <p className="lede">
-          When your family asks Codex to review coaching notes for {moduleLabel}, short tips for you will show up here.
+          {subject === "reading"
+            ? "When your family runs Reading remediation & copywork, vocabulary, phrases and slang to memorise will show up here — plus tips from coaching notes."
+            : `When your family asks Codex to review coaching notes for ${moduleLabel}, short tips for you will show up here.`}
         </p>
       </section>
     );
@@ -43,9 +51,13 @@ export function LearnerCoachTips({
   return (
     <section className="panel practice-panel" aria-labelledby="coach-tips-heading">
       <p className="eyebrow">Coach tips</p>
-      <h2 id="coach-tips-heading">Things to watch for in {moduleLabel}.</h2>
+      <h2 id="coach-tips-heading">
+        {subject === "reading" ? "Words, phrases and tips for Reading." : `Things to watch for in ${moduleLabel}.`}
+      </h2>
       <p className="lede">
-        Short notes from your family’s coaching reviews — useful before a practice set.
+        {subject === "reading"
+          ? "Language lists from remediation (vocab, slang, phrases) plus notes from coaching reviews — useful before the next Reading set."
+          : "Short notes from your family’s coaching reviews — useful before a practice set."}
       </p>
       <div className="reading-evidence-layout">
         <aside className="reading-evidence-rail" aria-label="Coach tips list">
@@ -82,7 +94,7 @@ export function LearnerCoachTips({
             <article className="practice-evidence-attempt-card">
               <header>
                 <span className="meta">{tipLabel(selected.materialKind)}</span>
-                <strong>Remember this</strong>
+                <strong>{tipHeading(selected.materialKind)}</strong>
                 <span className="meta">
                   {(selected.completedAt || selected.createdAt).slice(0, 10)}
                 </span>

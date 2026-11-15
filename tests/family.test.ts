@@ -12,6 +12,7 @@ import {
   listMaterialAnalyses,
   listMaterialsForCodexBank,
   listLearnerCoachTips,
+  listReadingRemediationPlans,
   listSucceededMaterialEvidence,
   parseCodexAnalysisInput,
   saveCodexMaterialAnalysis,
@@ -404,6 +405,25 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.equal(learnerTips[0]?.trainingDirections[0], "Ask what the author implies, not only what is stated.");
   assert.equal((await listLearnerCoachTips(db, "learner", "thinking")).length, 0);
   assert.equal((await listLearnerCoachTips(db, "other", "reading")).length, 0);
+
+  sql.exec(readFileSync(new URL("../migrations/0016_reading_evidence_kinds.sql", import.meta.url), "utf8"));
+  sql.exec(`
+    INSERT INTO learning_evidence(id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at)
+    VALUES('evd-lang','p1','selective','reading','reading_remediation','rrd-lang',
+           'Language list · at a glance = from a quick look · at large = as a whole.',
+           '2026-11-14T12:00:00.000Z');
+  `);
+  const tipsWithLang = await listLearnerCoachTips(db, "learner", "reading");
+  assert.equal(tipsWithLang.length, 2);
+  const languageTip = tipsWithLang.find((tip) => tip.materialKind === "reading_remediation");
+  assert.ok(languageTip);
+  assert.match(languageTip?.summaryEn || "", /at a glance/);
+  const parentPlans = await listReadingRemediationPlans(db, "p1", "selective", "owner");
+  assert.equal(parentPlans.length, 1);
+  assert.match(parentPlans[0]?.summary || "", /at a glance/);
+  const learnerPlans = await listReadingRemediationPlans(db, "p1", "selective", "learner");
+  assert.equal(learnerPlans.length, 1);
+  assert.equal((await listReadingRemediationPlans(db, "p1", "selective", "other")).length, 0);
   const reviewBrief = buildCodexAttemptReviewBrief({
     profileId: "p1",
     goal: "selective",

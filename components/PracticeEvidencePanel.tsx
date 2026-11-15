@@ -2,12 +2,16 @@ import { env } from "cloudflare:workers";
 
 import type { ExamGoal, ParentProfile } from "@/lib/family";
 import { examLabel } from "@/lib/family";
-import { listSucceededMaterialEvidence } from "@/lib/material-analysis";
+import {
+  listReadingRemediationPlans,
+  listSucceededMaterialEvidence,
+} from "@/lib/material-analysis";
 import type { PracticeResultSessionSummary } from "@/lib/practice";
 import { readShelf } from "@/lib/resource-shelf";
 import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { CollapsibleSection } from "./CollapsedList";
 import { PracticeEvidence } from "./PracticeEvidence";
+import { ReadingLanguagePack } from "./ReadingLanguagePack";
 import { SubjectFindingsPanel } from "./SubjectFindingsPanel";
 
 export async function PracticeEvidencePanel({
@@ -26,9 +30,12 @@ export async function PracticeEvidencePanel({
   hasMore: boolean;
 }) {
   const moduleLabel = subjectLabel(subject);
-  const [analyses, shelf] = await Promise.all([
+  const [analyses, shelf, remediationPlans] = await Promise.all([
     listSucceededMaterialEvidence(env.DB, profile.id, goal, userId, subject),
     readShelf(env.DB, profile.id, goal, userId, subject),
+    subject === "reading"
+      ? listReadingRemediationPlans(env.DB, profile.id, goal, userId)
+      : Promise.resolve([]),
   ]);
   const feedback = shelf.feedback.map(({ id, body, createdAt }) => ({ id, body, createdAt }));
 
@@ -38,9 +45,25 @@ export async function PracticeEvidencePanel({
       <h2 id="practice-evidence-heading">{moduleLabel} evidence</h2>
       <p className="lede">
         {subject === "reading"
-          ? `Codex findings, practice packs, remediation / copywork, and parent feedback for ${profile.nickname}’s ${examLabel(goal)} Reading shelf. Attempt papers appear below when Reading practice sessions are finished.`
+          ? `Codex findings, vocabulary / phrase lists from remediation, and parent feedback for ${profile.nickname}’s ${examLabel(goal)} Reading shelf. Attempt papers appear below when Reading practice sessions are finished.`
           : `Codex findings from ${profile.nickname}’s ${examLabel(goal)} Thinking Skills coaching reports, plus bird’s-eye scores for finished practice papers. Open a paper for the full question, options, and review.`}
       </p>
+
+      {subject === "reading" ? (
+        <div className="family-subsection">
+          <h3>Words & phrases to memorise</h3>
+          <ReadingLanguagePack
+            audience="parent"
+            nickname={profile.nickname}
+            plans={remediationPlans.map((plan) => ({
+              id: plan.id,
+              summary: plan.summary,
+              createdAt: plan.createdAt,
+            }))}
+            limit={5}
+          />
+        </div>
+      ) : null}
 
       <CollapsibleSection title="Shelf findings">
         <SubjectFindingsPanel

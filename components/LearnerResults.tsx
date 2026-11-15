@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 
+import type { LearnerCoachTip } from "@/lib/material-analysis";
 import type {
   PracticeEvidenceItem,
   PracticeEvidenceSession,
@@ -10,6 +11,7 @@ import type {
 import type { PracticeSubject } from "@/lib/subjects";
 import { CollapseToggle, useCollapsedList } from "./CollapsedList";
 import { PracticePrompt } from "./PracticePrompt";
+import { ReadingLanguagePack } from "./ReadingLanguagePack";
 
 type ModeFilter = "all" | "daily" | "timed" | "diagnostic" | "focus";
 type AnswerFilter = "incorrect" | "all";
@@ -83,10 +85,12 @@ export function LearnerResults({
   subject = "thinking",
   initialSessions,
   initialHasMore = false,
+  languageTips = [],
 }: {
   subject?: PracticeSubject;
   initialSessions: PracticeResultSessionSummary[];
   initialHasMore?: boolean;
+  languageTips?: LearnerCoachTip[];
 }) {
   const [sessions, setSessions] = useState(initialSessions);
   const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
@@ -191,7 +195,22 @@ export function LearnerResults({
       <h2 id="practice-heading">Your past papers.</h2>
       <p className="lede">
         Browse by paper, not by every question at once. Open one session, then focus on misses or scan all answers.
+        {subject === "reading"
+          ? " Vocabulary and phrases to memorise from remediation are listed below when your family has run that plan."
+          : ""}
       </p>
+
+      {subject === "reading" ? (
+        <ReadingLanguagePack
+          audience="learner"
+          plans={languageTips.map((tip) => ({
+            id: tip.id,
+            summary: tip.summaryEn,
+            createdAt: tip.completedAt || tip.createdAt,
+          }))}
+          limit={2}
+        />
+      ) : null}
 
       <div className="practice-evidence-filters" role="group" aria-label="Result mode filter">
         {([

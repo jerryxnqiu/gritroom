@@ -642,6 +642,37 @@ p { margin: 0; }
   text-transform: uppercase;
   color: var(--muted);
 }
+.practice-language-pack {
+  margin: 1rem 0 1.15rem;
+  padding: .15rem .95rem .85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f4f7ef;
+}
+.practice-language-pack > summary {
+  display: grid;
+  gap: .15rem;
+  padding: .75rem 0 .55rem;
+  cursor: pointer;
+  list-style: none;
+}
+.practice-language-pack > summary::-webkit-details-marker { display: none; }
+.practice-language-pack-body {
+  display: grid;
+  gap: .75rem;
+  padding-bottom: .25rem;
+  border-top: 1px solid var(--line);
+  padding-top: .75rem;
+}
+.practice-language-card {
+  display: grid;
+  gap: .35rem;
+  padding: .75rem .85rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.practice-language-card .practice-prompt { margin: 0; max-width: none; }
 .practice-figure { margin: .75rem 0; }
 .practice-figure img {
   display: block; max-width: min(100%, 28rem); height: auto;
