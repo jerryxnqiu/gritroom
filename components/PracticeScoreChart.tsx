@@ -7,13 +7,6 @@ import {
   type PracticeScoreSession,
 } from "@/lib/practice-score-chart";
 
-function modeLabel(mode: string) {
-  if (mode === "diagnostic") return "Starting-point";
-  if (mode === "timed") return "Timed paper";
-  if (mode === "focus") return "Weak spots";
-  return "Practice";
-}
-
 export function PracticeScoreChart({
   sessions,
   subjectLabel,
@@ -36,13 +29,13 @@ export function PracticeScoreChart({
     );
   }
 
-  const width = Math.max(420, points.length * 56);
-  const height = 220;
-  const pad = { top: 18, right: 12, bottom: 52, left: 36 };
+  const width = Math.max(420, points.length * 64);
+  const height = 248;
+  const pad = { top: 22, right: 12, bottom: 64, left: 36 };
   const innerW = width - pad.left - pad.right;
   const innerH = height - pad.top - pad.bottom;
   const barGap = Math.min(18, Math.max(8, innerW / points.length * 0.28));
-  const barW = Math.max(10, (innerW - barGap * (points.length - 1)) / points.length);
+  const barW = Math.max(12, (innerW - barGap * (points.length - 1)) / points.length);
 
   function yFor(percent: number) {
     return pad.top + innerH * (1 - percent / 100);
@@ -56,7 +49,7 @@ export function PracticeScoreChart({
           <strong>{subjectLabel} papers by date</strong>
         </div>
         <p className="meta">
-          Same-day papers are tagged -1, -2… Oldest on the left.
+          Dates stay on the axis. Each bar names the paper type; identical types on one day get -1, -2…
         </p>
       </div>
 
@@ -79,6 +72,7 @@ export function PracticeScoreChart({
             const y = yFor(point.percent);
             const barH = Math.max(2, pad.top + innerH - y);
             const selected = activeId === point.id;
+            const mid = x + barW / 2;
             return (
               <g key={point.id}>
                 <rect
@@ -90,7 +84,7 @@ export function PracticeScoreChart({
                   className={`practice-score-bar${selected ? " is-active" : ""}${point.mode === "timed" ? " is-timed" : ""}`}
                   role={onSelect ? "button" : undefined}
                   tabIndex={onSelect ? 0 : undefined}
-                  aria-label={`${point.label}: ${point.percent}% (${point.correct} of ${point.total})`}
+                  aria-label={`${point.date} ${point.source}: ${point.percent}% (${point.correct} of ${point.total})`}
                   onMouseEnter={() => setActiveId(point.id)}
                   onFocus={() => setActiveId(point.id)}
                   onClick={() => onSelect?.(point.id)}
@@ -102,22 +96,20 @@ export function PracticeScoreChart({
                     }
                   }}
                 />
-                <text
-                  x={x + barW / 2}
-                  y={y - 6}
-                  textAnchor="middle"
-                  className="practice-score-value"
-                >
+                <text x={mid} y={y - 6} textAnchor="middle" className="practice-score-value">
                   {point.percent}
                 </text>
+                <text x={mid} y={height - 34} textAnchor="middle" className="practice-score-source">
+                  {point.source}
+                </text>
                 <text
-                  x={x + barW / 2}
-                  y={height - 18}
+                  x={mid}
+                  y={height - 14}
                   textAnchor="middle"
                   className="practice-score-label"
-                  transform={`rotate(-32 ${x + barW / 2} ${height - 18})`}
+                  transform={`rotate(-28 ${mid} ${height - 14})`}
                 >
-                  {point.label}
+                  {point.date}
                 </text>
               </g>
             );
@@ -127,9 +119,9 @@ export function PracticeScoreChart({
 
       {active ? (
         <p className="practice-score-caption" role="status">
-          <strong>{active.label}</strong>
+          <strong>{active.date}</strong>
           {" · "}
-          {modeLabel(active.mode)}
+          {active.source}
           {" · "}
           {active.correct} of {active.total} correct ({active.percent}%)
         </p>

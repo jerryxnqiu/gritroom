@@ -10,9 +10,10 @@ export type PracticeScoreSession = {
 
 export type PracticeScorePoint = {
   id: string;
-  label: string;
+  /** Plain calendar date for the x-axis. */
   date: string;
-  indexOnDay: number | null;
+  /** What the bar is from (Practice, Timed, …); -1/-2 only when identical sources share a day. */
+  source: string;
   percent: number;
   correct: number;
   total: number;
@@ -28,7 +29,14 @@ function sessionDate(session: PracticeScoreSession) {
   return sessionStamp(session).slice(0, 10);
 }
 
-/** Build chronological score points; same-day papers become date-1, date-2, … */
+export function practiceScoreSourceName(mode: string) {
+  if (mode === "diagnostic") return "Starting-point";
+  if (mode === "timed") return "Timed";
+  if (mode === "focus") return "Weak spots";
+  return "Practice";
+}
+
+/** Chronological score points: x-axis dates stay plain; duplicate sources on a day get -1, -2. */
 export function buildPracticeScorePoints(sessions: PracticeScoreSession[]): PracticeScorePoint[] {
   const completed = sessions
     .filter((session) => session.status === "completed" && session.total > 0)
@@ -38,24 +46,24 @@ export function buildPracticeScorePoints(sessions: PracticeScoreSession[]): Prac
       return byTime || a.id.localeCompare(b.id);
     });
 
-  const counts = new Map<string, number>();
+  const sourceCounts = new Map<string, number>();
   for (const session of completed) {
-    const date = sessionDate(session);
-    counts.set(date, (counts.get(date) || 0) + 1);
+    const key = `${sessionDate(session)}::${session.mode}`;
+    sourceCounts.set(key, (sourceCounts.get(key) || 0) + 1);
   }
 
   const seen = new Map<string, number>();
   return completed.map((session) => {
     const date = sessionDate(session);
-    const dayTotal = counts.get(date) || 1;
-    const indexOnDay = (seen.get(date) || 0) + 1;
-    seen.set(date, indexOnDay);
-    const multi = dayTotal > 1;
+    const key = `${date}::${session.mode}`;
+    const dayModeTotal = sourceCounts.get(key) || 1;
+    const index = (seen.get(key) || 0) + 1;
+    seen.set(key, index);
+    const base = practiceScoreSourceName(session.mode);
     return {
       id: session.id,
-      label: multi ? `${date}-${indexOnDay}` : date,
       date,
-      indexOnDay: multi ? indexOnDay : null,
+      source: dayModeTotal > 1 ? `${base}-${index}` : base,
       percent: Math.round((session.correct / session.total) * 100),
       correct: session.correct,
       total: session.total,

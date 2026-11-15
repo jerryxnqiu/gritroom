@@ -260,8 +260,17 @@ test("reading remediation plans split learner vs parent audience", () => {
   );
 });
 
-test("practice score chart tags same-day papers as date-1 date-2", () => {
+test("practice score chart keeps plain dates and tags identical sources", () => {
   const points = buildPracticeScorePoints([
+    {
+      id: "s4",
+      mode: "daily",
+      status: "completed",
+      startedAt: "2026-11-14T17:00:00.000Z",
+      completedAt: "2026-11-14T17:20:00.000Z",
+      total: 10,
+      correct: 8,
+    },
     {
       id: "s3",
       mode: "timed",
@@ -299,14 +308,22 @@ test("practice score chart tags same-day papers as date-1 date-2", () => {
       correct: 2,
     },
   ]);
-  assert.deepEqual(points.map((point) => point.label), [
+  assert.deepEqual(points.map((point) => point.date), [
     "2026-11-13",
-    "2026-11-14-1",
-    "2026-11-14-2",
+    "2026-11-14",
+    "2026-11-14",
+    "2026-11-14",
+  ]);
+  assert.deepEqual(points.map((point) => point.source), [
+    "Practice",
+    "Practice-1",
+    "Timed",
+    "Practice-2",
   ]);
   assert.equal(points[0]?.percent, 90);
   assert.equal(points[1]?.percent, 70);
   assert.equal(points[2]?.percent, 70);
+  assert.equal(points[3]?.percent, 80);
 });
 
 test("reading remediation plans parse model sentences for handwriting UI", () => {
