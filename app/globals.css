@@ -394,6 +394,7 @@ p { margin: 0; }
 .shelf-feedback-form ~ p { margin-top: .7rem; }
 .shelf-anchor { scroll-margin-top: 1rem; }
 .practice-panel { margin-top: 1.2rem; }
+.practice-panel > .lede { max-width: none; }
 .practice-panel .actions { margin-top: 1rem; }
 .practice-panel .notice, .practice-panel .error { margin-top: .85rem; }
 .practice-start-actions { display: grid; gap: .65rem; justify-items: start; }
