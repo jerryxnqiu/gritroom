@@ -965,6 +965,7 @@ p { margin: 0; }
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #fcfdf9;
+  overflow: visible;
 }
 .practice-score-chart-head {
   display: flex;
@@ -979,15 +980,19 @@ p { margin: 0; }
   color: var(--ink);
   font-size: 1.05rem;
 }
-.practice-score-chart-scroll {
+.practice-score-chart-plot {
   position: relative;
+  overflow: visible;
+}
+.practice-score-chart-scroll {
   overflow-x: auto;
-  padding-bottom: .25rem;
+  overflow-y: hidden;
+  padding-bottom: .15rem;
 }
 .practice-score-chart-svg { display: block; max-width: none; }
 .practice-score-tooltip {
   position: absolute;
-  z-index: 5;
+  z-index: 6;
   display: grid;
   gap: .15rem;
   min-width: 8.5rem;
@@ -999,8 +1004,12 @@ p { margin: 0; }
   font-size: .82rem;
   line-height: 1.35;
   pointer-events: none;
-  transform: translate(-50%, calc(-100% - .55rem));
+  transform: translate(-50%, calc(-100% - .65rem));
   box-shadow: 0 10px 24px rgba(38, 59, 52, .22);
+  white-space: nowrap;
+}
+.practice-score-tooltip.is-below {
+  transform: translate(-50%, .65rem);
 }
 .practice-score-tooltip strong {
   font-size: .9rem;
