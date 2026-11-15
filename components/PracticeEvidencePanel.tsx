@@ -60,6 +60,7 @@ export async function PracticeEvidencePanel({
               summary: plan.summary,
               createdAt: plan.createdAt,
               refId: plan.refId,
+              sourcePapers: plan.sourcePapers,
             }))}
             limit={5}
           />

@@ -3,6 +3,8 @@ import {
   handwritingPassageSetName,
   plansForAudience,
   remediationPlanAudience,
+  remediationSourcePaperLabel,
+  type RemediationSourcePaper,
 } from "@/lib/reading-remediation";
 import { LearnerHandwritingUpload } from "./LearnerHandwritingUpload";
 import { RemediationPlanView } from "./RemediationPlanView";
@@ -12,6 +14,7 @@ type LanguagePlan = {
   summary: string;
   createdAt: string;
   refId?: string | null;
+  sourcePapers?: RemediationSourcePaper[];
 };
 
 function HowToUse({
@@ -124,6 +127,23 @@ export function ReadingLanguagePack({
             {list.slice(0, limit).map((plan) => (
               <article key={plan.id} className="practice-language-card">
                 <p className="meta">{plan.createdAt.slice(0, 10)}</p>
+                {plan.sourcePapers?.length ? (
+                  <div className="remediation-source-papers">
+                    <span className="meta">From these Reading papers</span>
+                    <ul>
+                      {plan.sourcePapers.map((paper) => (
+                        <li key={paper.sessionId}>
+                          <strong>{remediationSourcePaperLabel(paper)}</strong>
+                          {paper.incorrect ? (
+                            <span className="meta"> · {paper.incorrect} miss{paper.incorrect === 1 ? "" : "es"}</span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="meta">From recent Reading misses (no finished miss paper linked yet).</p>
+                )}
                 <RemediationPlanView summary={plan.summary} />
               </article>
             ))}

@@ -212,6 +212,7 @@ export function LearnerResults({
             summary: tip.summaryEn,
             createdAt: tip.completedAt || tip.createdAt,
             refId: tip.refId,
+            sourcePapers: tip.sourcePapers,
           }))}
           limit={2}
         />

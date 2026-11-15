@@ -738,6 +738,25 @@ p { margin: 0; }
   border-radius: 10px;
   background: #fff;
 }
+.remediation-source-papers {
+  display: grid;
+  gap: .3rem;
+  padding: .55rem .7rem;
+  border: 1px dashed #c5d6b4;
+  border-radius: 8px;
+  background: #f7faf3;
+}
+.remediation-source-papers ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: .2rem;
+}
+.remediation-source-papers li {
+  color: var(--ink);
+  font-size: .92rem;
+  line-height: 1.4;
+}
 .practice-language-card .practice-prompt { margin: 0; max-width: none; }
 .remediation-plan { display: grid; gap: .85rem; }
 .remediation-plan-title {

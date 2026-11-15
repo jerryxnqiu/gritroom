@@ -52,6 +52,15 @@ export function scrubRemediationSummaryForLearner(summary: string) {
     .trim();
 }
 
+export type RemediationSourcePaper = {
+  sessionId: string;
+  mode: string;
+  completedAt: string;
+  correct: number;
+  total: number;
+  incorrect: number;
+};
+
 export type RemediationTarget = {
   form: string;
   context: string | null;
@@ -59,6 +68,59 @@ export type RemediationTarget = {
   model: string | null;
   write: string | null;
 };
+
+export function remediationSourcePaperLabel(paper: Pick<RemediationSourcePaper, "mode" | "completedAt" | "correct" | "total">) {
+  const mode = paper.mode === "diagnostic"
+    ? "Starting-point"
+    : paper.mode === "timed"
+      ? "Timed paper"
+      : paper.mode === "focus"
+        ? "Weak spots"
+        : "Practice";
+  const when = paper.completedAt.slice(0, 10);
+  return `${mode} · ${when} · ${paper.correct} of ${paper.total}`;
+}
+
+/**
+ * Attach finished Reading papers with misses to each remediation plan by time window:
+ * papers completed after the previous plan and on/before this plan belong to this plan.
+ * Rows that share a refId get the same source list.
+ */
+export function assignRemediationSourcePapers<T extends { refId: string; createdAt: string }>(
+  plans: T[],
+  sessions: RemediationSourcePaper[],
+): Array<T & { sourcePapers: RemediationSourcePaper[] }> {
+  const byRef = new Map<string, { createdAt: string; papers: RemediationSourcePaper[] }>();
+  for (const plan of plans) {
+    const current = byRef.get(plan.refId);
+    if (!current || plan.createdAt < current.createdAt) {
+      byRef.set(plan.refId, { createdAt: plan.createdAt, papers: [] });
+    }
+  }
+
+  const planOrder = [...byRef.entries()]
+    .sort((a, b) => a[1].createdAt.localeCompare(b[1].createdAt) || a[0].localeCompare(b[0]));
+
+  const orderedSessions = sessions
+    .slice()
+    .sort((a, b) => a.completedAt.localeCompare(b.completedAt) || a.sessionId.localeCompare(b.sessionId));
+
+  for (let index = 0; index < planOrder.length; index += 1) {
+    const [refId, meta] = planOrder[index]!;
+    const after = index > 0 ? planOrder[index - 1]![1].createdAt : "";
+    meta.papers = orderedSessions.filter((session) => {
+      if (session.completedAt > meta.createdAt) return false;
+      if (after && session.completedAt <= after) return false;
+      return true;
+    });
+    byRef.set(refId, meta);
+  }
+
+  return plans.map((plan) => ({
+    ...plan,
+    sourcePapers: byRef.get(plan.refId)?.papers ?? [],
+  }));
+}
 
 export type ParsedRemediationPlan = {
   title: string | null;

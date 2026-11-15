@@ -1,5 +1,9 @@
 import type { ExamGoal } from "./family.ts";
 import { createId } from "./ids.ts";
+import {
+  assignRemediationSourcePapers,
+  type RemediationSourcePaper,
+} from "./reading-remediation.ts";
 import type { PracticeSubject } from "./subjects.ts";
 import { nowIso } from "./time.ts";
 
@@ -162,7 +166,48 @@ export type ReadingRemediationPlan = {
   summary: string;
   createdAt: string;
   refId: string;
+  sourcePapers: RemediationSourcePaper[];
 };
+
+async function listReadingMissSessions(
+  db: D1Database,
+  profileId: string,
+  goal: ExamGoal,
+) {
+  const { results } = await db.prepare(
+    `SELECT s.id AS sessionId,
+            CASE WHEN s.is_focus = 1 THEN 'focus' ELSE s.mode END AS mode,
+            COALESCE(s.completed_at, s.started_at) AS completedAt,
+            COUNT(a.id) AS total,
+            SUM(CASE WHEN a.is_correct = 1 THEN 1 ELSE 0 END) AS correctCount
+     FROM practice_sessions s
+     JOIN practice_attempts a ON a.session_id = s.id AND a.finalized_at IS NOT NULL
+     WHERE s.profile_id = ? AND s.exam_goal = ? AND s.subject = 'reading'
+       AND s.status = 'completed'
+     GROUP BY s.id
+     HAVING SUM(CASE WHEN a.is_correct = 0 THEN 1 ELSE 0 END) > 0
+     ORDER BY COALESCE(s.completed_at, s.started_at) ASC, s.id ASC`,
+  ).bind(profileId, goal).all<{
+    sessionId: string;
+    mode: string;
+    completedAt: string;
+    total: number;
+    correctCount: number;
+  }>();
+
+  return results.map((row) => {
+    const total = Number(row.total);
+    const correct = Number(row.correctCount);
+    return {
+      sessionId: row.sessionId,
+      mode: row.mode,
+      completedAt: row.completedAt,
+      correct,
+      total,
+      incorrect: Math.max(0, total - correct),
+    };
+  });
+}
 
 export async function listReadingRemediationPlans(
   db: D1Database,
@@ -189,8 +234,16 @@ export async function listReadingRemediationPlans(
        AND ${canView}
      ORDER BY e.created_at DESC, e.id DESC
      LIMIT ?`,
-  ).bind(profileId, goal, userId, userId, limit).all<ReadingRemediationPlan>();
-  return results;
+  ).bind(profileId, goal, userId, userId, limit).all<{
+    id: string;
+    summary: string;
+    createdAt: string;
+    refId: string;
+  }>();
+
+  if (!results.length) return [];
+  const missSessions = await listReadingMissSessions(db, profileId, goal);
+  return assignRemediationSourcePapers(results, missSessions);
 }
 
 /** Kid-facing coach tips for the learner room (English summary + practice directions only). */
@@ -203,6 +256,7 @@ export type LearnerCoachTip = {
   completedAt: string | null;
   /** Present on reading_remediation tips — ties handwriting uploads to the plan. */
   refId?: string | null;
+  sourcePapers?: RemediationSourcePaper[];
 };
 
 export async function listLearnerCoachTips(
@@ -267,6 +321,7 @@ export async function listLearnerCoachTips(
           createdAt: row.createdAt,
           completedAt: row.createdAt,
           refId: row.refId,
+          sourcePapers: row.sourcePapers,
         });
       }
       tips.sort((a, b) => String(b.completedAt || b.createdAt).localeCompare(String(a.completedAt || a.createdAt)));
@@ -741,7 +796,9 @@ function buildCodexReadingRemediationBrief(input: {
     "Row 1 · LEARNER (kid-facing — includes their own photo upload).",
     "Use this exact shape so the learner UI can highlight what to handwrite:",
     "Reading repair follow-up — N targets",
-    "One short intro line.",
+    "One short intro line naming the finished Reading paper(s) that fed this plan",
+    "(date + Timed/Practice + score), e.g. From: Timed paper · 2026-11-14 · 30 of 38.",
+    "The app also links those papers automatically; still write the From line for clarity.",
     "1. form / contrast — short source cue",
     "Meaning: kid-facing meaning.",
     "Model: one short new example sentence (not the exam stem).",

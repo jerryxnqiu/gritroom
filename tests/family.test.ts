@@ -38,10 +38,12 @@ import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFee
 import { parsePracticePrompt } from "../lib/practice-prompt.ts";
 import { readingKnowledge } from "../lib/reading-knowledge.ts";
 import {
+  assignRemediationSourcePapers,
   handwritingPassageSetName,
   parseRemediationPlan,
   plansForAudience,
   remediationPlanAudience,
+  remediationSourcePaperLabel,
   scrubRemediationSummaryForLearner,
 } from "../lib/reading-remediation.ts";
 import { buildPracticeScorePoints } from "../lib/practice-score-chart.ts";
@@ -260,6 +262,41 @@ test("reading remediation plans split learner vs parent audience", () => {
   );
 });
 
+test("remediation plans attach source papers by time window", () => {
+  const attached = assignRemediationSourcePapers(
+    [
+      { id: "evd2", refId: "rrd_b", createdAt: "2026-11-15T12:00:00.000Z", summary: "later" },
+      { id: "evd1", refId: "rrd_a", createdAt: "2026-11-14T12:00:00.000Z", summary: "earlier" },
+    ],
+    [
+      {
+        sessionId: "ses1",
+        mode: "timed",
+        completedAt: "2026-11-14T10:00:00.000Z",
+        correct: 30,
+        total: 38,
+        incorrect: 8,
+      },
+      {
+        sessionId: "ses2",
+        mode: "daily",
+        completedAt: "2026-11-15T09:00:00.000Z",
+        correct: 6,
+        total: 10,
+        incorrect: 4,
+      },
+    ],
+  );
+  const earlier = attached.find((plan) => plan.refId === "rrd_a");
+  const later = attached.find((plan) => plan.refId === "rrd_b");
+  assert.deepEqual(earlier?.sourcePapers.map((paper) => paper.sessionId), ["ses1"]);
+  assert.deepEqual(later?.sourcePapers.map((paper) => paper.sessionId), ["ses2"]);
+  assert.equal(
+    remediationSourcePaperLabel(earlier!.sourcePapers[0]!),
+    "Timed paper · 2026-11-14 · 30 of 38",
+  );
+});
+
 test("practice score chart keeps plain dates and tags identical sources", () => {
   const points = buildPracticeScorePoints([
     {
@@ -413,7 +450,15 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   sql.exec(readFileSync(new URL("../migrations/0005_resource_shelf.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0004_thinking_knowledge.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0011_focus_practice_mode.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0012_practice_subjects.sql", import.meta.url), "utf8"));
+  // Session/attempt subject only — full 0013 also alters practice_questions, which this fixture omits.
+  sql.exec(`
+    ALTER TABLE practice_sessions ADD COLUMN subject TEXT NOT NULL DEFAULT 'thinking'
+      CHECK (subject IN ('thinking', 'reading'));
+    ALTER TABLE practice_attempts ADD COLUMN subject TEXT NOT NULL DEFAULT 'thinking'
+      CHECK (subject IN ('thinking', 'reading'));
+  `);
   sql.exec(readFileSync(new URL("../migrations/0014_reading_knowledge.sql", import.meta.url), "utf8"));
   const readingFormat = await readingKnowledge(db, "selective");
   assert.equal(readingFormat.format?.minutes, 45);
