@@ -120,7 +120,7 @@ export async function readingRemediationAvailability(
       incorrectCount,
       reason: handwritingUploads > 0
         ? "Remediation plan already on file. Upload newer handwriting photos, or wait for new Reading misses, then run again."
-        : "Remediation plan already on file. Unlock again after new Reading misses, or after uploading handwriting photos for a re-check.",
+        : "Remediation plan already on file. Unlock again after new Reading misses, or after the learner uploads handwriting photos for Codex to review.",
     };
   }
 

@@ -78,17 +78,29 @@ export async function parseMaterial(form: FormData) {
   if (!url && !notes && !file) return { error: "Add a file, link or note to save this resource." } as const;
 
   if (file) {
-    if (file.size > maxMaterialBytes) return { error: "Use a file up to 8 MB." } as const;
-    const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-    const head = new TextDecoder().decode(bytes);
-    const valid = (
-      (file.type === "application/pdf" && head.startsWith("%PDF-")) ||
-      (file.type === "image/jpeg" && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
-      (file.type === "image/png" && [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte)) ||
-      (file.type === "image/webp" && head.startsWith("RIFF") && new TextDecoder().decode(bytes.subarray(8, 12)) === "WEBP")
-    );
-    if (!valid) return { error: "Choose a valid PDF, JPG, PNG or WebP file." } as const;
+    const fileError = await validateMaterialFile(file);
+    if (fileError) return { error: fileError } as const;
   }
 
   return { goal, subject, kind, title, url, notes: notes || null, file } as const;
+}
+
+/** Shared magic-byte check for shelf uploads (PDF + images) and learner handwriting photos. */
+export async function validateMaterialFile(file: File, options?: { imagesOnly?: boolean }) {
+  if (file.size > maxMaterialBytes) return "Use a file up to 8 MB.";
+  const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const head = new TextDecoder().decode(bytes);
+  const jpeg = file.type === "image/jpeg" && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const png = file.type === "image/png"
+    && [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte);
+  const webp = file.type === "image/webp"
+    && head.startsWith("RIFF")
+    && new TextDecoder().decode(bytes.subarray(8, 12)) === "WEBP";
+  if (options?.imagesOnly) {
+    if (!jpeg && !png && !webp) return "Choose a JPG, PNG or WebP photo.";
+    return null;
+  }
+  const pdf = file.type === "application/pdf" && head.startsWith("%PDF-");
+  if (!pdf && !jpeg && !png && !webp) return "Choose a valid PDF, JPG, PNG or WebP file.";
+  return null;
 }

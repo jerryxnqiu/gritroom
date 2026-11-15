@@ -37,6 +37,12 @@ import {
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
 import { parsePracticePrompt } from "../lib/practice-prompt.ts";
 import { readingKnowledge } from "../lib/reading-knowledge.ts";
+import {
+  handwritingPassageSetName,
+  plansForAudience,
+  remediationPlanAudience,
+  scrubRemediationSummaryForLearner,
+} from "../lib/reading-remediation.ts";
 import { composeReadingPassageNotes } from "../lib/shelf-fields.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
@@ -205,6 +211,34 @@ test("youtube video ids are parsed from common watch urls", () => {
   assert.equal(youtubeVideoId("https://example.com/watch?v=dQw4w9WgXcQ"), null);
 });
 
+test("reading remediation plans split learner vs parent audience", () => {
+  assert.equal(
+    remediationPlanAudience("Language list · at a glance = from a quick look.\nCOPYWORK: write each model sentence five times."),
+    "learner",
+  );
+  assert.equal(
+    remediationPlanAudience("Parent photo check · Ask Codex again so handwriting photos are reviewed with the plan."),
+    "parent",
+  );
+  const filtered = plansForAudience(
+    [
+      { summary: "COPYWORK: handwrite these phrases." },
+      { summary: "Parent photo check · no handwriting uploaded yet." },
+    ],
+    "learner",
+  );
+  assert.equal(filtered.length, 1);
+  assert.match(filtered[0]?.summary || "", /COPYWORK/);
+  assert.equal(
+    handwritingPassageSetName("rrd_8f99e1b173ff4f148124906c2a49724f"),
+    "Handwriting · rrd_8f99e1b173ff4f148124906c2a49724f",
+  );
+  assert.equal(
+    scrubRemediationSummaryForLearner("Meaning · sure.\nPlan ID: rrd_abc123\nCOPYWORK: write five times."),
+    "Meaning · sure.\nCOPYWORK: write five times.",
+  );
+});
+
 test("reading prompts split into passage instruction article and stem", () => {
   const parsed = parsePracticePrompt(
     [
@@ -344,6 +378,9 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(readingBrief, /Passage authenticity/);
   assert.match(readingBrief, /genuine-feeling/);
   assert.match(readingBrief, /cartoonish/);
+  assert.match(readingBrief, /Language register/);
+  assert.match(readingBrief, /shrewd/);
+  assert.match(readingBrief, /richer exam-level vocabulary/);
   const remediationBrief = buildCodexBankBrief({
     profileId: "p1",
     goal: "selective",

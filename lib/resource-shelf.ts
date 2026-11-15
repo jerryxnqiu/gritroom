@@ -76,6 +76,70 @@ export async function saveMaterial(db: D1Database, bucket: R2Bucket, profileId: 
   return null;
 }
 
+/** Learner uploads their own handwriting photos for a Reading remediation plan. */
+export async function saveLearnerHandwriting(
+  db: D1Database,
+  bucket: R2Bucket,
+  userId: string,
+  input: {
+    goal: ExamGoal;
+    planRefId: string;
+    page: number;
+    pageCount: number;
+    file: File;
+  },
+) {
+  const link = await db.prepare(
+    `SELECT l.profile_id AS profileId FROM learner_links l WHERE l.user_id = ?`,
+  ).bind(userId).first<{ profileId: string }>();
+  if (!link) return null;
+
+  const planRef = input.planRefId.trim();
+  if (!/^rrd_[a-z0-9]+$/i.test(planRef)) return null;
+  if (!Number.isInteger(input.page) || input.page < 1 || input.page > 40) return null;
+  if (!Number.isInteger(input.pageCount) || input.pageCount < 1 || input.pageCount > 40) return null;
+  if (input.page > input.pageCount) return null;
+
+  const id = createId("mat");
+  const key = `resource-shelf/${link.profileId}/${id}`;
+  await bucket.put(key, await input.file.arrayBuffer());
+
+  const passageSet = `Handwriting · ${planRef}`;
+  const title = `Handwriting · page ${input.page} of ${input.pageCount}`;
+  const notes = [
+    `Passage set: ${passageSet}`,
+    `Page: ${input.page} of ${input.pageCount}`,
+  ].join("\n");
+
+  try {
+    const inserted = await db.prepare(
+      `INSERT INTO shelf_materials
+         (id, profile_id, exam_goal, subject, kind, title, source_url, notes, file_key, file_name, file_type, created_by_user_id, created_at)
+       SELECT ?, l.profile_id, ?, 'reading', 'study_material', ?, NULL, ?, ?, ?, ?, ?, ?
+       FROM learner_links l WHERE l.user_id = ? AND l.profile_id = ?`,
+    ).bind(
+      id,
+      input.goal,
+      title,
+      notes,
+      key,
+      input.file.name.slice(0, 180),
+      input.file.type || "image/jpeg",
+      userId,
+      nowIso(),
+      userId,
+      link.profileId,
+    ).run();
+    if (inserted.meta.changes) return { id, profileId: link.profileId, passageSet };
+  } catch {
+    await bucket.delete(key);
+    return null;
+  }
+
+  await bucket.delete(key);
+  return null;
+}
+
 export function findMaterialFile(db: D1Database, profileId: string, materialId: string, userId: string) {
   return db.prepare(
     `SELECT m.file_key AS key, m.file_name AS name, m.file_type AS type
