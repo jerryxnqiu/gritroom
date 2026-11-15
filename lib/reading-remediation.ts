@@ -76,7 +76,7 @@ function takeField(lines: string[], label: RegExp) {
   let cursor = index + 1;
   while (cursor < lines.length) {
     const next = lines[cursor]!;
-    if (/^(meaning|model|write|copywork)\b/i.test(next) || /^\d+\.\s/.test(next)) break;
+    if (/^(meaning|model|write|copywork)\b/i.test(next) || /^\d+[.)]\s/.test(next)) break;
     more.push(next);
     cursor += 1;
   }
@@ -112,6 +112,21 @@ function parseTargetBlock(block: string): RemediationTarget | null {
   };
 }
 
+function splitNumberedItems(text: string) {
+  const starts: number[] = [];
+  const re = /^\d+[.)]\s+/gm;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text))) starts.push(match.index);
+  if (!starts.length) return { head: text.trim(), blocks: [] as string[] };
+
+  const head = text.slice(0, starts[0]).trim();
+  const blocks = starts.map((start, index) => {
+    const end = index + 1 < starts.length ? starts[index + 1]! : text.length;
+    return text.slice(start, end).replace(/^\d+[.)]\s*/, "").trim();
+  }).filter(Boolean);
+  return { head, blocks };
+}
+
 /**
  * Turn a remediation summary into title / targets / copywork so the UI can highlight
  * what kids must handwrite (the Model sentence).
@@ -122,9 +137,7 @@ export function parseRemediationPlan(summary: string): ParsedRemediationPlan {
     return { title: null, intro: null, targets: [], drill: null, leftover: null };
   }
 
-  const itemSplit = text.split(/(?=^\d+\.\s+)/m);
-  const head = (itemSplit[0] || "").trim();
-  const blocks = itemSplit.slice(1).map((block) => block.replace(/^\d+\.\s*/, "").trim()).filter(Boolean);
+  const { head, blocks } = splitNumberedItems(text);
   const targets = blocks.map(parseTargetBlock).filter((item): item is RemediationTarget => Boolean(item));
 
   let title: string | null = null;
@@ -148,14 +161,12 @@ export function parseRemediationPlan(summary: string): ParsedRemediationPlan {
 
   // Trailing copywork after numbered items (common Codex layout).
   if (targets.length && blocks.length) {
-    const lastRaw = itemSplit[itemSplit.length - 1] || "";
-    const afterModel = lastRaw.split(/\n(?=COPYWORK\b|Copywork\b)/i);
+    const lastBlock = blocks[blocks.length - 1] || "";
+    const afterModel = lastBlock.split(/\n(?=COPYWORK\b|Copywork\b)/i);
     if (afterModel.length > 1) {
       const trailing = afterModel.slice(1).join("\n").replace(/^copywork\s*[:·]?\s*/i, "").trim();
       if (trailing) drill = drill ? `${drill} ${trailing}` : trailing;
-      // Re-parse last target without the trailing drill lines.
-      const cleaned = afterModel[0]!.replace(/^\d+\.\s*/, "").trim();
-      const retarget = parseTargetBlock(cleaned);
+      const retarget = parseTargetBlock(afterModel[0]!.trim());
       if (retarget) targets[targets.length - 1] = retarget;
     }
   }

@@ -349,6 +349,15 @@ test("reading remediation plans parse model sentences for handwriting UI", () =>
   assert.equal(parsed.targets[0]?.model, "My first impression was wrong.");
   assert.equal(parsed.targets[1]?.model, "At a glance, they looked alike.");
   assert.match(parsed.drill || "", /each Model sentence 5 times/i);
+
+  const paren = parseRemediationPlan([
+    "1) impression / expression — An ocean in a hollow, word-choice options.",
+    "Meaning: an impression is the view formed in someone's mind; an expression shows or communicates an idea or feeling.",
+    "Model: My first impression was wrong.",
+  ].join("\n"));
+  assert.equal(paren.targets.length, 1);
+  assert.equal(paren.targets[0]?.form, "impression / expression");
+  assert.equal(paren.targets[0]?.model, "My first impression was wrong.");
 });
 
 test("reading prompts split into passage instruction article and stem", () => {

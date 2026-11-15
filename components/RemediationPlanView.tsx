@@ -21,14 +21,19 @@ export function RemediationPlanView({ summary }: { summary: string }) {
             </div>
             {target.meaning ? (
               <p className="remediation-target-meaning">
-                <span className="remediation-label">Meaning</span>
+                <strong className="remediation-label">Meaning</strong>
                 {target.meaning}
               </p>
             ) : null}
             {target.model ? (
               <div className="remediation-target-write">
                 <span className="remediation-write-badge">Write this</span>
-                <p className="remediation-model">“{target.model.replace(/^["“]|["”]$/g, "")}”</p>
+                <p className="remediation-model-row">
+                  <strong className="remediation-label">Model</strong>
+                  <span className="remediation-model">
+                    “{target.model.replace(/^["“]|["”]$/g, "")}”
+                  </span>
+                </p>
                 <p className="meta">
                   {target.write || "Handwrite this model sentence on paper (usually 5 times)."}
                 </p>
@@ -42,7 +47,7 @@ export function RemediationPlanView({ summary }: { summary: string }) {
 
       {plan.drill ? (
         <p className="remediation-drill">
-          <span className="remediation-label">Copywork</span>
+          <strong className="remediation-label">Copywork</strong>
           {plan.drill}
         </p>
       ) : null}
