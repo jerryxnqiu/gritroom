@@ -10,6 +10,7 @@ import type {
 } from "@/lib/practice";
 import type { PracticeSubject } from "@/lib/subjects";
 import { CollapseToggle, useCollapsedList } from "./CollapsedList";
+import { PracticePrompt } from "./PracticePrompt";
 
 type AnswerFilter = "incorrect" | "all";
 type ModeFilter = "all" | "daily" | "timed" | "diagnostic" | "focus";
@@ -56,7 +57,7 @@ function AttemptDetail({
             <img src={`/api/practice/attempts/${encodeURIComponent(item.id)}/image`} alt="Question figure" />
           </p>
         ) : null}
-        <p className="shelf-copy practice-prompt">{item.prompt}</p>
+        <PracticePrompt prompt={item.prompt} subject={subject} className="shelf-copy" />
 
         {optionEntries.length ? (
           <ul className="practice-evidence-options">

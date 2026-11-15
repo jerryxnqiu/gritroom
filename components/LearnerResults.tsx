@@ -9,6 +9,7 @@ import type {
 } from "@/lib/practice";
 import type { PracticeSubject } from "@/lib/subjects";
 import { CollapseToggle, useCollapsedList } from "./CollapsedList";
+import { PracticePrompt } from "./PracticePrompt";
 
 type ModeFilter = "all" | "daily" | "timed" | "diagnostic" | "focus";
 type AnswerFilter = "incorrect" | "all";
@@ -20,7 +21,15 @@ function modeLabel(mode: string) {
   return "Practice";
 }
 
-function AttemptRow({ item, index }: { item: PracticeEvidenceItem; index: number }) {
+function AttemptRow({
+  item,
+  index,
+  subject,
+}: {
+  item: PracticeEvidenceItem;
+  index: number;
+  subject: PracticeSubject;
+}) {
   const review = item.attemptReviewEn || item.explanationEn;
   const optionEntries = Object.entries(item.options || {});
   return (
@@ -40,7 +49,7 @@ function AttemptRow({ item, index }: { item: PracticeEvidenceItem; index: number
             <img src={`/api/practice/attempts/${encodeURIComponent(item.id)}/image`} alt="Question figure" />
           </p>
         ) : null}
-        <p className="shelf-copy practice-prompt">{item.prompt}</p>
+        <PracticePrompt prompt={item.prompt} subject={subject} className="shelf-copy" />
         {optionEntries.length ? (
           <ul className="practice-evidence-options">
             {optionEntries.map(([key, label]) => {
@@ -289,7 +298,7 @@ export function LearnerResults({
               <div className="practice-result-attempts">
                 {visibleAttempts.map((item) => {
                   const index = openSession.attempts.findIndex((attempt) => attempt.id === item.id);
-                  return <AttemptRow key={item.id} item={item} index={index} />;
+                  return <AttemptRow key={item.id} item={item} index={index} subject={subject} />;
                 })}
               </div>
             )}

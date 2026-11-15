@@ -34,6 +34,7 @@ import {
   startReadingPracticeSession,
 } from "../lib/reading-practice.ts";
 import { canOpenShelf, deleteMaterial, findMaterialFile, readShelf, saveShelfFeedback, withdrawShelfFeedback } from "../lib/resource-shelf.ts";
+import { parsePracticePrompt } from "../lib/practice-prompt.ts";
 import { readingKnowledge } from "../lib/reading-knowledge.ts";
 import { composeReadingPassageNotes } from "../lib/shelf-fields.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
@@ -201,6 +202,29 @@ test("youtube video ids are parsed from common watch urls", () => {
   assert.equal(youtubeVideoId("https://youtu.be/dQw4w9WgXcQ?t=12"), "dQw4w9WgXcQ");
   assert.equal(youtubeVideoId("https://www.youtube.com/shorts/dQw4w9WgXcQ"), "dQw4w9WgXcQ");
   assert.equal(youtubeVideoId("https://example.com/watch?v=dQw4w9WgXcQ"), null);
+});
+
+test("reading prompts split into passage instruction article and stem", () => {
+  const parsed = parsePracticePrompt(
+    [
+      "A handful of differences",
+      "",
+      "Read the complete article. Choose the best word or phrase for each numbered gap.",
+      "",
+      "A handful of differences",
+      "",
+      "Sand is not just sand.\n\nBeaches form slowly [8].",
+      "",
+      "Which word or phrase best fills gap [8] in A handful of differences?",
+    ].join("\n"),
+    "reading",
+  );
+  assert.equal(parsed.title, "A handful of differences");
+  assert.match(parsed.instruction || "", /Read the complete article/);
+  assert.match(parsed.passage || "", /Sand is not just sand/);
+  assert.doesNotMatch(parsed.passage || "", /^A handful of differences/);
+  assert.match(parsed.stem, /gap \[8\]/);
+  assert.equal(parsePracticePrompt("Plain thinking stem", "thinking").stem, "Plain thinking stem");
 });
 
 test("shelf evidence is limited to the authorised child and chosen exam archive", async (t) => {

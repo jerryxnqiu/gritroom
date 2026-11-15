@@ -12,6 +12,7 @@ import type {
 import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { LearnerCoachTips } from "./LearnerCoachTips";
 import { LearnerResults } from "./LearnerResults";
+import { PracticePrompt } from "./PracticePrompt";
 import { useLearnerSection, type LearnerSection } from "./LearnerSectionContext";
 
 const WARN_10_SECONDS = 10 * 60;
@@ -455,7 +456,7 @@ export function LearnerPractice({
               />
             </p>
           ) : null}
-          <p className="practice-prompt">{current?.prompt}</p>
+          <PracticePrompt prompt={current?.prompt} subject={subject} />
           <fieldset className="practice-options" disabled={pending || Boolean(review) || timedTimeUp}>
             <legend className="field"><span>Choose an answer</span></legend>
             {Object.entries(current?.options || {}).map(([key, label]) => (
