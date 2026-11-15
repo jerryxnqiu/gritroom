@@ -18,6 +18,23 @@ function groupPointsByDate(points: PracticeScorePoint[]) {
   return groups;
 }
 
+/** Running mean of all paper scores up to and including each date. */
+function cumulativeAveragesByDate(groups: { date: string; points: PracticeScorePoint[] }[]) {
+  let sum = 0;
+  let count = 0;
+  return groups.map((group) => {
+    for (const point of group.points) {
+      sum += point.percent;
+      count += 1;
+    }
+    return {
+      date: group.date,
+      average: count ? Math.round(sum / count) : 0,
+      papers: count,
+    };
+  });
+}
+
 export function PracticeScoreChart({
   sessions,
   subjectLabel,
@@ -29,6 +46,7 @@ export function PracticeScoreChart({
 }) {
   const points = useMemo(() => buildPracticeScorePoints(sessions), [sessions]);
   const groups = useMemo(() => groupPointsByDate(points), [points]);
+  const runningAverages = useMemo(() => cumulativeAveragesByDate(groups), [groups]);
   const hostRef = useRef<HTMLDivElement>(null);
   const [hostWidth, setHostWidth] = useState(0);
   const [tooltip, setTooltip] = useState<{
@@ -74,6 +92,18 @@ export function PracticeScoreChart({
     return pad.top + innerH * (1 - percent / 100);
   }
 
+  const averagePoints = runningAverages.map((item, groupIndex) => {
+    const columnX = pad.left + groupIndex * (columnW + groupGap);
+    return {
+      ...item,
+      x: columnX + columnW / 2,
+      y: yFor(item.average),
+    };
+  });
+  const averagePath = averagePoints
+    .map((item, index) => `${index === 0 ? "M" : "L"} ${item.x.toFixed(1)} ${item.y.toFixed(1)}`)
+    .join(" ");
+
   return (
     <div className="practice-score-chart">
       <div className="practice-score-chart-head">
@@ -82,9 +112,14 @@ export function PracticeScoreChart({
           <strong>{subjectLabel} papers by date</strong>
         </div>
         <p className="meta">
-          Chart fills this card; more papers squeeze into the same width. Hover a bar for details.
+          Bars are each paper. The line is the running average score through that date.
         </p>
       </div>
+
+      <p className="practice-score-legend" aria-hidden="true">
+        <span className="practice-score-legend-bar">Paper score</span>
+        <span className="practice-score-legend-line">Running average</span>
+      </p>
 
       <div
         ref={hostRef}
@@ -186,6 +221,32 @@ export function PracticeScoreChart({
                   </g>
                 );
               })}
+
+              {averagePoints.length > 1 ? (
+                <path d={averagePath} className="practice-score-average-line" />
+              ) : null}
+              {averagePoints.map((item) => (
+                <g key={`avg-${item.date}`}>
+                  <circle
+                    cx={item.x}
+                    cy={item.y}
+                    r={4.5}
+                    className="practice-score-average-dot"
+                  >
+                    <title>
+                      {`Running average through ${item.date}: ${item.average}% (${item.papers} paper${item.papers === 1 ? "" : "s"})`}
+                    </title>
+                  </circle>
+                  <text
+                    x={item.x}
+                    y={item.y - 10}
+                    textAnchor="middle"
+                    className="practice-score-average-value"
+                  >
+                    {item.average}
+                  </text>
+                </g>
+              ))}
             </svg>
           ) : null}
 
