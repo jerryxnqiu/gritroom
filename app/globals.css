@@ -548,7 +548,8 @@ p { margin: 0; }
   display: grid;
   gap: 1rem;
   margin: .85rem 0 1rem;
-  max-width: 62ch;
+  width: 100%;
+  max-width: none;
 }
 .practice-reading-passage {
   display: grid;
@@ -557,6 +558,8 @@ p { margin: 0; }
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #f4f7ef;
+  width: 100%;
+  min-width: 0;
 }
 .practice-reading-passage .eyebrow,
 .practice-reading-question .eyebrow {
@@ -585,6 +588,7 @@ p { margin: 0; }
   font-size: 1.02rem;
   line-height: 1.72;
   color: var(--ink);
+  max-width: 72ch;
 }
 .practice-reading-question {
   display: grid;
