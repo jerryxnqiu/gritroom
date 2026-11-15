@@ -697,6 +697,81 @@ p { margin: 0; }
   background: #fff;
 }
 .practice-language-card .practice-prompt { margin: 0; max-width: none; }
+.remediation-plan { display: grid; gap: .85rem; }
+.remediation-plan-title {
+  margin: 0;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.remediation-plan-intro { margin: 0; }
+.remediation-target-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: .75rem;
+}
+.remediation-target {
+  display: grid;
+  gap: .55rem;
+  padding: .8rem .85rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfcf8;
+}
+.remediation-target-head {
+  display: grid;
+  gap: .2rem;
+}
+.remediation-target-form {
+  font-size: 1.05rem;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.remediation-target-meaning,
+.remediation-drill {
+  margin: 0;
+  color: var(--ink);
+  font-size: .92rem;
+  line-height: 1.5;
+}
+.remediation-label {
+  display: inline-block;
+  margin-right: .4rem;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #5f7463;
+}
+.remediation-target-write {
+  display: grid;
+  gap: .35rem;
+  padding: .7rem .8rem;
+  border: 1px solid #c5d6b4;
+  border-radius: 8px;
+  background: #eef5e5;
+}
+.remediation-write-badge {
+  justify-self: start;
+  padding: .15rem .45rem;
+  border-radius: 999px;
+  background: #2f5d3a;
+  color: #f5faf2;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.remediation-model {
+  margin: 0;
+  font-family: var(--font-display, Georgia, "Times New Roman", serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+}
 .practice-language-passage-set {
   display: grid;
   gap: .35rem;

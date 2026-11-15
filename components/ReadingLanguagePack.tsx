@@ -3,9 +3,9 @@ import {
   handwritingPassageSetName,
   plansForAudience,
   remediationPlanAudience,
-  scrubRemediationSummaryForLearner,
 } from "@/lib/reading-remediation";
 import { LearnerHandwritingUpload } from "./LearnerHandwritingUpload";
+import { RemediationPlanView } from "./RemediationPlanView";
 
 type LanguagePlan = {
   id: string;
@@ -124,11 +124,7 @@ export function ReadingLanguagePack({
             {list.slice(0, limit).map((plan) => (
               <article key={plan.id} className="practice-language-card">
                 <p className="meta">{plan.createdAt.slice(0, 10)}</p>
-                <p className="shelf-copy practice-prompt">
-                  {audience === "learner"
-                    ? scrubRemediationSummaryForLearner(plan.summary)
-                    : plan.summary}
-                </p>
+                <RemediationPlanView summary={plan.summary} />
               </article>
             ))}
             {audience === "learner" ? (

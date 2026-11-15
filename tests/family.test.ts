@@ -39,6 +39,7 @@ import { parsePracticePrompt } from "../lib/practice-prompt.ts";
 import { readingKnowledge } from "../lib/reading-knowledge.ts";
 import {
   handwritingPassageSetName,
+  parseRemediationPlan,
   plansForAudience,
   remediationPlanAudience,
   scrubRemediationSummaryForLearner,
@@ -220,6 +221,25 @@ test("reading remediation plans split learner vs parent audience", () => {
     remediationPlanAudience("Parent photo check · Ask Codex again so handwriting photos are reviewed with the plan."),
     "parent",
   );
+  assert.equal(
+    remediationPlanAudience([
+      "Parent photo check · 3/3  Plan ID: rrd_8f99e1b173ff4f148124906c2a49724f",
+      "No handwriting has been uploaded yet for the earlier plan.",
+      "1) After writing, photograph every page clearly.",
+      "2) Upload to Parent room → Reading → Resource shelf as Practice questions (misc. source).",
+      "3) Use Passage set: Handwriting · rrd_8f99e1b173ff4f148124906c2a49724f",
+      "4) Re-run this Reading remediation task (upload alone does not trigger Codex).",
+      "Photo review should mark spelling and Model copies by target.",
+    ].join("\n")),
+    "parent",
+  );
+  assert.equal(
+    plansForAudience(
+      [{ summary: "Parent photo check · Upload handwriting notes with Model copies." }],
+      "learner",
+    ).length,
+    0,
+  );
   const filtered = plansForAudience(
     [
       { summary: "COPYWORK: handwrite these phrases." },
@@ -237,6 +257,31 @@ test("reading remediation plans split learner vs parent audience", () => {
     scrubRemediationSummaryForLearner("Meaning · sure.\nPlan ID: rrd_abc123\nCOPYWORK: write five times."),
     "Meaning · sure.\nCOPYWORK: write five times.",
   );
+});
+
+test("reading remediation plans parse model sentences for handwriting UI", () => {
+  const parsed = parseRemediationPlan([
+    "Reading repair follow-up — 2/3: Eight targets",
+    "Forms come from missed questions. Each Model is a new example for handwriting.",
+    "",
+    "1. impression / expression — An ocean in a hollow, word-choice options.",
+    "Meaning: impression = a view formed in your mind; expression = how a feeling is shown.",
+    "Model: My first impression was wrong.",
+    "Write that Model sentence 5 times.",
+    "",
+    "2. at a glance / at large — word-choice options.",
+    "Meaning: at a glance = from a quick look.",
+    "Model: At a glance, they looked alike.",
+    "Write that Model sentence 5 times.",
+    "",
+    "COPYWORK: write each Model sentence 5 times.",
+  ].join("\n"));
+  assert.equal(parsed.title, "Reading repair follow-up — 2/3: Eight targets");
+  assert.equal(parsed.targets.length, 2);
+  assert.equal(parsed.targets[0]?.form, "impression / expression");
+  assert.equal(parsed.targets[0]?.model, "My first impression was wrong.");
+  assert.equal(parsed.targets[1]?.model, "At a glance, they looked alike.");
+  assert.match(parsed.drill || "", /each Model sentence 5 times/i);
 });
 
 test("reading prompts split into passage instruction article and stem", () => {
@@ -391,7 +436,8 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
     materials: readingShelf.materials,
   });
   assert.match(remediationBrief, /Reading remediation & language drill/);
-  assert.match(remediationBrief, /Copywork drill/);
+  assert.match(remediationBrief, /COPYWORK:/);
+  assert.match(remediationBrief, /Model:/);
   assert.match(remediationBrief, /Handwriting ·/);
   assert.match(remediationBrief, /reading_remediation/);
   assert.match(remediationBrief, /attempt_review_en/);

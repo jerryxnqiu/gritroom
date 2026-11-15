@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { LearnerCoachTip } from "@/lib/material-analysis";
 import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { CollapseToggle, useCollapsedList } from "./CollapsedList";
+import { RemediationPlanView } from "./RemediationPlanView";
 
 function tipLabel(kind: string) {
   if (kind === "reading_remediation") return "Words & phrases";
@@ -99,7 +100,11 @@ export function LearnerCoachTips({
                   {(selected.completedAt || selected.createdAt).slice(0, 10)}
                 </span>
               </header>
-              <p className="shelf-copy practice-prompt">{selected.summaryEn}</p>
+              {selected.materialKind === "reading_remediation" ? (
+                <RemediationPlanView summary={selected.summaryEn} />
+              ) : (
+                <p className="shelf-copy practice-prompt">{selected.summaryEn}</p>
+              )}
               {selected.trainingDirections.length ? (
                 <div className="shelf-notes">
                   <strong>Try next time</strong>
