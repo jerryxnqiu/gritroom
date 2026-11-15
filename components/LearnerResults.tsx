@@ -83,11 +83,13 @@ function AttemptRow({
 
 export function LearnerResults({
   subject = "thinking",
+  examGoal,
   initialSessions,
   initialHasMore = false,
   languageTips = [],
 }: {
   subject?: PracticeSubject;
+  examGoal?: "selective" | "oc";
   initialSessions: PracticeResultSessionSummary[];
   initialHasMore?: boolean;
   languageTips?: LearnerCoachTip[];
@@ -196,17 +198,19 @@ export function LearnerResults({
       <p className="lede">
         Browse by paper, not by every question at once. Open one session, then focus on misses or scan all answers.
         {subject === "reading"
-          ? " Vocabulary and phrases to memorise from remediation are listed below when your family has run that plan."
+          ? " Vocabulary and phrases to memorise from remediation are listed below when your family has run that plan — then you upload your handwriting photos yourself."
           : ""}
       </p>
 
       {subject === "reading" ? (
         <ReadingLanguagePack
           audience="learner"
+          goal={examGoal}
           plans={languageTips.map((tip) => ({
             id: tip.id,
             summary: tip.summaryEn,
             createdAt: tip.completedAt || tip.createdAt,
+            refId: tip.refId,
           }))}
           limit={2}
         />

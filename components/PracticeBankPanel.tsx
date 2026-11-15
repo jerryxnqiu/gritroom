@@ -39,7 +39,7 @@ export async function PracticeBankPanel({
       <h2 id="practice-bank-heading">Generate {moduleLabel.toLowerCase()} bank</h2>
       <p className="lede">
         {subject === "reading"
-          ? `Ask Codex to mimic ${profile.nickname}’s uploaded Reading papers and the official NSW samples — invent original articles across the official block mix and enough answers for a full ${goal === "oc" ? "33-answer" : "38-answer"} timed Reading paper (plus a Practice · 10 buffer), weighting about half toward Reading skills ${profile.nickname} misses most — and separately build language remediation (vocab / phrases / copywork with handwriting photo checks) from coaching notes and Passage sets.`
+          ? `Ask Codex to mimic ${profile.nickname}’s uploaded Reading papers and the official NSW samples — invent original articles with richer exam-level English (not dumbed-down wording) across the official block mix and enough answers for a full ${goal === "oc" ? "33-answer" : "38-answer"} timed Reading paper (plus a Practice · 10 buffer), weighting about half toward Reading skills ${profile.nickname} misses most — and separately build language remediation (vocab / phrases / copywork; ${profile.nickname} uploads handwriting photos for Codex to check) from coaching notes and Passage sets.`
           : `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Thinking Skills archive — blueprints, coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback — then add about 60 new questions (with kid-facing explanations): enough for weak-spot practice, with the rest balanced across other skills for timed papers and mixed sets.`}
       </p>
       <div className="shelf-toolbar">
@@ -121,11 +121,20 @@ export async function PracticeBankPanel({
         </div>
       ) : (
         <div className="family-subsection">
-          <h3>After copywork</h3>
-          <p className="meta">
-            Upload handwriting photos to Resources with Passage set <code>Handwriting · …</code> (page N of M), then run
-            remediation again so Codex can refresh miss reviews and mark copywork progress.
-          </p>
+          <h3>How Reading remediation works</h3>
+          <ol className="practice-language-howto">
+            <li>
+              After Reading misses, click <strong>Ask Codex for Reading remediation & copywork</strong>.
+            </li>
+            <li>
+              {profile.nickname} opens Learner room → Last results / Coach tips, learns the words, handwrites the
+              copywork, and uploads the page photos (Passage set <code>Handwriting · …</code>).
+            </li>
+            <li>
+              Ask Codex for Reading remediation again so those handwriting photos are reviewed and commented on with the
+              plan in Evidence.
+            </li>
+          </ol>
         </div>
       )}
     </section>

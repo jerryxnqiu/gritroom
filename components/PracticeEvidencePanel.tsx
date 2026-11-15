@@ -51,7 +51,7 @@ export async function PracticeEvidencePanel({
 
       {subject === "reading" ? (
         <div className="family-subsection">
-          <h3>Words & phrases to memorise</h3>
+          <h3>Reading repair — words, copywork & photo check</h3>
           <ReadingLanguagePack
             audience="parent"
             nickname={profile.nickname}
@@ -59,6 +59,7 @@ export async function PracticeEvidencePanel({
               id: plan.id,
               summary: plan.summary,
               createdAt: plan.createdAt,
+              refId: plan.refId,
             }))}
             limit={5}
           />

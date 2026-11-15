@@ -642,13 +642,37 @@ p { margin: 0; }
   text-transform: uppercase;
   color: var(--muted);
 }
-.practice-language-pack {
+.practice-language-pack-wrap {
+  display: grid;
+  gap: .85rem;
   margin: 1rem 0 1.15rem;
+}
+.practice-language-howto-card {
+  display: grid;
+  gap: .45rem;
+  padding: .85rem .95rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.practice-language-howto {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: .45rem;
+  color: var(--ink);
+  font-size: .95rem;
+  line-height: 1.5;
+}
+.practice-language-howto strong { font-weight: 700; }
+.practice-language-pack {
+  margin: 0;
   padding: .15rem .95rem .85rem;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #f4f7ef;
 }
+.practice-language-pack-parent { background: #f7f8f4; }
 .practice-language-pack > summary {
   display: grid;
   gap: .15rem;
@@ -673,6 +697,25 @@ p { margin: 0; }
   background: #fff;
 }
 .practice-language-card .practice-prompt { margin: 0; max-width: none; }
+.practice-language-passage-set {
+  display: grid;
+  gap: .35rem;
+  padding: .75rem .85rem;
+  border: 1px dashed #b7c9a8;
+  border-radius: 10px;
+  background: #fff;
+}
+.practice-language-upload {
+  margin-top: 0.85rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+  background: color-mix(in srgb, var(--paper) 92%, #dfe8d8);
+}
+.practice-language-upload .stack-form { margin-top: 0.65rem; gap: 0.65rem; }
+.practice-language-passage-set code {
+  font-size: .95rem;
+  word-break: break-all;
+}
 .practice-figure { margin: .75rem 0; }
 .practice-figure img {
   display: block; max-width: min(100%, 28rem); height: auto;

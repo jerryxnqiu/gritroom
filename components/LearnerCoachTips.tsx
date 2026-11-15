@@ -41,7 +41,7 @@ export function LearnerCoachTips({
         <h2 id="coach-tips-heading">No {moduleLabel} tips yet.</h2>
         <p className="lede">
           {subject === "reading"
-            ? "When your family runs Reading remediation & copywork, vocabulary, phrases and slang to memorise will show up here — plus tips from coaching notes."
+            ? "When your family runs Reading remediation & copywork, vocabulary, phrases and slang to memorise will show up under Last results — including a place for you to upload handwriting photos — plus tips from coaching notes here."
             : `When your family asks Codex to review coaching notes for ${moduleLabel}, short tips for you will show up here.`}
         </p>
       </section>

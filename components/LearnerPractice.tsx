@@ -607,6 +607,7 @@ export function LearnerPractice({
         {sectionNav}
         <LearnerResults
           subject={subject}
+          examGoal={profile.examGoal}
           initialSessions={initialResultSessions}
           initialHasMore={initialResultsHasMore}
           languageTips={initialCoachTips.filter((tip) => tip.materialKind === "reading_remediation")}
