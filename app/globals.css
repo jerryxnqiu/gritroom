@@ -980,14 +980,43 @@ p { margin: 0; }
   font-size: 1.05rem;
 }
 .practice-score-chart-scroll {
+  position: relative;
   overflow-x: auto;
   padding-bottom: .25rem;
 }
 .practice-score-chart-svg { display: block; max-width: none; }
+.practice-score-tooltip {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  gap: .15rem;
+  min-width: 8.5rem;
+  padding: .55rem .7rem;
+  border: 1px solid #2f5d3a;
+  border-radius: 8px;
+  background: #1f4a2c;
+  color: #f5faf2;
+  font-size: .82rem;
+  line-height: 1.35;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - .55rem));
+  box-shadow: 0 10px 24px rgba(38, 59, 52, .22);
+}
+.practice-score-tooltip strong {
+  font-size: .9rem;
+}
+.practice-score-tooltip span {
+  color: #d7e8d4;
+}
 .practice-score-grid {
   stroke: #d7e0cf;
   stroke-width: 1;
   stroke-dasharray: 3 4;
+}
+.practice-score-baseline,
+.practice-score-tick {
+  stroke: #b7c4ae;
+  stroke-width: 1;
 }
 .practice-score-axis {
   fill: var(--muted);
@@ -1010,17 +1039,11 @@ p { margin: 0; }
   font-size: 11px;
   font-weight: 700;
 }
-.practice-score-source {
-  fill: var(--ink);
-  font-size: 10px;
-  font-weight: 750;
-}
 .practice-score-label {
   fill: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
 }
-.practice-score-caption { margin: 0; min-height: 1.35rem; }
 .collapsible-section { margin: 0 0 1.1rem; }
 .collapsible-section-summary {
   cursor: pointer;

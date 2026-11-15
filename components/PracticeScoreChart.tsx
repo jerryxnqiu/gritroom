@@ -4,8 +4,19 @@ import { useMemo, useState } from "react";
 
 import {
   buildPracticeScorePoints,
+  type PracticeScorePoint,
   type PracticeScoreSession,
 } from "@/lib/practice-score-chart";
+
+function groupPointsByDate(points: PracticeScorePoint[]) {
+  const groups: { date: string; points: PracticeScorePoint[] }[] = [];
+  for (const point of points) {
+    const last = groups[groups.length - 1];
+    if (last && last.date === point.date) last.points.push(point);
+    else groups.push({ date: point.date, points: [point] });
+  }
+  return groups;
+}
 
 export function PracticeScoreChart({
   sessions,
@@ -17,8 +28,12 @@ export function PracticeScoreChart({
   onSelect?: (sessionId: string) => void;
 }) {
   const points = useMemo(() => buildPracticeScorePoints(sessions), [sessions]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const active = points.find((point) => point.id === activeId) ?? null;
+  const groups = useMemo(() => groupPointsByDate(points), [points]);
+  const [tooltip, setTooltip] = useState<{
+    point: PracticeScorePoint;
+    x: number;
+    y: number;
+  } | null>(null);
 
   if (!points.length) {
     return (
@@ -29,13 +44,13 @@ export function PracticeScoreChart({
     );
   }
 
-  const width = Math.max(420, points.length * 56);
-  const height = 260;
-  const pad = { top: 22, right: 12, bottom: 78, left: 36 };
+  const width = Math.max(440, groups.length * 88);
+  const height = 268;
+  const pad = { top: 22, right: 14, bottom: 72, left: 36 };
   const innerW = width - pad.left - pad.right;
   const innerH = height - pad.top - pad.bottom;
-  const barGap = Math.min(18, Math.max(8, innerW / points.length * 0.28));
-  const barW = Math.max(12, (innerW - barGap * (points.length - 1)) / points.length);
+  const columnGap = Math.min(22, Math.max(10, innerW / groups.length * 0.18));
+  const columnW = Math.max(36, (innerW - columnGap * (groups.length - 1)) / groups.length);
 
   function yFor(percent: number) {
     return pad.top + innerH * (1 - percent / 100);
@@ -49,7 +64,7 @@ export function PracticeScoreChart({
           <strong>{subjectLabel} papers by date</strong>
         </div>
         <p className="meta">
-          Hover a bar to see the paper type (Practice / Timed, with -1, -2… when needed).
+          Same-day papers sit together under one date. Hover a bar for details.
         </p>
       </div>
 
@@ -57,7 +72,7 @@ export function PracticeScoreChart({
         className="practice-score-chart-scroll"
         role="img"
         aria-label={`${subjectLabel} score chart`}
-        onMouseLeave={() => setActiveId(null)}
+        onMouseLeave={() => setTooltip(null)}
       >
         <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="practice-score-chart-svg">
           {[0, 25, 50, 75, 100].map((tick) => {
@@ -72,65 +87,99 @@ export function PracticeScoreChart({
             );
           })}
 
-          {points.map((point, index) => {
-            const x = pad.left + index * (barW + barGap);
-            const y = yFor(point.percent);
-            const barH = Math.max(2, pad.top + innerH - y);
-            const selected = activeId === point.id;
-            const mid = x + barW / 2;
+          <line
+            x1={pad.left}
+            x2={width - pad.right}
+            y1={pad.top + innerH}
+            y2={pad.top + innerH}
+            className="practice-score-baseline"
+          />
+
+          {groups.map((group, groupIndex) => {
+            const columnX = pad.left + groupIndex * (columnW + columnGap);
+            const barGap = group.points.length > 1 ? 4 : 0;
+            const barW = Math.max(
+              10,
+              (columnW - barGap * (group.points.length - 1)) / group.points.length,
+            );
+            const labelX = columnX + columnW / 2;
+
             return (
-              <g key={point.id}>
-                <rect
-                  x={x}
-                  y={y}
-                  width={barW}
-                  height={barH}
-                  rx={5}
-                  className={`practice-score-bar${selected ? " is-active" : ""}${point.mode === "timed" ? " is-timed" : ""}`}
-                  role={onSelect ? "button" : undefined}
-                  tabIndex={onSelect ? 0 : undefined}
-                  aria-label={`${point.date} ${point.source}: ${point.percent}% (${point.correct} of ${point.total})`}
-                  onMouseEnter={() => setActiveId(point.id)}
-                  onFocus={() => setActiveId(point.id)}
-                  onBlur={() => setActiveId(null)}
-                  onClick={() => onSelect?.(point.id)}
-                  onKeyDown={(event) => {
-                    if (!onSelect) return;
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onSelect(point.id);
-                    }
-                  }}
+              <g key={group.date}>
+                {group.points.map((point, pointIndex) => {
+                  const x = columnX + pointIndex * (barW + barGap);
+                  const y = yFor(point.percent);
+                  const barH = Math.max(2, pad.top + innerH - y);
+                  const selected = tooltip?.point.id === point.id;
+                  const mid = x + barW / 2;
+                  return (
+                    <g key={point.id}>
+                      <rect
+                        x={x}
+                        y={y}
+                        width={barW}
+                        height={barH}
+                        rx={4}
+                        className={`practice-score-bar${selected ? " is-active" : ""}${point.mode === "timed" ? " is-timed" : ""}`}
+                        role={onSelect ? "button" : undefined}
+                        tabIndex={onSelect ? 0 : undefined}
+                        aria-label={`${point.date} ${point.source}: ${point.percent}% (${point.correct} of ${point.total})`}
+                        onMouseEnter={() => setTooltip({ point, x: mid, y })}
+                        onFocus={() => setTooltip({ point, x: mid, y })}
+                        onBlur={() => setTooltip(null)}
+                        onClick={() => onSelect?.(point.id)}
+                        onKeyDown={(event) => {
+                          if (!onSelect) return;
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            onSelect(point.id);
+                          }
+                        }}
+                      />
+                      <text x={mid} y={y - 6} textAnchor="middle" className="practice-score-value">
+                        {point.percent}
+                      </text>
+                    </g>
+                  );
+                })}
+                <line
+                  x1={labelX}
+                  x2={labelX}
+                  y1={pad.top + innerH}
+                  y2={pad.top + innerH + 5}
+                  className="practice-score-tick"
                 />
-                <text x={mid} y={y - 6} textAnchor="middle" className="practice-score-value">
-                  {point.percent}
-                </text>
                 <text
-                  x={mid}
-                  y={height - 10}
+                  x={labelX}
+                  y={height - 8}
                   textAnchor="end"
                   className="practice-score-label"
-                  transform={`rotate(-90 ${mid} ${height - 10})`}
+                  transform={`rotate(-90 ${labelX} ${height - 8})`}
                 >
-                  {point.date}
+                  {group.date}
                 </text>
               </g>
             );
           })}
         </svg>
-      </div>
 
-      {active ? (
-        <p className="practice-score-caption" role="status">
-          <strong>{active.source}</strong>
-          {" · "}
-          {active.date}
-          {" · "}
-          {active.correct} of {active.total} correct ({active.percent}%)
-        </p>
-      ) : (
-        <p className="meta practice-score-caption">Hover or tap a bar for the paper type and score.</p>
-      )}
+        {tooltip ? (
+          <div
+            className="practice-score-tooltip"
+            role="tooltip"
+            style={{
+              left: `${(tooltip.x / width) * 100}%`,
+              top: `${(tooltip.y / height) * 100}%`,
+            }}
+          >
+            <strong>{tooltip.point.source}</strong>
+            <span>{tooltip.point.date}</span>
+            <span>
+              {tooltip.point.correct} of {tooltip.point.total} · {tooltip.point.percent}%
+            </span>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
