@@ -395,11 +395,10 @@ export function LearnerPractice({
             {timed
               ? ` · ${timedAnswered} answered`
               : left > 0 ? ` · ${left} left` : ""}
-            {remainingSeconds !== null ? ` · ${formatClock(remainingSeconds)} left` : ""}
           </p>
           {remainingSeconds !== null ? (
-            <p
-              className={`practice-timer${timerWarn10 ? " is-warn" : ""}${timerLow ? " is-low" : ""}${timeUp ? " is-up" : ""}`}
+            <div
+              className={`practice-timer${timed ? " is-float" : ""}${timerWarn10 ? " is-warn" : ""}${timerLow ? " is-low" : ""}${timeUp ? " is-up" : ""}`}
               role="timer"
               aria-live="polite"
             >
@@ -411,19 +410,22 @@ export function LearnerPractice({
                 </span>
               ) : (
                 <>
-                  <span className="practice-timer-label">
-                    {timed
-                      ? timerLow
-                        ? "5 minutes or less left"
-                        : timerWarn10
-                          ? "10 minutes or less left"
-                          : "Paper time left"
-                      : "Set time left"}
-                  </span>
+                  <div className="practice-timer-copy">
+                    <span className="practice-timer-kicker">Clock</span>
+                    <span className="practice-timer-label">
+                      {timed
+                        ? timerLow
+                          ? "5 minutes or less left"
+                          : timerWarn10
+                            ? "10 minutes or less left"
+                            : "Paper time left"
+                        : "Set time left"}
+                    </span>
+                  </div>
                   <span className="practice-timer-clock">{formatClock(remainingSeconds)}</span>
                 </>
               )}
-            </p>
+            </div>
           ) : null}
 
           {timed && session ? (

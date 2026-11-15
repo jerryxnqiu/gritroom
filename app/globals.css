@@ -400,29 +400,70 @@ p { margin: 0; }
 .practice-timer {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: .45rem .7rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: .55rem 1rem;
   margin: .7rem 0 .15rem;
-  color: var(--green);
+  color: var(--ink);
+}
+.practice-timer.is-float {
+  position: sticky;
+  top: .55rem;
+  z-index: 40;
+  margin: .55rem 0 .95rem;
+  padding: .75rem 1rem;
+  border: 2px solid #2f5d3a;
+  border-radius: 14px;
+  background: #f3f8ec;
+  box-shadow: 0 12px 32px rgba(38, 59, 52, .16);
+  backdrop-filter: blur(10px);
+}
+.practice-timer-copy {
+  display: grid;
+  gap: .15rem;
+  min-width: 0;
+}
+.practice-timer-kicker {
+  font-size: .72rem;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #2f5d3a;
 }
 .practice-timer-label {
-  font-size: .92rem;
-  font-weight: 650;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
 }
 .practice-timer-clock {
   font-family: var(--font-display, var(--font-body));
-  font-size: clamp(1.85rem, 4.5vw, 2.6rem);
+  font-size: clamp(2.35rem, 6vw, 3.2rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: .02em;
-  line-height: 1.1;
+  line-height: 1;
+  color: #1f4a2c;
 }
-.practice-timer.is-warn,
+.practice-timer.is-warn {
+  border-color: #c9a227;
+  background: #fff8df;
+}
+.practice-timer.is-warn .practice-timer-kicker,
 .practice-timer.is-warn .practice-timer-clock { color: #8a6a12; }
-.practice-timer.is-low,
+.practice-timer.is-low {
+  border-color: #d2882a;
+  background: #fff1df;
+}
+.practice-timer.is-low .practice-timer-kicker,
 .practice-timer.is-low .practice-timer-clock { color: #9a5b12; }
-.practice-timer.is-up,
-.practice-timer.is-up .practice-timer-clock { color: var(--danger); }
+.practice-timer.is-up {
+  border-color: var(--danger);
+  background: #fdeeee;
+}
+.practice-timer.is-up .practice-timer-kicker,
+.practice-timer.is-up .practice-timer-clock,
+.practice-timer.is-up .practice-timer-label { color: var(--danger); }
 .practice-question-nav {
   display: flex;
   flex-wrap: wrap;
