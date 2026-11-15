@@ -37,14 +37,8 @@ function HowToUse({
           several times).
         </li>
         <li>
-          <strong>Photograph and upload the pages yourself</strong>
-          {passageSet ? (
-            <>
-              {" "}using the form below (Passage set <code>{passageSet}</code> is filled in for you).
-            </>
-          ) : (
-            <> using the upload form once a remediation plan is ready.</>
-          )}
+          <strong>Photograph and upload the pages yourself</strong> with the form below
+          {passageSet ? "." : " once a plan is ready."}
           {" "}Your family asks Codex to review those photos and comment on your writing.
         </li>
       </ol>

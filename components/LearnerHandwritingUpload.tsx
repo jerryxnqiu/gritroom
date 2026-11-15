@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 
 import type { ExamGoal } from "@/lib/family";
-import { handwritingPassageSetName } from "@/lib/reading-remediation";
 
 export function LearnerHandwritingUpload({
   goal,
@@ -17,7 +16,6 @@ export function LearnerHandwritingUpload({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [pending, startTransition] = useTransition();
-  const passageSet = handwritingPassageSetName(planRefId);
 
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -31,7 +29,7 @@ export function LearnerHandwritingUpload({
         const result = await response.json() as { error?: string; passageSet?: string };
         if (!response.ok) throw new Error(result.error || "Could not upload the photo. Try again.");
         form.reset();
-        setNotice(`Saved under ${result.passageSet || passageSet}. Upload the next page if you have more.`);
+        setNotice("Page saved. Upload the next page if you have more.");
         router.refresh();
       } catch (problem) {
         setError(problem instanceof Error ? problem.message : "Could not upload the photo. Try again.");
@@ -43,8 +41,8 @@ export function LearnerHandwritingUpload({
     <div className="practice-language-upload">
       <p className="eyebrow">Upload your handwriting</p>
       <p className="meta">
-        Photograph each finished page yourself. Photos are saved with Passage set{" "}
-        <code>{passageSet}</code> so your family can ask Codex to review and comment on your writing.
+        Photograph each finished page, then upload it here. Your family asks Codex to review the photos and comment on
+        your writing.
       </p>
       <form onSubmit={save} aria-busy={pending} className="stack-form">
         <input type="hidden" name="goal" value={goal} />
