@@ -29,9 +29,9 @@ export function PracticeScoreChart({
     );
   }
 
-  const width = Math.max(420, points.length * 64);
-  const height = 248;
-  const pad = { top: 22, right: 12, bottom: 64, left: 36 };
+  const width = Math.max(420, points.length * 56);
+  const height = 260;
+  const pad = { top: 22, right: 12, bottom: 78, left: 36 };
   const innerW = width - pad.left - pad.right;
   const innerH = height - pad.top - pad.bottom;
   const barGap = Math.min(18, Math.max(8, innerW / points.length * 0.28));
@@ -49,11 +49,16 @@ export function PracticeScoreChart({
           <strong>{subjectLabel} papers by date</strong>
         </div>
         <p className="meta">
-          Dates stay on the axis. Each bar names the paper type; identical types on one day get -1, -2…
+          Hover a bar to see the paper type (Practice / Timed, with -1, -2… when needed).
         </p>
       </div>
 
-      <div className="practice-score-chart-scroll" role="img" aria-label={`${subjectLabel} score chart`}>
+      <div
+        className="practice-score-chart-scroll"
+        role="img"
+        aria-label={`${subjectLabel} score chart`}
+        onMouseLeave={() => setActiveId(null)}
+      >
         <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="practice-score-chart-svg">
           {[0, 25, 50, 75, 100].map((tick) => {
             const y = yFor(tick);
@@ -87,6 +92,7 @@ export function PracticeScoreChart({
                   aria-label={`${point.date} ${point.source}: ${point.percent}% (${point.correct} of ${point.total})`}
                   onMouseEnter={() => setActiveId(point.id)}
                   onFocus={() => setActiveId(point.id)}
+                  onBlur={() => setActiveId(null)}
                   onClick={() => onSelect?.(point.id)}
                   onKeyDown={(event) => {
                     if (!onSelect) return;
@@ -99,15 +105,12 @@ export function PracticeScoreChart({
                 <text x={mid} y={y - 6} textAnchor="middle" className="practice-score-value">
                   {point.percent}
                 </text>
-                <text x={mid} y={height - 34} textAnchor="middle" className="practice-score-source">
-                  {point.source}
-                </text>
                 <text
                   x={mid}
-                  y={height - 14}
-                  textAnchor="middle"
+                  y={height - 10}
+                  textAnchor="end"
                   className="practice-score-label"
-                  transform={`rotate(-28 ${mid} ${height - 14})`}
+                  transform={`rotate(-90 ${mid} ${height - 10})`}
                 >
                   {point.date}
                 </text>
@@ -119,14 +122,14 @@ export function PracticeScoreChart({
 
       {active ? (
         <p className="practice-score-caption" role="status">
-          <strong>{active.date}</strong>
+          <strong>{active.source}</strong>
           {" · "}
-          {active.source}
+          {active.date}
           {" · "}
           {active.correct} of {active.total} correct ({active.percent}%)
         </p>
       ) : (
-        <p className="meta practice-score-caption">Hover or tap a bar for the paper details.</p>
+        <p className="meta practice-score-caption">Hover or tap a bar for the paper type and score.</p>
       )}
     </div>
   );

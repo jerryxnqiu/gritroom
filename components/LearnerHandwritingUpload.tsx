@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type SubmitEvent } from "react";
 
 import type { ExamGoal } from "@/lib/family";
 
@@ -17,7 +17,7 @@ export function LearnerHandwritingUpload({
   const [notice, setNotice] = useState("");
   const [pending, startTransition] = useTransition();
 
-  function save(event: FormEvent<HTMLFormElement>) {
+  function save(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const body = new FormData(form);
