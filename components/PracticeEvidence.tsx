@@ -11,6 +11,7 @@ import type {
 import type { PracticeSubject } from "@/lib/subjects";
 import { CollapseToggle, useCollapsedList } from "./CollapsedList";
 import { PracticePrompt } from "./PracticePrompt";
+import { SessionSkillChart } from "./SessionSkillChart";
 
 type AnswerFilter = "incorrect" | "all";
 type ModeFilter = "all" | "daily" | "timed" | "diagnostic" | "focus";
@@ -318,15 +319,22 @@ export function PracticeEvidence({
               <p className="meta">Select a session on the left to review questions, options and explanations.</p>
             ) : !openSession ? (
               <p className="meta">Loading that paper…</p>
-            ) : answerFilter === "incorrect" && openSession.incorrect === 0 ? (
-              <p className="meta">No incorrect answers in this paper.</p>
             ) : (
-              <div className="practice-evidence-attempt-list">
-                {visibleAttempts.map((item) => {
-                  const index = openSession.attempts.findIndex((attempt) => attempt.id === item.id);
-                  return <AttemptDetail key={item.id} item={item} index={index} subject={subject} />;
-                })}
-              </div>
+              <>
+                {subject === "thinking" ? (
+                  <SessionSkillChart attempts={openSession.attempts} />
+                ) : null}
+                {answerFilter === "incorrect" && openSession.incorrect === 0 ? (
+                  <p className="meta">No incorrect answers in this paper.</p>
+                ) : (
+                  <div className="practice-evidence-attempt-list">
+                    {visibleAttempts.map((item) => {
+                      const index = openSession.attempts.findIndex((attempt) => attempt.id === item.id);
+                      return <AttemptDetail key={item.id} item={item} index={index} subject={subject} />;
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

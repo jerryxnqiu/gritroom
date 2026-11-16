@@ -13,6 +13,7 @@ import { CollapseToggle, useCollapsedList } from "./CollapsedList";
 import { PracticePrompt } from "./PracticePrompt";
 import { PracticeScoreChart } from "./PracticeScoreChart";
 import { ReadingLanguagePack } from "./ReadingLanguagePack";
+import { SessionSkillChart } from "./SessionSkillChart";
 
 type ModeFilter = "all" | "daily" | "timed" | "diagnostic" | "focus";
 type AnswerFilter = "incorrect" | "all";
@@ -323,15 +324,22 @@ export function LearnerResults({
               <p className="meta">Choose a paper on the left to review it.</p>
             ) : !openSession ? (
               <p className="meta">Loading that paper…</p>
-            ) : answerFilter === "incorrect" && openSession.incorrect === 0 ? (
-              <p className="meta">No incorrect answers in this paper — nice.</p>
             ) : (
-              <div className="practice-result-attempts">
-                {visibleAttempts.map((item) => {
-                  const index = openSession.attempts.findIndex((attempt) => attempt.id === item.id);
-                  return <AttemptRow key={item.id} item={item} index={index} subject={subject} />;
-                })}
-              </div>
+              <>
+                {subject === "thinking" ? (
+                  <SessionSkillChart attempts={openSession.attempts} />
+                ) : null}
+                {answerFilter === "incorrect" && openSession.incorrect === 0 ? (
+                  <p className="meta">No incorrect answers in this paper — nice.</p>
+                ) : (
+                  <div className="practice-result-attempts">
+                    {visibleAttempts.map((item) => {
+                      const index = openSession.attempts.findIndex((attempt) => attempt.id === item.id);
+                      return <AttemptRow key={item.id} item={item} index={index} subject={subject} />;
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
