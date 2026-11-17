@@ -956,6 +956,13 @@ p { margin: 0; }
   letter-spacing: -.03em;
   color: var(--green);
 }
+.coach-readonly-note {
+  margin: 0 0 1rem;
+  padding: .7rem .85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f7faf4;
+}
 .practice-score-chart,
 .practice-score-chart-empty,
 .session-skill-chart {

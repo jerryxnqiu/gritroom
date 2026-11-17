@@ -32,6 +32,7 @@ export default async function ParentPage({
 }) {
   const session = await getSession(await getSessionTokenFromCookies());
   if (!session) redirect("/?entry=parent");
+  if (session.entry === "coach") redirect("/coach");
   if (session.entry !== "parent") redirect("/learner");
 
   const [profiles, families, owner, hasInvites, params] = await Promise.all([

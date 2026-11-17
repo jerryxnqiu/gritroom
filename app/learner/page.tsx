@@ -31,6 +31,7 @@ export default async function LearnerPage({
 }) {
   const session = await getSession(await getSessionTokenFromCookies());
   if (!session) redirect("/?entry=learner");
+  if (session.entry === "coach") redirect("/coach");
   if (session.entry !== "learner") redirect("/parent");
 
   const params = await searchParams;

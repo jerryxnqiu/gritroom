@@ -11,11 +11,15 @@ type SearchParams = Promise<{ entry?: string }>;
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
   const session = await getSession(await getSessionTokenFromCookies());
   if (session) {
-    redirect(session.entry === "parent" ? "/parent" : "/learner");
+    redirect(session.entry === "parent" ? "/parent" : session.entry === "coach" ? "/coach" : "/learner");
   }
 
   const { entry: requestedEntry } = await searchParams;
-  const entry = requestedEntry === "parent" ? "parent" : "learner";
+  const entry = requestedEntry === "parent"
+    ? "parent"
+    : requestedEntry === "coach"
+      ? "coach"
+      : "learner";
 
   return (
     <EntryLayout>
@@ -25,6 +29,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       <nav className="entry-tabs" aria-label="Sign-in options">
         <Link href="/?entry=learner" aria-current={entry === "learner" ? "page" : undefined}>I’m learning</Link>
         <Link href="/?entry=parent" aria-current={entry === "parent" ? "page" : undefined}>Parent access</Link>
+        {entry === "coach" ? (
+          <Link href="/?entry=coach" aria-current="page">Coaching access</Link>
+        ) : null}
       </nav>
       <div className="entry-methods" role="tablist" aria-label="Sign-in method">
         <span className="entry-method is-muted" aria-disabled="true">Access code</span>
@@ -34,7 +41,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       <p className="entry-hint">
         {entry === "learner"
           ? "Use your own email address — the one your parent invited."
-          : "Use the parent email for this family room. We’ll send a six-digit code — your email password is never needed."}
+          : entry === "coach"
+            ? "Use the email the family invited for coaching. We’ll send a six-digit code — your email password is never needed."
+            : "Use the parent email for this family room. We’ll send a six-digit code — your email password is never needed."}
       </p>
       <details className="entry-help">
         <summary>How do I sign in?</summary>

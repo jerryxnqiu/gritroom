@@ -14,6 +14,7 @@ export function ChildAccessPanel({ profileId, access }: { profileId: string; acc
   const [pending, startTransition] = useTransition();
   const childInvite = access.pending.find((invite) => invite.role === "learner");
   const guardianInvites = access.pending.filter((invite) => invite.role === "guardian");
+  const coachInvites = access.pending.filter((invite) => invite.role === "coach");
 
   function change(area: InviteRole, url: string, data: object, text: string, form?: HTMLFormElement) {
     setFeedback(undefined);
@@ -111,6 +112,41 @@ export function ChildAccessPanel({ profileId, access }: { profileId: string; acc
                   <button className="button secondary" type="button" disabled={pending}
                     aria-label={`Remove access for ${guardian.email}`}
                     onClick={() => change("guardian", `/api/family/guardians/${encodeURIComponent(guardian.id)}`, { action: "revoke" }, "Guardian access removed for this child.")}>
+                    Remove access
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </details>
+      <details className="family-subsection">
+        <summary>Invite a coaching teacher</summary>
+        <div className="stack-form add-child-form">
+          <p className="meta">
+            Give a coach read-only access to this child’s learner results and tips. They sign in with their own email,
+            accept the invitation, and cannot sit practice papers or change family settings.
+          </p>
+          <form className="invite-fields" onSubmit={(event) => send(event, "coach")} aria-busy={pending}>
+            <label className="field"><span>Coach’s email</span>
+              <input type="email" name="email" autoComplete="off" placeholder="Their email address" maxLength={254} required />
+            </label>
+            <button className="button secondary" disabled={pending} type="submit">Send coach invitation</button>
+          </form>
+          {status("coach")}
+          {coachInvites.length ? <ul className="access-list">{coachInvites.map(invitationRow)}</ul> : null}
+          {access.coaches.length ? (
+            <ul className="access-list" aria-label="Coaches with access">
+              {access.coaches.map((coach) => (
+                <li className="access-row" key={`${coach.profileId}:${coach.userId}`}>
+                  <div><strong>{coach.email}</strong><span className="meta">Read-only coaching view</span></div>
+                  <button className="button secondary" type="button" disabled={pending}
+                    aria-label={`Remove coaching access for ${coach.email}`}
+                    onClick={() => change("coach", "/api/family/coaches", {
+                      action: "revoke",
+                      profileId: coach.profileId,
+                      userId: coach.userId,
+                    }, "Coach access removed for this child.")}>
                     Remove access
                   </button>
                 </li>
