@@ -53,9 +53,46 @@ export async function linkedLearner(db: D1Database, userId: string) {
   ).bind(userId).first<Omit<ParentProfile, "familyName" | "canManage">>();
 }
 
+export async function linkedCoach(
+  db: D1Database,
+  userId: string,
+  preferredProfile?: string | null,
+) {
+  if (preferredProfile) {
+    const preferred = await db.prepare(
+      `SELECT p.id, p.family_id AS familyId, p.nickname, p.exam_goal AS examGoal
+       FROM coach_links c JOIN profiles p ON p.id = c.profile_id
+       WHERE c.user_id = ? AND c.profile_id = ?`,
+    ).bind(userId, preferredProfile).first<Omit<ParentProfile, "familyName" | "canManage">>();
+    if (preferred) return preferred;
+  }
+  return db.prepare(
+    `SELECT p.id, p.family_id AS familyId, p.nickname, p.exam_goal AS examGoal
+     FROM coach_links c JOIN profiles p ON p.id = c.profile_id
+     WHERE c.user_id = ?
+     ORDER BY c.linked_at, p.id LIMIT 1`,
+  ).bind(userId).first<Omit<ParentProfile, "familyName" | "canManage">>();
+}
+
+export async function listCoachedProfiles(db: D1Database, userId: string) {
+  const { results } = await db.prepare(
+    `SELECT p.id, p.family_id AS familyId, p.nickname, p.exam_goal AS examGoal
+     FROM coach_links c JOIN profiles p ON p.id = c.profile_id
+     WHERE c.user_id = ?
+     ORDER BY c.linked_at, p.id`,
+  ).bind(userId).all<Omit<ParentProfile, "familyName" | "canManage">>();
+  return results;
+}
+
 export async function hasLearnerInvitation(db: D1Database, email: string) {
   return Boolean(await db.prepare(
     "SELECT 1 FROM open_family_invites WHERE email = ? AND role = 'learner' LIMIT 1",
+  ).bind(email).first());
+}
+
+export async function hasCoachInvitation(db: D1Database, email: string) {
+  return Boolean(await db.prepare(
+    "SELECT 1 FROM open_family_invites WHERE email = ? AND role = 'coach' LIMIT 1",
   ).bind(email).first());
 }
 

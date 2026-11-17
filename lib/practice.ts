@@ -232,6 +232,30 @@ export async function learnerProfile(db: D1Database, userId: string) {
   ).bind(userId).first<{ id: string; examGoal: ExamGoal; nickname: string }>();
 }
 
+/** Linked learner, or a coached child the signed-in coach can view. */
+export async function resultsViewerProfile(
+  db: D1Database,
+  userId: string,
+  preferredProfileId?: string | null,
+) {
+  const learner = await learnerProfile(db, userId);
+  if (learner) return learner;
+  if (preferredProfileId) {
+    const preferred = await db.prepare(
+      `SELECT p.id, p.exam_goal AS examGoal, p.nickname
+       FROM coach_links c JOIN profiles p ON p.id = c.profile_id
+       WHERE c.user_id = ? AND c.profile_id = ?`,
+    ).bind(userId, preferredProfileId).first<{ id: string; examGoal: ExamGoal; nickname: string }>();
+    if (preferred) return preferred;
+  }
+  return db.prepare(
+    `SELECT p.id, p.exam_goal AS examGoal, p.nickname
+     FROM coach_links c JOIN profiles p ON p.id = c.profile_id
+     WHERE c.user_id = ?
+     ORDER BY c.linked_at, p.id LIMIT 1`,
+  ).bind(userId).first<{ id: string; examGoal: ExamGoal; nickname: string }>();
+}
+
 export async function activePracticeSession(db: D1Database, profileId: string, examGoal: ExamGoal) {
   return db.prepare(
     `SELECT id FROM practice_sessions
@@ -723,19 +747,26 @@ export async function submitPracticeAttempt(
   return { ok: true, session: next, attempt };
 }
 
+const attemptViewerAccess = `EXISTS (
+  SELECT 1 FROM (
+    SELECT profile_id, user_id FROM learner_links
+    UNION ALL
+    SELECT profile_id, user_id FROM coach_links
+  ) v WHERE v.profile_id = a.profile_id AND v.user_id = ?
+)`;
+
 export async function findAttemptImage(
   db: D1Database,
   attemptId: string,
   userId: string,
-  entry: "learner" | "parent",
+  entry: "learner" | "parent" | "coach",
 ) {
-  if (entry === "learner") {
+  if (entry === "learner" || entry === "coach") {
     return db.prepare(
       `SELECT a.image_key AS key
        FROM practice_attempts a
-       JOIN learner_links l ON l.profile_id = a.profile_id AND l.user_id = ?
-       WHERE a.id = ? AND a.image_key IS NOT NULL`,
-    ).bind(userId, attemptId).first<{ key: string }>();
+       WHERE a.id = ? AND a.image_key IS NOT NULL AND ${attemptViewerAccess}`,
+    ).bind(attemptId, userId).first<{ key: string }>();
   }
   return db.prepare(
     `SELECT a.image_key AS key
@@ -964,7 +995,15 @@ const learnerAccess = `EXISTS (
   SELECT 1 FROM learner_links l WHERE l.profile_id = s.profile_id AND l.user_id = ?
 )`;
 
-/** Session summaries for the linked learner — no attempt bodies until a session is opened. */
+const resultsViewerAccess = `EXISTS (
+  SELECT 1 FROM (
+    SELECT profile_id, user_id FROM learner_links
+    UNION ALL
+    SELECT profile_id, user_id FROM coach_links
+  ) v WHERE v.profile_id = s.profile_id AND v.user_id = ?
+)`;
+
+/** Session summaries for the linked learner or a read-only coach — no attempt bodies until opened. */
 export async function listLearnerPracticeResults(
   db: D1Database,
   userId: string,
@@ -973,15 +1012,16 @@ export async function listLearnerPracticeResults(
     sessionOffset?: number;
     mode?: PracticeEvidenceModeFilter;
     subject?: PracticeSubject;
+    profileId?: string | null;
   },
 ) {
-  const profile = await learnerProfile(db, userId);
+  const profile = await resultsViewerProfile(db, userId, options?.profileId);
   if (!profile) return [] as PracticeResultSessionSummary[];
   return listPracticeSessionSummaries(
     db,
     profile.id,
     profile.examGoal,
-    learnerAccess,
+    resultsViewerAccess,
     userId,
     options,
   );
@@ -991,8 +1031,9 @@ export async function getLearnerPracticeResultSession(
   db: D1Database,
   userId: string,
   sessionId: string,
+  preferredProfileId?: string | null,
 ) {
-  const profile = await learnerProfile(db, userId);
+  const profile = await resultsViewerProfile(db, userId, preferredProfileId);
   if (!profile) return null;
   const row = await db.prepare(
     `SELECT s.id, ${sessionModeSelect}, s.status, s.started_at AS startedAt, s.completed_at AS completedAt,
@@ -1000,7 +1041,7 @@ export async function getLearnerPracticeResultSession(
             SUM(CASE WHEN a.is_correct = 1 THEN 1 ELSE 0 END) AS correctCount
      FROM practice_sessions s
      JOIN practice_attempts a ON a.session_id = s.id AND a.finalized_at IS NOT NULL
-     WHERE s.id = ? AND s.profile_id = ? AND s.exam_goal = ? AND ${learnerAccess}
+     WHERE s.id = ? AND s.profile_id = ? AND s.exam_goal = ? AND ${resultsViewerAccess}
      GROUP BY s.id`,
   ).bind(sessionId, profile.id, profile.examGoal, userId).first<{
     id: string;

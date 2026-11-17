@@ -3,12 +3,13 @@ import { createId } from "./ids.ts";
 import { daysFromNow, nowIso } from "./time.ts";
 import type { ExamGoal } from "./family";
 
-export type InviteRole = "learner" | "guardian";
+export type InviteRole = "learner" | "guardian" | "coach";
 export type InviteActor = { user_id: string; email: string };
 export type ChildAccess = {
   learnerEmail: string | null;
   pending: { id: string; email: string; role: InviteRole; status: "sending" | "sent" | "unavailable"; expiresAt: string }[];
   guardians: { id: string; email: string }[];
+  coaches: { profileId: string; userId: string; email: string }[];
 };
 export type RecipientInvite = {
   id: string;
@@ -24,7 +25,7 @@ const error = (status: number, message: string) => ({ ok: false as const, status
 
 export async function childAccess(db: D1Database, profileId: string, userId: string): Promise<ChildAccess | null> {
   const authority = "EXISTS (SELECT 1 FROM profile_access_managers m WHERE m.profile_id = ? AND m.user_id = ?)";
-  const [profile, pending, guardians] = await Promise.all([
+  const [profile, pending, guardians, coaches] = await Promise.all([
     db.prepare(`SELECT u.email FROM profiles p LEFT JOIN learner_links l ON l.profile_id = p.id
       LEFT JOIN users u ON u.id = l.user_id WHERE p.id = ? AND ${authority}`)
       .bind(profileId, profileId, userId).first<{ email: string | null }>(),
@@ -32,7 +33,7 @@ export async function childAccess(db: D1Database, profileId: string, userId: str
       CASE WHEN delivery_status = 'sent' AND NOT EXISTS (
         SELECT 1 FROM open_family_invites i WHERE i.id = family_invites.id
       ) THEN 'unavailable' ELSE delivery_status END AS status
-      FROM family_invites WHERE profile_id = ? AND role IN ('learner', 'guardian')
+      FROM family_invites WHERE profile_id = ? AND role IN ('learner', 'guardian', 'coach')
         AND delivery_status IN ('sending', 'sent') AND accepted_at IS NULL AND revoked_at IS NULL
         AND julianday(expires_at) > julianday('now') AND ${authority}
       ORDER BY created_at DESC, id`)
@@ -43,8 +44,15 @@ export async function childAccess(db: D1Database, profileId: string, userId: str
       WHERE g.profile_id = ? AND g.role = 'guardian' AND g.revoked_at IS NULL AND ${authority}
       GROUP BY g.user_id ORDER BY u.email`)
       .bind(profileId, profileId, userId).all<ChildAccess["guardians"][number]>(),
+    db.prepare(`SELECT c.profile_id AS profileId, c.user_id AS userId, u.email
+      FROM coach_links c JOIN users u ON u.id = c.user_id
+      WHERE c.profile_id = ? AND ${authority}
+      ORDER BY u.email`)
+      .bind(profileId, profileId, userId).all<ChildAccess["coaches"][number]>(),
   ]);
-  return profile ? { learnerEmail: profile.email, pending: pending.results, guardians: guardians.results } : null;
+  return profile
+    ? { learnerEmail: profile.email, pending: pending.results, guardians: guardians.results, coaches: coaches.results }
+    : null;
 }
 
 export async function recipientInvitations(db: D1Database, actor: InviteActor) {
@@ -97,6 +105,10 @@ export async function issueInvitation(
          g.family_id = i.family_id AND (g.profile_id = i.profile_id
            OR (g.profile_id IS NULL AND g.role IN ('owner', 'admin')))
        ))
+     )
+     AND NOT EXISTS (
+       SELECT 1 FROM coach_links c JOIN users u ON u.id = c.user_id
+       WHERE u.email = i.email COLLATE NOCASE AND c.profile_id = i.profile_id
      )
      AND NOT EXISTS (
        SELECT 1 FROM family_invites existing WHERE existing.profile_id = i.profile_id
@@ -160,7 +172,7 @@ export async function closeInvitation(db: D1Database, actor: InviteActor, invite
         AND delivery_status = 'sent'`;
   const { meta } = await db.prepare(
     `UPDATE family_invites SET revoked_at = ?, revoked_by_user_id = ?
-     WHERE id = ? AND role IN ('learner', 'guardian') AND accepted_at IS NULL AND revoked_at IS NULL AND ${scope}`,
+     WHERE id = ? AND role IN ('learner', 'guardian', 'coach') AND accepted_at IS NULL AND revoked_at IS NULL AND ${scope}`,
   ).bind(nowIso(), actor.user_id, inviteId, actor.user_id).run();
   return meta.changes ? { ok: true as const } : error(404, "This invitation is no longer available.");
 }
@@ -177,4 +189,16 @@ export async function revokeGuardian(db: D1Database, actor: InviteActor, grantId
      )`,
   ).bind(nowIso(), actor.user_id, grantId, actor.user_id).run();
   return meta.changes ? { ok: true as const } : error(404, "This guardian access is no longer available.");
+}
+
+export async function revokeCoach(db: D1Database, actor: InviteActor, profileId: string, coachUserId: string) {
+  const { meta } = await db.prepare(
+    `DELETE FROM coach_links
+     WHERE profile_id = ? AND user_id = ?
+       AND EXISTS (
+         SELECT 1 FROM profile_access_managers m
+         WHERE m.profile_id = coach_links.profile_id AND m.user_id = ?
+       )`,
+  ).bind(profileId, coachUserId, actor.user_id).run();
+  return meta.changes ? { ok: true as const } : error(404, "This coach access is no longer available.");
 }

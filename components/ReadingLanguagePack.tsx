@@ -22,7 +22,7 @@ function HowToUse({
   nickname,
   passageSet,
 }: {
-  audience: "learner" | "parent";
+  audience: "learner" | "parent" | "coach";
   nickname?: string;
   passageSet?: string | null;
 }) {
@@ -40,6 +40,29 @@ function HowToUse({
           <strong>Photograph and upload the pages yourself</strong> with the form below
           {passageSet ? "." : " once a plan is ready."}
           {" "}Your family asks Codex to review those photos and comment on your writing.
+        </li>
+      </ol>
+    );
+  }
+
+  if (audience === "coach") {
+    const child = nickname || "the learner";
+    return (
+      <ol className="practice-language-howto">
+        <li>
+          <strong>Review the language list</strong> the family prepared for {child}.
+        </li>
+        <li>
+          <strong>Use it in coaching</strong> — the same vocab, phrases and copywork models the learner is practising.
+        </li>
+        <li>
+          <strong>Handwriting uploads stay with the learner</strong>
+          {passageSet ? (
+            <>
+              {" "}(Passage set <code>{passageSet}</code>)
+            </>
+          ) : null}
+          . This coaching view is read-only.
         </li>
       </ol>
     );
@@ -78,7 +101,7 @@ export function ReadingLanguagePack({
   defaultOpen = true,
 }: {
   plans: LanguagePlan[];
-  audience: "learner" | "parent";
+  audience: "learner" | "parent" | "coach";
   nickname?: string;
   goal?: ExamGoal;
   limit?: number;
@@ -92,12 +115,14 @@ export function ReadingLanguagePack({
     || list.find((plan) => plan.refId)?.refId
     || null;
   const passageSet = handwritingPassageSetName(latestRef);
-  const who = audience === "parent"
-    ? (nickname ? `What ${nickname} should learn & write` : "What the learner should learn & write")
-    : "What you should learn & write";
+  const who = audience === "learner"
+    ? "What you should learn & write"
+    : (nickname ? `What ${nickname} should learn & write` : "What the learner should learn & write");
   const empty = audience === "parent"
     ? `No language / copywork plan yet. After Reading mistakes, run Ask Codex for Reading remediation & copywork — then ${nickname || "the learner"} studies the words, writes on paper, and uploads the handwriting photos from Learner room.`
-    : "No language list yet. After Reading mistakes, ask your family to run Reading remediation & copywork. Then you will see words to learn, a handwriting drill, and a place to upload your photos here.";
+    : audience === "coach"
+      ? `No language / copywork plan yet for ${nickname || "this learner"}.`
+      : "No language list yet. After Reading mistakes, ask your family to run Reading remediation & copywork. Then you will see words to learn, a handwriting drill, and a place to upload your photos here.";
 
   return (
     <div className="practice-language-pack-wrap">
@@ -145,6 +170,10 @@ export function ReadingLanguagePack({
               <p className="meta">
                 After the drill, upload your handwriting photos below. Your family asks Codex to review them and leave
                 comments on your writing.
+              </p>
+            ) : audience === "coach" ? (
+              <p className="meta">
+                The learner uploads handwriting photos in their own room. This coaching view stays read-only.
               </p>
             ) : (
               <p className="meta">

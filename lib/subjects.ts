@@ -39,3 +39,14 @@ export function learnerArchiveHref(input: {
   const hash = input.hash ? `#${input.hash.replace(/^#/, "")}` : "";
   return `/learner?${params.toString()}${hash}`;
 }
+
+export function coachArchiveHref(input: {
+  subject: PracticeSubject;
+  profileId?: string | null;
+  hash?: string;
+}) {
+  const params = new URLSearchParams({ subject: input.subject });
+  if (input.profileId) params.set("child", input.profileId);
+  const hash = input.hash ? `#${input.hash.replace(/^#/, "")}` : "";
+  return `/coach?${params.toString()}${hash}`;
+}

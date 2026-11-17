@@ -216,12 +216,15 @@ export async function listReadingRemediationPlans(
   userId: string,
   limit = 20,
 ) {
-  // Parents (guardian grants) and the linked learner may both read these plans.
+  // Parents, the linked learner, and read-only coaches may read these plans.
   const canView = `(
     ${parentAccess}
     OR EXISTS (
-      SELECT 1 FROM learner_links l
-      WHERE l.profile_id = e.profile_id AND l.user_id = ?
+      SELECT 1 FROM (
+        SELECT profile_id, user_id FROM learner_links
+        UNION ALL
+        SELECT profile_id, user_id FROM coach_links
+      ) v WHERE v.profile_id = e.profile_id AND v.user_id = ?
     )
   )`;
   const { results } = await db.prepare(
@@ -259,27 +262,37 @@ export type LearnerCoachTip = {
   sourcePapers?: RemediationSourcePaper[];
 };
 
+const tipViewerLink = `EXISTS (
+  SELECT 1 FROM (
+    SELECT profile_id, user_id FROM learner_links
+    UNION ALL
+    SELECT profile_id, user_id FROM coach_links
+  ) v WHERE v.profile_id = a.profile_id AND v.user_id = ?
+)`;
+
 export async function listLearnerCoachTips(
   db: D1Database,
   userId: string,
   subject: PracticeSubject = "thinking",
+  preferredProfileId?: string | null,
 ) {
   const rows = await db.prepare(
     `SELECT a.id, a.summary_en AS summaryEn, a.training_directions_json AS trainingJson,
             a.created_at AS createdAt, a.completed_at AS completedAt, m.kind AS materialKind
      FROM material_analyses a
      JOIN shelf_materials m ON m.id = a.material_id
-     JOIN learner_links l ON l.profile_id = a.profile_id AND l.user_id = ?
      JOIN profiles p ON p.id = a.profile_id
      WHERE a.exam_goal = p.exam_goal AND a.subject = ? AND a.status = 'succeeded'
        AND a.summary_en IS NOT NULL AND length(trim(a.summary_en)) > 0
+       AND ${tipViewerLink}
+       AND (? IS NULL OR a.profile_id = ?)
        AND a.id = (
          SELECT a2.id FROM material_analyses a2
          WHERE a2.material_id = a.material_id AND a2.status = 'succeeded'
          ORDER BY a2.created_at DESC, a2.id DESC LIMIT 1
        )
      ORDER BY a.created_at DESC, a.id DESC`,
-  ).bind(userId, subject).all<{
+  ).bind(subject, userId, preferredProfileId ?? null, preferredProfileId ?? null).all<{
     id: string;
     summaryEn: string;
     trainingJson: string | null;
@@ -301,9 +314,16 @@ export async function listLearnerCoachTips(
   if (subject === "reading") {
     const link = await db.prepare(
       `SELECT profile_id AS profileId, p.exam_goal AS examGoal
-       FROM learner_links l JOIN profiles p ON p.id = l.profile_id
-       WHERE l.user_id = ?`,
-    ).bind(userId).first<{ profileId: string; examGoal: ExamGoal }>();
+       FROM (
+         SELECT profile_id, user_id FROM learner_links
+         UNION ALL
+         SELECT profile_id, user_id FROM coach_links
+       ) v
+       JOIN profiles p ON p.id = v.profile_id
+       WHERE v.user_id = ? AND (? IS NULL OR v.profile_id = ?)
+       ORDER BY v.profile_id LIMIT 1`,
+    ).bind(userId, preferredProfileId ?? null, preferredProfileId ?? null)
+      .first<{ profileId: string; examGoal: ExamGoal }>();
     if (link) {
       const remediation = await listReadingRemediationPlans(
         db,

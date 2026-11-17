@@ -2,8 +2,16 @@ import { readFileSync } from "node:fs";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hasLearnerInvitation, isInstallationOwner, linkedLearner, listManagedFamilies, listParentProfiles } from "../lib/family.ts";
-import { acceptInvitation, childAccess, closeInvitation, issueInvitation, recipientInvitations, revokeGuardian } from "../lib/invitations.ts";
+import {
+  hasLearnerInvitation,
+  isInstallationOwner,
+  linkedCoach,
+  linkedLearner,
+  listCoachedProfiles,
+  listManagedFamilies,
+  listParentProfiles,
+} from "../lib/family.ts";
+import { acceptInvitation, childAccess, closeInvitation, issueInvitation, recipientInvitations, revokeCoach, revokeGuardian } from "../lib/invitations.ts";
 import {
   buildCodexAttemptReviewBrief,
   buildCodexBankBrief,
@@ -52,6 +60,7 @@ import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
 const core = readFileSync(new URL("../migrations/0002_core_schema.sql", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../migrations/0003_family_invitations.sql", import.meta.url), "utf8");
+const coachMigration = readFileSync(new URL("../migrations/0017_coach_access.sql", import.meta.url), "utf8");
 const actor = (id: string) => ({ user_id: id, email: id + "@example.invalid" });
 const accepted = async () => true;
 
@@ -62,7 +71,8 @@ function fixture(migrate = true) {
     INSERT INTO users(id,email) VALUES
       ('owner','owner@example.invalid'), ('guardian','guardian@example.invalid'),
       ('other','other@example.invalid'), ('learner','learner@example.invalid'),
-      ('learner2','learner2@example.invalid'), ('adult','adult@example.invalid');
+      ('learner2','learner2@example.invalid'), ('adult','adult@example.invalid'),
+      ('coach','coach@example.invalid');
     INSERT INTO families(id,name,installation_owner_user_id) VALUES
       ('f1','First family','owner'), ('f2','Other family','other');
     INSERT INTO profiles(id,family_id,nickname,exam_goal) VALUES
@@ -72,7 +82,10 @@ function fixture(migrate = true) {
       ('g1','f1','owner',NULL,'owner'), ('g2','f1','guardian','p1','guardian'),
       ('g3','f2','other',NULL,'owner'), ('g4','f2','guardian',NULL,'guardian');
   `);
-  if (migrate) sql.exec(migration);
+  if (migrate) {
+    sql.exec(migration);
+    sql.exec(coachMigration);
+  }
 
   const db = {
     prepare(query: string) {
@@ -144,6 +157,7 @@ test("an existing accepted learner link survives the additive migration and invi
       datetime('now','-1 day'),datetime('now','-2 days'),'owner');
   `);
   sql.exec(migration);
+  sql.exec(coachMigration);
   assert.equal((await linkedLearner(db, "learner"))?.id, "p1");
   assert.equal((await childAccess(db, "p1", "owner"))?.learnerEmail, actor("learner").email);
 });
@@ -188,6 +202,40 @@ test("guardian invitations grant and revoke access to the selected child only", 
   assert.equal((await revokeGuardian(db, actor("owner"), "g1")).ok, false);
   assert.equal((await revokeGuardian(db, actor("owner"), grant.id)).ok, true);
   assert.deepEqual((await listParentProfiles(db, "adult")).map((profile) => profile.id), ["p2"]);
+});
+
+test("coach invitations grant a read-only link for the selected child only", async (t) => {
+  const { sql, db } = fixture();
+  t.after(() => sql.close());
+
+  const invite = await issueInvitation(
+    db,
+    actor("owner"),
+    { profileId: "p1", email: actor("coach").email, role: "coach" },
+    accepted,
+  );
+  assert.ok(invite.ok);
+  assert.equal((await acceptInvitation(db, actor("coach"), invite.id)).ok, true);
+  assert.equal((await linkedCoach(db, "coach"))?.id, "p1");
+  assert.deepEqual((await listCoachedProfiles(db, "coach")).map((item) => item.id), ["p1"]);
+  assert.equal((await listParentProfiles(db, "coach")).length, 0);
+
+  const access = await childAccess(db, "p1", "owner");
+  const coach = access?.coaches.find((item) => item.email === actor("coach").email);
+  assert.ok(coach);
+  assert.equal((await revokeCoach(db, actor("other"), coach.profileId, coach.userId)).ok, false);
+  assert.equal((await revokeCoach(db, actor("owner"), coach.profileId, coach.userId)).ok, true);
+  assert.equal(await linkedCoach(db, "coach"), null);
+
+  const sibling = await issueInvitation(
+    db,
+    actor("owner"),
+    { profileId: "p2", email: actor("coach").email, role: "coach" },
+    accepted,
+  );
+  assert.ok(sibling.ok);
+  assert.equal((await acceptInvitation(db, actor("coach"), sibling.id)).ok, true);
+  assert.deepEqual((await listCoachedProfiles(db, "coach")).map((item) => item.id), ["p2"]);
 });
 
 test("an invitation cannot be accepted after the sender loses management access", async (t) => {

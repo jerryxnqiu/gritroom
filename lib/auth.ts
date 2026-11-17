@@ -1,13 +1,21 @@
 import { env } from "cloudflare:workers";
 
 import { randomDigits, randomToken, sha256Hex } from "./crypto";
-import { hasLearnerInvitation, hasOpenInvitations, linkedLearner, listManagedFamilies, listParentProfiles } from "./family";
+import {
+  hasCoachInvitation,
+  hasLearnerInvitation,
+  hasOpenInvitations,
+  linkedCoach,
+  linkedLearner,
+  listManagedFamilies,
+  listParentProfiles,
+} from "./family";
 import type { ExamGoal } from "./family";
 import { createId } from "./ids";
 import { sendEmail } from "./smtp";
 import { isExpired, minutesFromNow, nowIso } from "./time";
 
-export type EntryKind = "learner" | "parent";
+export type EntryKind = "learner" | "parent" | "coach";
 
 export type SessionRow = {
   id: string;
@@ -38,10 +46,25 @@ async function parentScope(userId: string, preferredProfile?: string | null) {
 async function resolveRoom(userId: string, email: string, entry: EntryKind, preferredProfile?: string | null) {
   const learner = await linkedLearner(env.DB, userId);
   if (learner) return { entry: "learner" as const, profile_id: learner.id, family_id: learner.familyId };
+
+  const coach = await linkedCoach(env.DB, userId, preferredProfile);
+  if (entry === "coach") {
+    if (coach) return { entry: "coach" as const, profile_id: coach.id, family_id: coach.familyId };
+    if (await hasCoachInvitation(env.DB, email)) {
+      return { entry: "coach" as const, profile_id: null, family_id: null };
+    }
+  }
+
   const scope = await parentScope(userId, preferredProfile);
   if (scope.family_id) return { entry: "parent" as const, ...scope };
+  if (coach) return { entry: "coach" as const, profile_id: coach.id, family_id: coach.familyId };
+
   const isLearner = entry === "learner" || await hasLearnerInvitation(env.DB, email);
-  return { entry: isLearner ? "learner" as const : "parent" as const, ...scope };
+  if (isLearner) return { entry: "learner" as const, ...scope };
+  if (entry === "coach" || await hasCoachInvitation(env.DB, email)) {
+    return { entry: "coach" as const, ...scope };
+  }
+  return { entry: "parent" as const, ...scope };
 }
 
 export async function requestSignInCode(input: {
