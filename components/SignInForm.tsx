@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 
-type EntryKind = "learner" | "parent";
+type EntryKind = "learner" | "parent" | "coach";
 
 export function SignInForm({ entry }: { entry: EntryKind }) {
   const router = useRouter();
@@ -32,7 +32,11 @@ export function SignInForm({ entry }: { entry: EntryKind }) {
         if (!response.ok) {
           setError(result.error || "Could not sign in. Please try again.");
         } else if (verifying) {
-          router.replace(result.redirectTo === "/parent" || result.redirectTo === "/invitations" ? result.redirectTo : "/learner");
+          const allowed = result.redirectTo === "/parent"
+            || result.redirectTo === "/invitations"
+            || result.redirectTo === "/coach"
+            || result.redirectTo === "/learner";
+          router.replace(allowed && result.redirectTo ? result.redirectTo : "/learner");
           router.refresh();
         } else {
           setSentTo(address);
@@ -44,6 +48,15 @@ export function SignInForm({ entry }: { entry: EntryKind }) {
       }
     });
   }
+
+  const emailLabel = entry === "parent"
+    ? "Parent email"
+    : entry === "coach"
+      ? "Coach email"
+      : "Learner email";
+  const emailPlaceholder = entry === "parent"
+    ? "Your parent email address"
+    : "Your invited email address";
 
   return (
     <form className="stack-form sign-in-form" onSubmit={submit} aria-busy={pending}>
@@ -68,13 +81,13 @@ export function SignInForm({ entry }: { entry: EntryKind }) {
         </>
       ) : (
         <label className="field">
-          <span>{entry === "parent" ? "Parent email" : "Learner email"}</span>
+          <span>{emailLabel}</span>
           <input
             autoComplete="email"
             inputMode="email"
             name="email"
             onChange={(event) => setEmail(event.target.value)}
-            placeholder={entry === "parent" ? "Your parent email address" : "Your invited email address"}
+            placeholder={emailPlaceholder}
             type="email"
             value={email}
             maxLength={254}

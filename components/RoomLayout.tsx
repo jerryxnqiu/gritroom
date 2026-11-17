@@ -12,7 +12,7 @@ export type RoomNavItem = {
 export function RoomLayout({
   role, name, badge, navItems, onNavItemClick, children,
 }: {
-  role: "parent" | "learner";
+  role: "parent" | "learner" | "coach";
   name: string;
   badge: string;
   navItems?: RoomNavItem[];
@@ -20,17 +20,18 @@ export function RoomLayout({
   children: ReactNode;
 }) {
   const parent = role === "parent";
-  const title = parent ? "Parent room" : "My room";
+  const coach = role === "coach";
+  const title = parent ? "Parent room" : coach ? "Coaching room" : "My room";
   const items = navItems?.length
     ? navItems
-    : [{ href: parent ? "/parent" : "/learner", label: title, current: true }];
+    : [{ href: parent ? "/parent" : coach ? "/coach" : "/learner", label: title, current: true }];
 
   return (
     <div className="room-layout">
       <aside className="room-sidebar">
         <Brand />
         <nav className="room-nav" aria-label="Your room">
-          <p className="eyebrow">Your {parent ? "family" : "practice"} room</p>
+          <p className="eyebrow">Your {parent ? "family" : coach ? "coaching" : "practice"} room</p>
           {items.map((item) => {
             const hashOnly = item.href.startsWith("#");
             const className = item.current ? "is-current" : undefined;
@@ -50,7 +51,7 @@ export function RoomLayout({
                             : <><path d="M12 3 4 6.5v5c0 4.7 2.9 7.6 8 9.5 5.1-1.9 8-4.8 8-9.5v-5L12 3Z" /><path d="m8.5 12 2.1 2.1 4.9-5" /></>
                   : item.href.includes("timed")
                     ? <><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 1.5" /></>
-                    : item.href.includes("results")
+                    : item.href.includes("results") || item.href.includes("tips")
                       ? <><path d="M8 6h10v14H8z" /><path d="M6 8h2M6 12h2M6 16h2" /><path d="M11 10h4M11 14h5" /></>
                       : <path d="m3 10 9-7 9 7v10h-6v-7H9v7H3Z" />}
               </svg>

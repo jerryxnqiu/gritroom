@@ -19,12 +19,16 @@ export function InvitationInbox({ invites }: { invites: RecipientInvite[] }) {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ action }),
         });
-        const result = await response.json() as { error?: string; role?: "learner" | "guardian"; profileId?: string };
+        const result = await response.json() as { error?: string; role?: "learner" | "guardian" | "coach"; profileId?: string };
         if (!response.ok) throw new Error(result.error || "Could not update the invitation. Try again.");
         if (action === "accept") {
-          router.replace(result.role === "guardian" && result.profileId
-            ? `/parent?child=${encodeURIComponent(result.profileId)}`
-            : "/learner");
+          if (result.role === "guardian" && result.profileId) {
+            router.replace(`/parent?child=${encodeURIComponent(result.profileId)}`);
+          } else if (result.role === "coach" && result.profileId) {
+            router.replace(`/coach?child=${encodeURIComponent(result.profileId)}`);
+          } else {
+            router.replace("/learner");
+          }
         } else {
           setFeedback({ text: "Invitation declined." });
         }
@@ -41,13 +45,21 @@ export function InvitationInbox({ invites }: { invites: RecipientInvite[] }) {
       {feedback ? <p className={feedback.error ? "error" : "notice"} role={feedback.error ? "alert" : "status"}>{feedback.text}</p> : null}
       {invites.length ? invites.map((invite) => (
         <article className="panel invite-card" key={invite.id}>
-          <span className="pill">{invite.role === "learner" ? "Learner invitation" : "Guardian invitation"}</span>
+          <span className="pill">
+            {invite.role === "learner"
+              ? "Learner invitation"
+              : invite.role === "coach"
+                ? "Coach invitation"
+                : "Guardian invitation"}
+          </span>
           <h2>{invite.nickname} <span className="invite-goal">· {examLabel(invite.examGoal)}</span></h2>
           <p className="meta">{invite.familyName}</p>
           <p className="meta">Invited by <strong>{invite.inviterEmail}</strong></p>
           <p className="lede">{invite.role === "learner"
             ? "Accept to connect this email to your learner profile. Make sure you recognise the parent who invited you."
-            : "Accept to see this child’s progress. This invitation gives you access to this child only."}</p>
+            : invite.role === "coach"
+              ? "Accept for a read-only coaching view of this learner’s results and tips. You will not sit papers or change family settings."
+              : "Accept to see this child’s progress. This invitation gives you access to this child only."}</p>
           <div className="actions">
             <button className="button" type="button" disabled={pending} onClick={() => respond(invite, "accept")}>Accept invitation</button>
             <button className="button secondary" type="button" disabled={pending} onClick={() => respond(invite, "decline")}>Decline invitation</button>

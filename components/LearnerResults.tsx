@@ -89,12 +89,18 @@ export function LearnerResults({
   initialSessions,
   initialHasMore = false,
   languageTips = [],
+  audience = "learner",
+  nickname,
+  profileId,
 }: {
   subject?: PracticeSubject;
   examGoal?: "selective" | "oc";
   initialSessions: PracticeResultSessionSummary[];
   initialHasMore?: boolean;
   languageTips?: LearnerCoachTip[];
+  audience?: "learner" | "coach";
+  nickname?: string;
+  profileId?: string | null;
 }) {
   const [sessions, setSessions] = useState(initialSessions);
   const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
@@ -130,6 +136,7 @@ export function LearnerResults({
           offset: String(offset),
           limit: "10",
         });
+        if (profileId) params.set("child", profileId);
         const response = await fetch(`/api/practice/results?${params}`);
         const data = await response.json() as {
           sessions?: PracticeResultSessionSummary[];
@@ -163,7 +170,8 @@ export function LearnerResults({
     setStatus(undefined);
     startTransition(async () => {
       try {
-        const response = await fetch(`/api/practice/results/${encodeURIComponent(sessionId)}`);
+        const detailParams = profileId ? `?child=${encodeURIComponent(profileId)}` : "";
+        const response = await fetch(`/api/practice/results/${encodeURIComponent(sessionId)}${detailParams}`);
         const data = await response.json() as {
           session?: PracticeEvidenceSession;
           error?: string;
@@ -196,17 +204,20 @@ export function LearnerResults({
   return (
     <section className="panel practice-panel" aria-labelledby="practice-heading" aria-busy={pending}>
       <p className="eyebrow">Last results</p>
-      <h2 id="practice-heading">Your past papers.</h2>
+      <h2 id="practice-heading">{audience === "coach" ? "Past papers." : "Your past papers."}</h2>
       <p className="lede">
         Browse by paper, not by every question at once. Open one session, then focus on misses or scan all answers.
-        {subject === "reading"
+        {subject === "reading" && audience === "learner"
           ? " Vocabulary and phrases to memorise from remediation are listed below when your family has run that plan — then you upload your handwriting photos yourself."
-          : ""}
+          : subject === "reading" && audience === "coach"
+            ? " Vocabulary and phrases from remediation are listed below when the family has run that plan."
+            : ""}
       </p>
 
       {subject === "reading" ? (
         <ReadingLanguagePack
-          audience="learner"
+          audience={audience}
+          nickname={nickname}
           goal={examGoal}
           plans={languageTips.map((tip) => ({
             id: tip.id,
