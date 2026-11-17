@@ -9,14 +9,25 @@ export async function GET(
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const session = await getSession(await getSessionTokenFromCookies());
-  if (!session || session.entry !== "learner") {
-    return json({ error: "Learner sign-in required." }, { status: 401 });
+  if (!session || (session.entry !== "learner" && session.entry !== "coach")) {
+    return json({ error: "Learner or coach sign-in required." }, { status: 401 });
   }
 
   const { sessionId } = await params;
   if (!sessionId?.trim()) return json({ error: "Choose a practice session." }, { status: 400 });
 
-  const result = await getLearnerPracticeResultSession(env.DB, session.user_id, sessionId.trim());
+  const url = new URL(_request.url);
+  const child = url.searchParams.get("child");
+  const profileId = session.entry === "coach"
+    ? (child && child.length <= 100 ? child : session.profile_id)
+    : null;
+
+  const result = await getLearnerPracticeResultSession(
+    env.DB,
+    session.user_id,
+    sessionId.trim(),
+    profileId,
+  );
   if (!result) return json({ error: "That practice session is unavailable." }, { status: 404 });
   return json({ session: result });
 }

@@ -7,8 +7,8 @@ import { shelfSubject } from "@/lib/subjects";
 
 export async function GET(request: Request) {
   const session = await getSession(await getSessionTokenFromCookies());
-  if (!session || session.entry !== "learner") {
-    return json({ error: "Learner sign-in required." }, { status: 401 });
+  if (!session || (session.entry !== "learner" && session.entry !== "coach")) {
+    return json({ error: "Learner or coach sign-in required." }, { status: 401 });
   }
 
   const url = new URL(request.url);
@@ -20,11 +20,16 @@ export async function GET(request: Request) {
 
   const sessionOffset = Number.isFinite(offset) ? Math.max(0, Math.floor(offset)) : 0;
   const sessionLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.floor(limit), 1), 30) : 10;
+  const child = url.searchParams.get("child");
+  const profileId = session.entry === "coach"
+    ? (child && child.length <= 100 ? child : session.profile_id)
+    : null;
   const sessions = await listLearnerPracticeResults(env.DB, session.user_id, {
     mode,
     subject,
     sessionOffset,
     sessionLimit: sessionLimit + 1,
+    profileId,
   });
   const hasMore = sessions.length > sessionLimit;
   return json({

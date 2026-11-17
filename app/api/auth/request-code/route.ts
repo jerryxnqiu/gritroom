@@ -4,10 +4,16 @@ import { clientIp, isValidEmail, json, normalizeEmail, readJson } from "@/lib/ht
 export async function POST(request: Request) {
   const body = await readJson<{ email?: string; entry?: EntryKind }>(request);
   const email = normalizeEmail(body?.email ?? "");
-  const entry = body?.entry === "learner" ? "learner" : body?.entry === "parent" ? "parent" : null;
+  const entry = body?.entry === "learner"
+    ? "learner"
+    : body?.entry === "parent"
+      ? "parent"
+      : body?.entry === "coach"
+        ? "coach"
+        : null;
 
   if (!entry || !isValidEmail(email)) {
-    return json({ error: "Enter a valid email and choose learner or parent." }, { status: 400 });
+    return json({ error: "Enter a valid email and choose how you sign in." }, { status: 400 });
   }
 
   const result = await requestSignInCode({

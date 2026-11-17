@@ -7,7 +7,7 @@ import { findAttemptImage } from "@/lib/practice";
 /** Serves the stem figure snapshotted on an attempt (immutable R2 key). */
 export async function GET(_request: Request, { params }: { params: Promise<{ attemptId: string }> }) {
   const session = await getSession(await getSessionTokenFromCookies());
-  if (!session || (session.entry !== "learner" && session.entry !== "parent")) {
+  if (!session || (session.entry !== "learner" && session.entry !== "parent" && session.entry !== "coach")) {
     return new Response("Sign-in required.", { status: 401 });
   }
 

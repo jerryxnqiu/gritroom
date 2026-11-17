@@ -4,7 +4,13 @@ import { isValidEmail, json, normalizeEmail, readJson, sessionCookieHeader } fro
 export async function POST(request: Request) {
   const body = await readJson<{ email?: string; entry?: EntryKind; code?: string }>(request);
   const email = normalizeEmail(body?.email ?? "");
-  const entry = body?.entry === "learner" ? "learner" : body?.entry === "parent" ? "parent" : null;
+  const entry = body?.entry === "learner"
+    ? "learner"
+    : body?.entry === "parent"
+      ? "parent"
+      : body?.entry === "coach"
+        ? "coach"
+        : null;
   const code = typeof body?.code === "string" ? body.code.replace(/\s+/g, "") : "";
 
   if (!entry || !isValidEmail(email) || !/^\d{6}$/.test(code)) {
@@ -16,12 +22,20 @@ export async function POST(request: Request) {
     return json({ error: result.error }, { status: result.status });
   }
 
+  const redirectTo = result.hasInvitations
+    ? "/invitations"
+    : result.entry === "parent"
+      ? "/parent"
+      : result.entry === "coach"
+        ? "/coach"
+        : "/learner";
+
   return json(
     {
       ok: true,
       entry: result.entry,
       needsOnboarding: result.needsOnboarding,
-      redirectTo: result.hasInvitations ? "/invitations" : result.entry === "parent" ? "/parent" : "/learner",
+      redirectTo,
     },
     {
       headers: {

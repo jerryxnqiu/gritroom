@@ -13,11 +13,16 @@ export async function POST(request: Request) {
   const profileId = typeof body?.profileId === "string" ? body.profileId : "";
   const email = normalizeEmail(body?.email);
   const role = body?.role;
-  if (!profileId || profileId.length > 100 || !isValidEmail(email) || (role !== "learner" && role !== "guardian")) {
+  if (
+    !profileId
+    || profileId.length > 100
+    || !isValidEmail(email)
+    || (role !== "learner" && role !== "guardian" && role !== "coach")
+  ) {
     return json({ error: "Enter a valid recipient email for this child." }, { status: 400 });
   }
 
-  const entry = role === "learner" ? "learner" : "parent";
+  const entry = role === "learner" ? "learner" : role === "coach" ? "coach" : "parent";
   const signInUrl = new URL("/?entry=" + entry, request.url).toString();
   const result = await issueInvitation(env.DB, session, { profileId, email, role }, async () => {
     const delivery = await sendEmail({
@@ -28,7 +33,9 @@ export async function POST(request: Request) {
       text: [
         role === "learner"
           ? "A parent has invited you to connect your learner profile in GritRoom."
-          : "A family has invited you to be a guardian for a child in GritRoom.",
+          : role === "coach"
+            ? "A family has invited you to coach a learner in GritRoom. You will see their practice results (read-only)."
+            : "A family has invited you to be a guardian for a child in GritRoom.",
         "",
         "Open GritRoom and sign in with this exact email address: " + signInUrl,
         "Enter the six-digit code from your inbox, then review and accept the invitation in GritRoom.",
