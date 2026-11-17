@@ -12,9 +12,10 @@ export type MaterialKind = keyof typeof materialKinds;
 
 export const materialTypes = ["application/pdf", "image/jpeg", "image/png", "image/webp"] as const;
 export const maxMaterialBytes = 8 * 1024 * 1024;
-/** Multi-page marked papers / practice sources — keep under Worker body limits. */
-export const maxMaterialFiles = 20;
-export const maxMaterialBatchBytes = maxMaterialFiles * maxMaterialBytes;
+/** Multi-page marked papers / practice sources — enough for a full sample paper. */
+export const maxMaterialFiles = 40;
+/** Cap whole-set upload under the Workers request body limit (~100 MB). */
+export const maxMaterialBatchBytes = 95 * 1024 * 1024;
 
 export function shelfGoal(value: unknown): ExamGoal | null {
   return value === "selective" || value === "oc" ? value : null;
@@ -81,10 +82,10 @@ export function composeResourceSetNotes(input: {
 
 function collectUploadFiles(form: FormData) {
   const multi = form.getAll("files")
-    .filter((item): item is File => item instanceof File && Boolean(item.size || item.name));
+    .filter((item): item is File => item instanceof File && item.size > 0);
   if (multi.length) return multi;
   const single = form.get("file");
-  if (single instanceof File && (single.size || single.name)) return [single];
+  if (single instanceof File && single.size > 0) return [single];
   return [] as File[];
 }
 

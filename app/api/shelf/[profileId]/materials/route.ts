@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { getSession } from "@/lib/auth";
 import { getSessionTokenFromCookies, json } from "@/lib/http";
 import { canOpenShelf, saveMaterials } from "@/lib/resource-shelf";
-import { maxMaterialBatchBytes, parseMaterial } from "@/lib/shelf-fields";
+import { maxMaterialBatchBytes, maxMaterialFiles, parseMaterial } from "@/lib/shelf-fields";
 
 export async function POST(request: Request, { params }: { params: Promise<{ profileId: string }> }) {
   const session = await getSession(await getSessionTokenFromCookies());
@@ -31,7 +31,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     form = await new Response(body, { headers: request.headers }).formData();
   } catch {
     return bytes > limit
-      ? json({ error: "Keep the whole set under about 160 MB (up to 20 files × 8 MB)." }, { status: 413 })
+      ? json({
+        error: `Keep the whole set under about 95 MB (up to ${maxMaterialFiles} pages · 8 MB each).`,
+      }, { status: 413 })
       : json({ error: "Could not read the upload. Choose the files again and retry." }, { status: 400 });
   }
 

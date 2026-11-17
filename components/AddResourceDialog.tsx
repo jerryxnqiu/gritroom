@@ -154,7 +154,7 @@ export function AddResourceDialog({
             </label>
             <p id="resource-file-help" className="meta">
               {multiPageKind
-                ? `PDF, JPG, PNG or WebP · up to ${maxMaterialFiles} files · 8 MB each. Choose pages in order; no PDF merge needed.`
+                ? `PDF, JPG, PNG or WebP · up to ${maxMaterialFiles} pages · 8 MB each · whole set under ~95 MB. Choose pages in order; no PDF merge needed.`
                 : "PDF, JPG, PNG or WebP · up to 8 MB. Coaching items can be reviewed with Ask Codex."}
             </p>
             {error ? <p className="error" role="alert">{error}</p> : null}
