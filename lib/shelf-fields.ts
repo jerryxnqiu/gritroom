@@ -80,6 +80,36 @@ export function composeResourceSetNotes(input: {
   return lines.join("\n").trim();
 }
 
+export type ResourceSetLabel = "Passage set" | "Paper set" | "Source set";
+
+/** Parse Paper/Source/Passage set lines written into shelf notes. */
+export function parseResourceSetNotes(notes: string | null | undefined) {
+  const text = notes?.trim() || "";
+  const setMatch = text.match(/^(Passage set|Paper set|Source set):\s*(.+)$/m);
+  const pageMatch = text.match(/^Page:\s*(\d+)(?:\s+of\s+(\d+))?$/m);
+  const sourceQuestionsMatch = text.match(/^Source questions in this article:\s*(.+)$/m);
+  const meta = /^(Passage set|Paper set|Source set|Page|Source questions in this article):/i;
+  const extraNotes = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !meta.test(line))
+    .join("\n")
+    .trim();
+  return {
+    setLabel: (setMatch?.[1] as ResourceSetLabel | undefined) ?? null,
+    setName: setMatch?.[2]?.trim() || null,
+    page: pageMatch ? Number(pageMatch[1]) : null,
+    pageCount: pageMatch?.[2] ? Number(pageMatch[2]) : null,
+    sourceQuestions: sourceQuestionsMatch?.[1]?.trim() || null,
+    extraNotes: extraNotes || null,
+  };
+}
+
+/** Drop “ · page N of M” from auto-generated multi-page titles. */
+export function stripResourcePageSuffix(title: string) {
+  return title.replace(/\s·\s*page\s+\d+(?:\s+of\s+\d+)?$/i, "").trim() || title;
+}
+
 function collectUploadFiles(form: FormData) {
   const multi = form.getAll("files")
     .filter((item): item is File => item instanceof File && item.size > 0);

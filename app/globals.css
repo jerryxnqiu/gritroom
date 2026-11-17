@@ -374,6 +374,28 @@ p { margin: 0; }
 .shelf-item + .shelf-item { border-top: 1px solid #e7eee0; }
 .shelf-item > div:first-child { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
 .shelf-item .meta { margin-top: .15rem; }
+.shelf-set-pages {
+  display: grid;
+  gap: .35rem;
+  margin: .45rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.shelf-set-pages li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .35rem .8rem;
+  color: var(--muted);
+  font-size: .9rem;
+}
+.shelf-set-pages a {
+  color: var(--moss);
+  font-weight: 650;
+  text-decoration: none;
+}
+.shelf-set-pages a:hover { text-decoration: underline; }
 .shelf-analysis { margin-top: .55rem; }
 .shelf-analysis-nested {
   margin: .75rem 0 0 1rem; padding: .15rem 0 .15rem .85rem;

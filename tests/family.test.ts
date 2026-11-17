@@ -55,7 +55,8 @@ import {
   scrubRemediationSummaryForLearner,
 } from "../lib/reading-remediation.ts";
 import { buildPracticeScorePoints } from "../lib/practice-score-chart.ts";
-import { composeReadingPassageNotes, composeResourceSetNotes } from "../lib/shelf-fields.ts";
+import { composeReadingPassageNotes, composeResourceSetNotes, parseResourceSetNotes, stripResourcePageSuffix } from "../lib/shelf-fields.ts";
+import { groupShelfMaterials } from "../lib/shelf-sets.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
 const core = readFileSync(new URL("../migrations/0002_core_schema.sql", import.meta.url), "utf8");
@@ -696,6 +697,44 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
     }),
     /Source set: Workbook ch\.4\nPage: 1 of 5/,
   );
+  assert.deepEqual(
+    parseResourceSetNotes("Source set: Wk18 STTC\nPage: 2 of 7\nOptional note"),
+    {
+      setLabel: "Source set",
+      setName: "Wk18 STTC",
+      page: 2,
+      pageCount: 7,
+      sourceQuestions: null,
+      extraNotes: "Optional note",
+    },
+  );
+  assert.equal(stripResourcePageSuffix("Wk18 STTC TS workbook · page 3 of 7"), "Wk18 STTC TS workbook");
+  const grouped = groupShelfMaterials([
+    {
+      id: "p2",
+      kind: "study_material",
+      title: "Wk18 STTC TS workbook · page 2 of 2",
+      url: null,
+      notes: "Source set: Wk18 STTC\nPage: 2 of 2",
+      fileName: "2.jpg",
+      fileType: "image/jpeg",
+      createdAt: "2026-11-17T02:00:00.000Z",
+    },
+    {
+      id: "p1",
+      kind: "study_material",
+      title: "Wk18 STTC TS workbook · page 1 of 2",
+      url: null,
+      notes: "Source set: Wk18 STTC\nPage: 1 of 2",
+      fileName: "1.jpg",
+      fileType: "image/jpeg",
+      createdAt: "2026-11-17T01:00:00.000Z",
+    },
+  ]);
+  assert.equal(grouped.length, 1);
+  assert.equal(grouped[0]?.title, "Wk18 STTC");
+  assert.equal(grouped[0]?.pages.length, 2);
+  assert.equal(grouped[0]?.anchor.id, "p1");
   const markedMaterial = await getMaterialForCodex(db, "p1", "notes", "owner");
   assert.ok(markedMaterial);
   const markedBrief = buildCodexMaterialBrief(
