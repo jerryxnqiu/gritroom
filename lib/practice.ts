@@ -1,11 +1,11 @@
 import type { ExamGoal } from "./family";
 import { createId } from "./ids.ts";
-import type { PracticeSubject } from "./subjects.ts";
+import { parseSubject, type PracticeSubject } from "./subjects.ts";
 import { thinkingKnowledge } from "./thinking-knowledge.ts";
 import { nowIso } from "./time.ts";
 
 export type PracticeMode = "diagnostic" | "daily" | "timed" | "focus";
-export type PracticeOptionKey = "A" | "B" | "C" | "D";
+export type PracticeOptionKey = "A" | "B" | "C" | "D" | "E";
 
 const WEAK_BLUEPRINT_LIMIT = 3;
 const SHORT_SET_SIZE = 10;
@@ -17,9 +17,11 @@ export function timedPaperSpec(goal: ExamGoal) {
     : { questions: 40, minutes: 40, label: "40-question timed paper" };
 }
 
-/** Official clock minutes for any timed paper (Thinking or Reading). */
+/** Official clock minutes for any timed MCQ paper. */
 export function timedPaperLimitMinutes(subject: PracticeSubject, goal: ExamGoal) {
   if (subject === "reading") return goal === "oc" ? 40 : 45;
+  if (subject === "mathematics") return 40;
+  if (subject === "writing") return 30;
   return timedPaperSpec(goal).minutes;
 }
 
@@ -343,17 +345,31 @@ export async function countUnusedPracticeQuestions(
   return unused.length;
 }
 
-async function loadAttempts(db: D1Database, sessionId: string) {
+async function loadAttempts(db: D1Database, sessionId: string, subject: PracticeSubject = "thinking") {
+  const mathematicsJoins = subject === "mathematics"
+    ? `LEFT JOIN mathematics_questions mq
+         ON a.subject = 'mathematics' AND mq.id = a.question_id AND mq.version = a.question_version
+       LEFT JOIN mathematics_blueprints mb
+         ON mb.id = mq.blueprint_id
+        AND mb.version = (
+          SELECT MAX(other.version) FROM mathematics_blueprints other WHERE other.id = mq.blueprint_id
+        )`
+    : "";
+  const titleExpr = subject === "mathematics" ? "COALESCE(b.title, mb.title)" : "b.title";
+  const skillExpr = subject === "mathematics" ? "COALESCE(b.skill, mb.skill)" : "b.skill";
   const { results } = await db.prepare(
     `SELECT a.id, a.session_id AS sessionId, a.question_id AS questionId, a.question_version AS questionVersion,
             a.blueprint_id AS blueprintId, a.blueprint_version AS blueprintVersion,
-            b.title AS blueprintTitle, b.skill, a.question_prompt AS prompt, a.options_json AS optionsJson,
+            ${titleExpr} AS blueprintTitle,
+            ${skillExpr} AS skill,
+            a.question_prompt AS prompt, a.options_json AS optionsJson,
             a.image_key AS imageKey, a.correct_option AS correctOption, a.selected_option AS selectedOption,
             a.is_correct AS isCorrect, a.confidence, a.time_ms AS timeMs, a.draft_notes AS draftNotes,
             a.explanation_en AS explanationEn, a.attempt_review_en AS attemptReviewEn,
             a.finalized_at AS finalizedAt, a.created_at AS createdAt
      FROM practice_attempts a
      LEFT JOIN thinking_blueprints b ON b.id = a.blueprint_id AND b.version = a.blueprint_version
+     ${mathematicsJoins}
      WHERE a.session_id = ?
      ORDER BY a.created_at, a.id`,
   ).bind(sessionId).all<AttemptRow>();
@@ -392,10 +408,11 @@ export async function getPracticeSession(db: D1Database, sessionId: string, user
     completedAt: string | null;
   }>();
   if (!session) return null;
-  const attempts = await loadAttempts(db, session.id);
+  const subject = parseSubject(session.subject) ?? "thinking";
+  const attempts = await loadAttempts(db, session.id, subject);
   return {
     ...session,
-    subject: session.subject === "reading" ? "reading" : "thinking",
+    subject,
     attempts: attempts.map((row) => toAttemptView(row, session.status !== "active")),
   } satisfies PracticeSessionView;
 }
@@ -551,7 +568,7 @@ export async function saveTimedDraft(
   },
 ): Promise<{ ok: true; session: PracticeSessionView; attempt: PracticeAttemptView } | { ok: false; status: number; error: string }> {
   const option = input.selectedOption.trim().toUpperCase();
-  if (!/^[A-D]$/.test(option)) return { ok: false, status: 400, error: "Choose one of the answer options." };
+  if (!/^[A-E]$/.test(option)) return { ok: false, status: 400, error: "Choose one of the answer options." };
   if (!Number.isInteger(input.timeMs) || input.timeMs < 0 || input.timeMs > 60 * 60 * 1000) {
     return { ok: false, status: 400, error: "Practice time looks invalid. Try again." };
   }
@@ -681,7 +698,7 @@ export async function submitPracticeAttempt(
   },
 ): Promise<{ ok: true; session: PracticeSessionView; attempt: PracticeAttemptView } | { ok: false; status: number; error: string }> {
   const option = input.selectedOption.trim().toUpperCase();
-  if (!/^[A-D]$/.test(option)) return { ok: false, status: 400, error: "Choose one of the answer options." };
+  if (!/^[A-E]$/.test(option)) return { ok: false, status: 400, error: "Choose one of the answer options." };
   if (!Number.isInteger(input.confidence) || input.confidence < 1 || input.confidence > 5) {
     return { ok: false, status: 400, error: "Confidence must be a whole number from 1 to 5." };
   }
@@ -861,7 +878,9 @@ async function loadPracticeSessionAttempts(db: D1Database, sessionIds: string[])
   const { results: attemptRows } = await db.prepare(
     `SELECT a.id, a.session_id AS sessionId, ${sessionModeSelect}, a.question_prompt AS prompt,
             a.options_json AS optionsJson, a.image_key AS imageKey,
-            b.title AS blueprintTitle, b.skill, a.selected_option AS selectedOption,
+            COALESCE(b.title, mb.title) AS blueprintTitle,
+            COALESCE(b.skill, mb.skill) AS skill,
+            a.selected_option AS selectedOption,
             a.correct_option AS correctOption, a.is_correct AS isCorrect, a.confidence,
             a.time_ms AS timeMs, a.draft_notes AS draftNotes,
             a.explanation_en AS explanationEn, a.attempt_review_en AS attemptReviewEn,
@@ -869,6 +888,13 @@ async function loadPracticeSessionAttempts(db: D1Database, sessionIds: string[])
      FROM practice_attempts a
      JOIN practice_sessions s ON s.id = a.session_id
      LEFT JOIN thinking_blueprints b ON b.id = a.blueprint_id AND b.version = a.blueprint_version
+     LEFT JOIN mathematics_questions mq
+       ON a.subject = 'mathematics' AND mq.id = a.question_id AND mq.version = a.question_version
+     LEFT JOIN mathematics_blueprints mb
+       ON mb.id = mq.blueprint_id
+      AND mb.version = (
+        SELECT MAX(other.version) FROM mathematics_blueprints other WHERE other.id = mq.blueprint_id
+      )
      WHERE a.session_id IN (${placeholders}) AND a.finalized_at IS NOT NULL
      ORDER BY a.created_at, a.id`,
   ).bind(...sessionIds).all<AttemptRow & {

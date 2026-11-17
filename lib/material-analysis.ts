@@ -423,6 +423,17 @@ export function buildCodexBankBrief(input: {
       ? buildCodexReadingRemediationBrief(input)
       : buildCodexReadingBankBrief(input);
   }
+  if (subject === "mathematics") {
+    return buildCodexMathematicsBankBrief(input);
+  }
+  if (subject === "writing") {
+    return [
+      "GritRoom Writing support",
+      "",
+      "Writing is an open-response Selective task (one prompt, 30 minutes), not an MCQ bank.",
+      "Use the Writing shelf for coaching reports and sample prompts. Do not insert mathematics_questions or practice_questions rows for Writing.",
+    ].join("\n");
+  }
 
   const { profileId, goal, nickname, actorUserId, materials } = input;
   const stamp = nowIso();
@@ -537,6 +548,75 @@ export function buildCodexBankBrief(input: {
     "```",
     "",
     "Then tell the parent to refresh Parent room → Thinking Skills → Practice bank / start a new practice session.",
+  ].join("\n");
+}
+
+/** Mathematical Reasoning bank: five-option A–E items into mathematics_questions. */
+function buildCodexMathematicsBankBrief(input: {
+  profileId: string;
+  goal: ExamGoal;
+  nickname: string;
+  actorUserId: string;
+  materials: BankMaterial[];
+}) {
+  const { profileId, goal, nickname, actorUserId, materials } = input;
+  const stamp = nowIso();
+  const coaching = materials.filter((item) => item.kind !== "study_material");
+  const practiceSources = materials.filter((item) => item.kind === "study_material");
+  const evidenceId = createId("evd");
+  const packId = createId("mqp");
+
+  return [
+    "GritRoom Codex Mathematics practice-bank generation",
+    "",
+    "You are working in the local gritroom repo with wrangler access to remote D1/R2.",
+    "Write original NSW Mathematical Reasoning items (35-question timed paper, 40 minutes, five options A–E).",
+    "No calculator. Prefer reasoning over heavy arithmetic. Do NOT copy commercial or NSW sample stems.",
+    "",
+    "## Scope",
+    `- profile_id: ${profileId}`,
+    `- learner: ${nickname}`,
+    `- exam_goal: ${goal}`,
+    `- subject: mathematics`,
+    `- actor_user_id: ${actorUserId}`,
+    `- prepared_at: ${stamp}`,
+    "",
+    "Official foundations:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, version, skill, title, method, authoring_rule, verification_rule FROM mathematics_blueprints;"`,
+    "```",
+    "",
+    "Current active Mathematics bank:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, version, blueprint_id, substr(prompt,1,80) AS prompt, correct_option, status FROM mathematics_questions WHERE status = 'active' AND exam_goal = '${goal}' ORDER BY blueprint_id, id, version;"`,
+    "```",
+    "",
+    "Recent Mathematics attempts:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT question_id, is_correct, substr(question_prompt,1,80) AS prompt FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'mathematics' AND finalized_at IS NOT NULL ORDER BY finalized_at DESC LIMIT 100;"`,
+    "```",
+    "",
+    `## Coaching reports & videos (${coaching.length})`,
+    coaching.length ? materialLines(coaching) : "(none in this archive)",
+    "",
+    `## Practice sources (${practiceSources.length})`,
+    practiceSources.length ? materialLines(practiceSources) : "(none in this archive)",
+    "",
+    "## What to write",
+    "ADD about 45 new active mathematics_questions for this exam_goal (enough for a 35-question timed paper + Practice · 10).",
+    "Every item needs five options in options_json keys A–E and explanation_en.",
+    "Leave practice_attempts.blueprint_id null (Thinking FK); set mathematics_questions.blueprint_id to a mathematics blueprint id.",
+    "Insert example:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO mathematics_questions (id, version, exam_goal, blueprint_id, prompt, options_json, correct_option, explanation_en, status, created_at) VALUES ('mq-example', 1, '${goal}', 'number-sense', 'PROMPT', '{\\"A\\":\\"\\",\\"B\\":\\"\\",\\"C\\":\\"\\",\\"D\\":\\"\\",\\"E\\":\\"\\"}', 'C', 'WHY', 'active', '${stamp}');"`,
+    "```",
+    "",
+    "Save a pack summary:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO learning_evidence (id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at) VALUES ('${evidenceId}', '${profileId}', '${goal}', 'mathematics', 'mathematics_practice_pack', '${packId}', 'SUMMARY', '${stamp}');"`,
+    "```",
+    "",
+    "Then tell the parent to refresh Parent room → Mathematics → Practice bank / start a learner Mathematics session.",
   ].join("\n");
 }
 

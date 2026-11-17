@@ -1,19 +1,32 @@
 /** Practice modules inside a Selective / OC archive. */
-export type PracticeSubject = "thinking" | "reading";
+export type PracticeSubject = "thinking" | "reading" | "mathematics" | "writing";
 
-export const practiceSubjects = ["thinking", "reading"] as const;
+export const practiceSubjects = ["thinking", "reading", "mathematics", "writing"] as const;
 
 export function subjectLabel(subject: PracticeSubject) {
-  return subject === "reading" ? "Reading" : "Thinking Skills";
+  if (subject === "reading") return "Reading";
+  if (subject === "mathematics") return "Mathematics";
+  if (subject === "writing") return "Writing";
+  return "Thinking Skills";
 }
 
 export function parseSubject(value: unknown): PracticeSubject | null {
-  return value === "thinking" || value === "reading" ? value : null;
+  return value === "thinking"
+    || value === "reading"
+    || value === "mathematics"
+    || value === "writing"
+    ? value
+    : null;
 }
 
 /** Default when URL / form omit subject — keeps existing Thinking Skills behaviour. */
 export function shelfSubject(value: unknown): PracticeSubject {
   return parseSubject(value) ?? "thinking";
+}
+
+/** MCQ paper modules that sit timed/practice sets. Writing is open response. */
+export function isMcqSubject(subject: PracticeSubject) {
+  return subject === "thinking" || subject === "reading" || subject === "mathematics";
 }
 
 export function parentArchiveHref(input: {

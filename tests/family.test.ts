@@ -64,6 +64,36 @@ const coachMigration = readFileSync(new URL("../migrations/0017_coach_access.sql
 const actor = (id: string) => ({ user_id: id, email: id + "@example.invalid" });
 const accepted = async () => true;
 
+/** Empty math tables so attempt loaders can LEFT JOIN before migration 0018 is applied. */
+function ensureMathematicsJoinTables(sql: DatabaseSync) {
+  sql.exec(`
+    CREATE TABLE IF NOT EXISTS mathematics_blueprints (
+      id TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      skill TEXT NOT NULL,
+      title TEXT NOT NULL,
+      method TEXT NOT NULL,
+      authoring_rule TEXT NOT NULL,
+      verification_rule TEXT NOT NULL,
+      PRIMARY KEY (id, version)
+    );
+    CREATE TABLE IF NOT EXISTS mathematics_questions (
+      id TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      exam_goal TEXT,
+      blueprint_id TEXT,
+      prompt TEXT,
+      options_json TEXT,
+      correct_option TEXT,
+      explanation_en TEXT,
+      image_key TEXT,
+      status TEXT,
+      created_at TEXT,
+      PRIMARY KEY (id, version)
+    );
+  `);
+}
+
 function fixture(migrate = true) {
   const sql = new DatabaseSync(":memory:");
   sql.exec(core);
@@ -503,9 +533,9 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   // Session/attempt subject only — full 0013 also alters practice_questions, which this fixture omits.
   sql.exec(`
     ALTER TABLE practice_sessions ADD COLUMN subject TEXT NOT NULL DEFAULT 'thinking'
-      CHECK (subject IN ('thinking', 'reading'));
+      CHECK (subject IN ('thinking', 'reading', 'mathematics', 'writing'));
     ALTER TABLE practice_attempts ADD COLUMN subject TEXT NOT NULL DEFAULT 'thinking'
-      CHECK (subject IN ('thinking', 'reading'));
+      CHECK (subject IN ('thinking', 'reading', 'mathematics', 'writing'));
   `);
   sql.exec(readFileSync(new URL("../migrations/0014_reading_knowledge.sql", import.meta.url), "utf8"));
   const readingFormat = await readingKnowledge(db, "selective");
@@ -613,6 +643,30 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(remediationBrief, /Per-miss kid reviews/);
   assert.match(remediationBrief, /subject = 'reading'/);
   assert.match(readingBrief, /Do NOT insert Thinking Skills practice_questions/);
+  const mathematicsBrief = buildCodexBankBrief({
+    profileId: "p1",
+    goal: "selective",
+    subject: "mathematics",
+    nickname: bankShelf.nickname,
+    actorUserId: "owner",
+    materials: bankShelf.materials,
+  });
+  assert.match(mathematicsBrief, /Mathematics practice-bank generation/);
+  assert.match(mathematicsBrief, /subject: mathematics/);
+  assert.match(mathematicsBrief, /mathematics_blueprints/);
+  assert.match(mathematicsBrief, /mathematics_questions/);
+  assert.match(mathematicsBrief, /five options A–E/);
+  assert.match(mathematicsBrief, /mathematics_practice_pack/);
+  const writingBrief = buildCodexBankBrief({
+    profileId: "p1",
+    goal: "selective",
+    subject: "writing",
+    nickname: bankShelf.nickname,
+    actorUserId: "owner",
+    materials: bankShelf.materials,
+  });
+  assert.match(writingBrief, /open-response Selective task/);
+  assert.match(writingBrief, /Do not insert mathematics_questions/);
   assert.match(
     composeReadingPassageNotes({
       passageSet: "River Otters",
@@ -753,6 +807,7 @@ test("linked learners can practise and parents see attempt evidence", async (t) 
   sql.exec(readFileSync(new URL("../migrations/0010_timed_draft_answers.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0011_focus_practice_mode.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0012_practice_subjects.sql", import.meta.url), "utf8"));
+  ensureMathematicsJoinTables(sql);
   sql.exec(readFileSync(new URL("../migrations/0013_practice_subject_sessions.sql", import.meta.url), "utf8"));
   const invite = await issueInvitation(
     db,
@@ -916,6 +971,7 @@ test("timed papers need a full unused bank and allow review before submit", asyn
   sql.exec(readFileSync(new URL("../migrations/0011_focus_practice_mode.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0012_practice_subjects.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0013_practice_subject_sessions.sql", import.meta.url), "utf8"));
+  ensureMathematicsJoinTables(sql);
   const invite = await issueInvitation(
     db,
     actor("owner"),
@@ -1086,6 +1142,7 @@ test("learners can practise from the Reading question bank", async (t) => {
   sql.exec(readFileSync(new URL("../migrations/0014_reading_knowledge.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0015_reading_questions.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("../migrations/0016_reading_evidence_kinds.sql", import.meta.url), "utf8"));
+  ensureMathematicsJoinTables(sql);
 
   const invite = await issueInvitation(
     db,
