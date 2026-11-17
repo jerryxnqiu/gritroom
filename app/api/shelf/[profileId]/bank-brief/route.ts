@@ -29,7 +29,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ prof
         ? task === "remediation"
           ? "Add Reading coaching reports or practice sources before asking Codex for a remediation plan."
           : "Add Reading coaching reports or practice sources before asking Codex to generate Reading practice."
-        : "Add coaching reports or practice-question sources before asking Codex to generate the bank.",
+        : subject === "mathematics"
+          ? "Add Mathematics coaching reports or practice sources before asking Codex to generate Mathematics practice."
+          : "Add coaching reports or practice-question sources before asking Codex to generate the bank.",
     }, { status: 400 });
   }
 

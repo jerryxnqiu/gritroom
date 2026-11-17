@@ -6,10 +6,12 @@ import { listMaterialAnalyses } from "@/lib/material-analysis";
 import { readShelf } from "@/lib/resource-shelf";
 import { parentArchiveHref, subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { AddResourceDialog } from "./AddResourceDialog";
+import { MathematicsFoundations } from "./MathematicsFoundations";
 import { QuestionFoundations } from "./QuestionFoundations";
 import { ReadingFoundations } from "./ReadingFoundations";
 import { ShelfFeedbackForm } from "./ShelfFeedbackForm";
 import { ShelfMaterialList } from "./ShelfMaterialList";
+import { WritingFoundations } from "./WritingFoundations";
 
 export async function ResourceShelf({
   profile,
@@ -37,9 +39,9 @@ export async function ResourceShelf({
       <h2 id="resource-shelf-heading">{moduleLabel} resource shelf</h2>
       <p className="lede">
         Store coaching reports and miscellaneous practice sources for {profile.nickname}’s {moduleLabel} module.
-        {subject === "thinking"
-          ? " Use Practice bank when you want Codex to refresh questions from everything here."
-          : " Use Practice bank when you want Codex to turn these into Reading training directions."}
+        {subject === "writing"
+          ? " Writing is open response — keep prompts and marked samples here for coaching."
+          : " Use Practice bank when you want Codex to refresh questions from everything here."}
       </p>
       <div className="shelf-toolbar">
         <nav className="shelf-actions" aria-label="Exam archive">
@@ -59,17 +61,13 @@ export async function ResourceShelf({
         </div>
       </div>
 
-      {subject === "thinking" ? (
-        <details className="family-subsection">
-          <summary>01 · Official exam information</summary>
-          <QuestionFoundations goal={goal} />
-        </details>
-      ) : (
-        <details className="family-subsection">
-          <summary>01 · Official Reading information</summary>
-          <ReadingFoundations goal={goal} />
-        </details>
-      )}
+      <details className="family-subsection">
+        <summary>01 · Official {moduleLabel} information</summary>
+        {subject === "thinking" ? <QuestionFoundations goal={goal} /> : null}
+        {subject === "reading" ? <ReadingFoundations goal={goal} /> : null}
+        {subject === "mathematics" ? <MathematicsFoundations goal={goal} /> : null}
+        {subject === "writing" ? <WritingFoundations goal={goal} /> : null}
+      </details>
 
       <details className="family-subsection">
         <summary id="shelf-coaching">02 · Coaching reports &amp; videos</summary>

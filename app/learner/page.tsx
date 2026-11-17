@@ -12,6 +12,10 @@ import { examLabel, hasOpenInvitations, linkedLearner } from "@/lib/family";
 import { getSessionTokenFromCookies } from "@/lib/http";
 import { listLearnerCoachTips } from "@/lib/material-analysis";
 import {
+  countUnusedMathematicsQuestions,
+  latestMathematicsSession,
+} from "@/lib/mathematics-practice";
+import {
   countUnusedPracticeQuestions,
   countUnusedWeakPracticeQuestions,
   getPracticeSession,
@@ -45,17 +49,25 @@ export default async function LearnerPage({
   const latest = profile
     ? subject === "reading"
       ? await latestReadingSession(env.DB, profile.id, profile.examGoal)
-      : await latestPracticeSession(env.DB, profile.id, profile.examGoal)
+      : subject === "mathematics"
+        ? await latestMathematicsSession(env.DB, profile.id, profile.examGoal)
+        : subject === "writing"
+          ? null
+          : await latestPracticeSession(env.DB, profile.id, profile.examGoal)
     : null;
   const [practice, remainingCount, weakRemainingCount, resultPage, coachTips] = profile
     ? await Promise.all([
       latest ? getPracticeSession(env.DB, latest.id, session.user_id) : Promise.resolve(null),
       subject === "reading"
         ? countUnusedReadingQuestions(env.DB, profile.id, profile.examGoal)
-        : countUnusedPracticeQuestions(env.DB, profile.id, profile.examGoal),
-      subject === "reading"
-        ? Promise.resolve(0)
-        : countUnusedWeakPracticeQuestions(env.DB, profile.id, profile.examGoal),
+        : subject === "mathematics"
+          ? countUnusedMathematicsQuestions(env.DB, profile.id, profile.examGoal)
+          : subject === "writing"
+            ? Promise.resolve(0)
+            : countUnusedPracticeQuestions(env.DB, profile.id, profile.examGoal),
+      subject === "thinking"
+        ? countUnusedWeakPracticeQuestions(env.DB, profile.id, profile.examGoal)
+        : Promise.resolve(0),
       listLearnerPracticeResults(env.DB, session.user_id, { sessionLimit: 11, subject }),
       listLearnerCoachTips(env.DB, session.user_id, subject),
     ])

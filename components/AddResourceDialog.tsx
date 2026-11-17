@@ -5,7 +5,7 @@ import { useRef, useState, useTransition, type FormEvent } from "react";
 
 import type { ExamGoal } from "@/lib/family";
 import { materialKinds, materialTypes } from "@/lib/shelf-fields";
-import { parentArchiveHref, subjectLabel, type PracticeSubject } from "@/lib/subjects";
+import { parentArchiveHref, parseSubject, practiceSubjects, subjectLabel, type PracticeSubject } from "@/lib/subjects";
 
 export function AddResourceDialog({
   profileId,
@@ -39,7 +39,7 @@ export function AddResourceDialog({
         setKind("coaching_report");
         dialog.current?.close();
         const nextGoal = body.get("goal") === "oc" ? "oc" : "selective";
-        const nextSubject = (body.get("subject") === "reading" ? "reading" : "thinking") as PracticeSubject;
+        const nextSubject = parseSubject(body.get("subject")) ?? subject;
         if (nextGoal === goal && nextSubject === subject) {
           setNotice("Resource added to this archive.");
           router.refresh();
@@ -81,8 +81,9 @@ export function AddResourceDialog({
             </div>
             <label className="field"><span>Module</span>
               <select name="subject" defaultValue={subject}>
-                <option value="thinking">{subjectLabel("thinking")}</option>
-                <option value="reading">{subjectLabel("reading")}</option>
+                {practiceSubjects.map((item) => (
+                  <option key={item} value={item}>{subjectLabel(item)}</option>
+                ))}
               </select>
             </label>
             <label className="field"><span>Title</span><input name="title" maxLength={140} required placeholder={showPassageSet ? "e.g. River Otters · page 1" : undefined} /></label>

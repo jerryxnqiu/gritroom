@@ -3,6 +3,11 @@ import { env } from "cloudflare:workers";
 import { getSession } from "@/lib/auth";
 import { getSessionTokenFromCookies, json, readJson } from "@/lib/http";
 import {
+  countUnusedMathematicsQuestions,
+  latestMathematicsSession,
+  startMathematicsPracticeSession,
+} from "@/lib/mathematics-practice";
+import {
   countUnusedPracticeQuestions,
   countUnusedWeakPracticeQuestions,
   getPracticeSession,
@@ -36,6 +41,20 @@ export async function GET(request: Request) {
     return json({ session: practice, profile, remainingCount, weakRemainingCount: 0, subject });
   }
 
+  if (subject === "mathematics") {
+    const [latest, remainingCount] = await Promise.all([
+      latestMathematicsSession(env.DB, profile.id, profile.examGoal),
+      countUnusedMathematicsQuestions(env.DB, profile.id, profile.examGoal),
+    ]);
+    if (!latest) return json({ session: null, profile, remainingCount, weakRemainingCount: 0, subject });
+    const practice = await getPracticeSession(env.DB, latest.id, session.user_id);
+    return json({ session: practice, profile, remainingCount, weakRemainingCount: 0, subject });
+  }
+
+  if (subject === "writing") {
+    return json({ session: null, profile, remainingCount: 0, weakRemainingCount: 0, subject });
+  }
+
   const [latest, remainingCount, weakRemainingCount] = await Promise.all([
     latestPracticeSession(env.DB, profile.id, profile.examGoal),
     countUnusedPracticeQuestions(env.DB, profile.id, profile.examGoal),
@@ -56,10 +75,27 @@ export async function POST(request: Request) {
   if (!mode) return json({ error: "Choose Practice, Weak spots, or a Timed paper." }, { status: 400 });
   const subject = shelfSubject(body.subject);
 
+  if (subject === "writing") {
+    return json({
+      error: "Writing is an open-response paper. Use Coach tips and the family shelf for prompts — timed MCQ sets are for Thinking, Reading and Mathematics.",
+    }, { status: 409 });
+  }
+
   if (subject === "reading") {
     const result = await startReadingPracticeSession(env.DB, session.user_id, mode);
     if (!result.ok) return json({ error: result.error }, { status: result.status });
     const remainingCount = await countUnusedReadingQuestions(
+      env.DB,
+      result.session.profileId,
+      result.session.examGoal,
+    );
+    return json({ session: result.session, remainingCount, weakRemainingCount: 0, subject }, { status: 201 });
+  }
+
+  if (subject === "mathematics") {
+    const result = await startMathematicsPracticeSession(env.DB, session.user_id, mode);
+    if (!result.ok) return json({ error: result.error }, { status: result.status });
+    const remainingCount = await countUnusedMathematicsQuestions(
       env.DB,
       result.session.profileId,
       result.session.examGoal,

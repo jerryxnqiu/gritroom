@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 
 import { getSession } from "@/lib/auth";
 import { getSessionTokenFromCookies, json, readJson } from "@/lib/http";
+import { countUnusedMathematicsQuestions } from "@/lib/mathematics-practice";
 import {
   countUnusedPracticeQuestions,
   countUnusedWeakPracticeQuestions,
@@ -34,14 +35,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
 
   const result = await submitPracticeAttempt(env.DB, session.user_id, sessionId, input);
   if (!result.ok) return json({ error: result.error }, { status: result.status });
-  const reading = result.session.subject === "reading";
+  const subject = result.session.subject;
   const [remainingCount, weakRemainingCount] = await Promise.all([
-    reading
+    subject === "reading"
       ? countUnusedReadingQuestions(env.DB, result.session.profileId, result.session.examGoal)
-      : countUnusedPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
-    reading
-      ? Promise.resolve(0)
-      : countUnusedWeakPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
+      : subject === "mathematics"
+        ? countUnusedMathematicsQuestions(env.DB, result.session.profileId, result.session.examGoal)
+        : countUnusedPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
+    subject === "thinking"
+      ? countUnusedWeakPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal)
+      : Promise.resolve(0),
   ]);
   return json({ session: result.session, attempt: result.attempt, remainingCount, weakRemainingCount });
 }

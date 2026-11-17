@@ -33,14 +33,21 @@ function readingTimedPaperSpec(goal: Profile["examGoal"]) {
     : { questions: 38, minutes: 45, label: "38-answer timed Reading paper" };
 }
 
+function mathematicsTimedPaperSpec() {
+  return { questions: 35, minutes: 40, label: "35-question timed Mathematics paper" };
+}
+
 function timedPaperForSubject(subject: PracticeSubject, goal: Profile["examGoal"]) {
-  return subject === "reading" ? readingTimedPaperSpec(goal) : thinkingTimedPaperSpec(goal);
+  if (subject === "reading") return readingTimedPaperSpec(goal);
+  if (subject === "mathematics") return mathematicsTimedPaperSpec();
+  if (subject === "writing") return { questions: 1, minutes: 30, label: "30-minute Writing task" };
+  return thinkingTimedPaperSpec(goal);
 }
 
 /** Whole-set allowance: timed papers use official minutes; short sets are 1 min × question count. */
 function sessionClockMinutes(session: PracticeSessionView) {
   if (session.mode === "timed") {
-    return timedPaperForSubject(session.subject === "reading" ? "reading" : "thinking", session.examGoal).minutes;
+    return timedPaperForSubject(session.subject, session.examGoal).minutes;
   }
   return Math.max(1, session.attempts.length);
 }
@@ -80,6 +87,8 @@ export function LearnerPractice({
 }) {
   const { section, setSection } = useLearnerSection();
   const reading = subject === "reading";
+  const mathematics = subject === "mathematics";
+  const writing = subject === "writing";
   const paper = timedPaperForSubject(subject, profile.examGoal);
   const [session, setSession] = useState(initialSession);
   const [remainingCount, setRemainingCount] = useState(initialRemainingCount);
@@ -112,7 +121,7 @@ export function LearnerPractice({
     ? session.attempts.findIndex((item) => item.id === current.id) + 1
     : answered.length + 1;
   const canStartPractice = remainingCount > 0 && !active;
-  const canStartFocus = !reading && weakRemainingCount > 0 && !active;
+  const canStartFocus = subject === "thinking" && weakRemainingCount > 0 && !active;
   const canStartTimed = !active && remainingCount >= paper.questions;
   const inQuestion = phase === "question" && Boolean(current) && (active || Boolean(review));
   const sectionForActive = session?.mode === "timed" ? "timed" : "practice";
@@ -447,7 +456,8 @@ export function LearnerPractice({
           ) : null}
 
           <h2 id="practice-heading">
-            {current?.blueprintTitle || (reading ? "Reading question" : "Your next question")}
+            {current?.blueprintTitle
+              || (reading ? "Reading question" : mathematics ? "Mathematics question" : "Your next question")}
           </h2>
           {current?.skill ? <p className="meta">{current.skill}</p> : null}
           {current?.imageKey ? (
@@ -661,13 +671,30 @@ export function LearnerPractice({
               </button>
             </div>
           </>
+        ) : writing ? (
+          <>
+            <h2 id="practice-heading">Writing is open response.</h2>
+            <p className="lede">
+              The Selective Writing paper is one typed task in {paper.minutes} minutes — not a multiple-choice set.
+              Use Coach tips and your family’s Writing shelf for prompts and feedback.
+            </p>
+            <div className="actions">
+              <button type="button" className="button secondary" onClick={() => go("tips")}>
+                Open coach tips
+              </button>
+            </div>
+          </>
         ) : wantTimed ? (
           <>
             <h2 id="practice-heading">
-              {reading ? "Sit a full Reading timed paper." : "Sit a full Thinking Skills paper."}
+              {reading
+                ? "Sit a full Reading timed paper."
+                : mathematics
+                  ? "Sit a full Mathematical Reasoning paper."
+                  : "Sit a full Thinking Skills paper."}
             </h2>
             <p className="lede">
-              {`${paper.questions} ${reading ? "answers" : "questions"} · ${paper.minutes} minutes. Move between questions freely and change answers anytime. You’ll get warnings at 10 and 5 minutes left; when time runs out the paper submits automatically and unanswered items count as misses.`}
+              {`${paper.questions} ${reading ? "answers" : "questions"} · ${paper.minutes} minutes${mathematics ? " · five options (A–E)" : ""}. Move between questions freely and change answers anytime. You’ll get warnings at 10 and 5 minutes left; when time runs out the paper submits automatically and unanswered items count as misses.`}
             </p>
             <div className="actions practice-start-actions">
               <button
@@ -693,7 +720,9 @@ export function LearnerPractice({
             <p className="lede">
               {reading
                 ? "Do up to ten unused Reading questions from the family bank. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."
-                : "Do a mixed ten-question set, or practise only the skills you miss most. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."}
+                : mathematics
+                  ? "Do up to ten unused Mathematical Reasoning questions from the family bank. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."
+                  : "Do a mixed ten-question set, or practise only the skills you miss most. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."}
             </p>
             <div className="actions practice-start-actions">
               {canStartPractice ? (
@@ -704,10 +733,12 @@ export function LearnerPractice({
                 <p className="meta">
                   {reading
                     ? "No unused Reading questions yet. Ask your family to generate the Reading practice bank when they are ready."
-                    : "You have finished every practice question available right now. Ask your family to refresh the practice bank when they are ready."}
+                    : mathematics
+                      ? "No unused Mathematics questions yet. Ask your family to generate the Mathematics practice bank when they are ready."
+                      : "You have finished every practice question available right now. Ask your family to refresh the practice bank when they are ready."}
                 </p>
               )}
-              {!reading ? (
+              {subject === "thinking" ? (
                 <>
                   <button
                     type="button"
@@ -729,7 +760,9 @@ export function LearnerPractice({
                   ) : null}
                 </>
               ) : canStartPractice ? (
-                <p className="meta">{remainingCount} unused Reading question{remainingCount === 1 ? "" : "s"} ready.</p>
+                <p className="meta">
+                  {remainingCount} unused {reading ? "Reading" : mathematics ? "Mathematics" : subjectLabel(subject)} question{remainingCount === 1 ? "" : "s"} ready.
+                </p>
               ) : null}
             </div>
           </>

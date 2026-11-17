@@ -36,11 +36,17 @@ export async function PracticeBankPanel({
   return (
     <section className="panel family-panel" id="bank" aria-labelledby="practice-bank-heading">
       <p className="eyebrow">03 / Practice bank</p>
-      <h2 id="practice-bank-heading">Generate {moduleLabel.toLowerCase()} bank</h2>
+      <h2 id="practice-bank-heading">
+        {subject === "writing" ? `Support ${moduleLabel.toLowerCase()}` : `Generate ${moduleLabel.toLowerCase()} bank`}
+      </h2>
       <p className="lede">
         {subject === "reading"
           ? `Ask Codex to mimic ${profile.nickname}’s uploaded Reading papers and the official NSW samples — invent original articles with richer exam-level English (not dumbed-down wording) across the official block mix and enough answers for a full ${goal === "oc" ? "33-answer" : "38-answer"} timed Reading paper (plus a Practice · 10 buffer), weighting about half toward Reading skills ${profile.nickname} misses most — and separately build language remediation (vocab / phrases / copywork; ${profile.nickname} uploads handwriting photos for Codex to check) from coaching notes and Passage sets.`
-          : `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Thinking Skills archive — blueprints, coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback — then add about 60 new questions (with kid-facing explanations): enough for weak-spot practice, with the rest balanced across other skills for timed papers and mixed sets.`}
+          : subject === "mathematics"
+            ? `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Mathematical Reasoning archive — blueprints, coaching reports, miscellaneous practice sources, material analyses and practice evidence — then add original five-option (A–E) questions into mathematics_questions: enough for a full 35-question timed paper plus a Practice · 10 buffer, with no calculator and paper working assumed.`
+            : subject === "writing"
+              ? `Writing is one open-response Selective task (30 minutes). Keep coaching reports, marked samples and prompts on the Writing shelf. Timed MCQ banks are for Thinking, Reading and Mathematics.`
+              : `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Thinking Skills archive — blueprints, coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback — then add about 60 new questions (with kid-facing explanations): enough for weak-spot practice, with the rest balanced across other skills for timed papers and mixed sets.`}
       </p>
       <div className="shelf-toolbar">
         <nav className="shelf-actions" aria-label="Exam archive">
@@ -85,25 +91,30 @@ export async function PracticeBankPanel({
           </p>
           {remediation ? <p className="meta">{remediation.reason}</p> : null}
         </>
+      ) : subject === "writing" ? (
+        <p className="meta">
+          Add coaching reports or sample prompts in the Writing resource shelf below. Composition practice stays outside the MCQ learner flow for now.
+        </p>
       ) : (
         <AskCodexBankButton
           profileId={profile.id}
           goal={goal}
           subject={subject}
           disabled={materialCount === 0}
+          label={subject === "mathematics" ? "Ask Codex to generate Mathematics practice" : undefined}
         />
       )}
 
-      {materialCount === 0 ? (
+      {subject !== "writing" && materialCount === 0 ? (
         <p className="meta">
           Add coaching reports or practice-question sources in the {moduleLabel} resource shelf below first.
         </p>
-      ) : (
+      ) : subject !== "writing" ? (
         <p className="meta">
           {materialCount} {moduleLabel.toLowerCase()} shelf source{materialCount === 1 ? "" : "s"} ready for this archive.
           Paste the copied task into a Codex chat in this gritroom repo.
         </p>
-      )}
+      ) : null}
 
       {subject === "thinking" ? (
         <div className="family-subsection">
@@ -119,7 +130,7 @@ export async function PracticeBankPanel({
               : `${pendingReviews} incorrect attempt${pendingReviews === 1 ? "" : "s"} waiting for a Codex review.`}
           </p>
         </div>
-      ) : (
+      ) : subject === "reading" ? (
         <div className="family-subsection">
           <h3>How Reading remediation works</h3>
           <ol className="practice-language-howto">
@@ -136,7 +147,11 @@ export async function PracticeBankPanel({
             </li>
           </ol>
         </div>
-      )}
+      ) : subject === "mathematics" ? (
+        <p className="meta">
+          Generated items land in mathematics_questions for Learner room → Mathematics (short Practice sets and a 35-question timed paper).
+        </p>
+      ) : null}
     </section>
   );
 }

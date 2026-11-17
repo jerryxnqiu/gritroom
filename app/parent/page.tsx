@@ -17,6 +17,7 @@ import { getSession } from "@/lib/auth";
 import { examLabel, hasOpenInvitations, isInstallationOwner, listManagedFamilies, listParentProfiles } from "@/lib/family";
 import { getSessionTokenFromCookies } from "@/lib/http";
 import { childAccess } from "@/lib/invitations";
+import { countUnusedMathematicsQuestions } from "@/lib/mathematics-practice";
 import {
   countUnusedPracticeQuestions,
   listPracticeEvidenceSummaries,
@@ -51,7 +52,11 @@ export default async function ParentPage({
     ? await Promise.all([
       subject === "reading"
         ? countUnusedReadingQuestions(env.DB, selected.id, goal)
-        : countUnusedPracticeQuestions(env.DB, selected.id, goal, subject),
+        : subject === "mathematics"
+          ? countUnusedMathematicsQuestions(env.DB, selected.id, goal)
+          : subject === "writing"
+            ? Promise.resolve(0)
+            : countUnusedPracticeQuestions(env.DB, selected.id, goal, subject),
       listPracticeEvidenceSummaries(env.DB, selected.id, goal, session.user_id, {
         sessionLimit: 21,
         subject,

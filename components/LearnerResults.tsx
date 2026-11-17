@@ -337,7 +337,7 @@ export function LearnerResults({
               <p className="meta">Loading that paper…</p>
             ) : (
               <>
-                {subject === "thinking" ? (
+                {subject === "thinking" || subject === "mathematics" ? (
                   <SessionSkillChart attempts={openSession.attempts} />
                 ) : null}
                 {answerFilter === "incorrect" && openSession.incorrect === 0 ? (
