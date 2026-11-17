@@ -17,6 +17,7 @@ export function ParentProgressPanel({
   nickname,
   archiveLabel,
   subjectLabel: moduleLabel,
+  subject,
   unusedCount,
   sessions,
 }: {
@@ -64,6 +65,7 @@ export function ParentProgressPanel({
       </div>
 
       <PracticeScoreChart
+        key={subject}
         sessions={sessions}
         subjectLabel={moduleLabel}
         onSelect={() => setSection("evidence")}

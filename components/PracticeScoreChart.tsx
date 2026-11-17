@@ -54,18 +54,29 @@ export function PracticeScoreChart({
     x: number;
     y: number;
   } | null>(null);
+  const hasPoints = points.length > 0;
 
   useEffect(() => {
+    if (!hasPoints) {
+      setHostWidth(0);
+      setTooltip(null);
+      return;
+    }
     const host = hostRef.current;
     if (!host) return;
-    const sync = () => setHostWidth(Math.max(280, Math.floor(host.clientWidth)));
+    const sync = () => {
+      const next = Math.floor(host.clientWidth);
+      // Ignore 0-width while the host is detached (e.g. switching to an empty Maths archive).
+      if (next <= 0) return;
+      setHostWidth(Math.max(280, next));
+    };
     sync();
     const observer = new ResizeObserver(sync);
     observer.observe(host);
     return () => observer.disconnect();
-  }, []);
+  }, [hasPoints]);
 
-  if (!points.length) {
+  if (!hasPoints) {
     return (
       <div className="practice-score-chart-empty">
         <p className="eyebrow">Score trend</p>
@@ -132,8 +143,9 @@ export function PracticeScoreChart({
           {hostWidth ? (
             <svg
               viewBox={`0 0 ${width} ${height}`}
-              width="100%"
+              width={width}
               height={height}
+              preserveAspectRatio="xMidYMid meet"
               className="practice-score-chart-svg"
             >
               {[0, 25, 50, 75, 100].map((tick) => {

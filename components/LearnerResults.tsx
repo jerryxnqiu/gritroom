@@ -231,6 +231,7 @@ export function LearnerResults({
       ) : null}
 
       <PracticeScoreChart
+        key={subject}
         sessions={sessions}
         subjectLabel={subjectLabel(subject)}
         onSelect={(sessionId) => openSessionDetail(sessionId)}
