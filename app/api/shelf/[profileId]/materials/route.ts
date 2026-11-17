@@ -2,8 +2,8 @@ import { env } from "cloudflare:workers";
 
 import { getSession } from "@/lib/auth";
 import { getSessionTokenFromCookies, json } from "@/lib/http";
-import { canOpenShelf, saveMaterial } from "@/lib/resource-shelf";
-import { maxMaterialBytes, parseMaterial } from "@/lib/shelf-fields";
+import { canOpenShelf, saveMaterials } from "@/lib/resource-shelf";
+import { maxMaterialBatchBytes, parseMaterial } from "@/lib/shelf-fields";
 
 export async function POST(request: Request, { params }: { params: Promise<{ profileId: string }> }) {
   const session = await getSession(await getSessionTokenFromCookies());
@@ -17,7 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return json({ error: "This resource shelf is unavailable." }, { status: 404 });
   }
 
-  const limit = maxMaterialBytes + 64 * 1024;
+  const limit = maxMaterialBatchBytes + 256 * 1024;
   let bytes = 0;
   const body = request.body?.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
@@ -31,17 +31,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     form = await new Response(body, { headers: request.headers }).formData();
   } catch {
     return bytes > limit
-      ? json({ error: "Use a file up to 8 MB." }, { status: 413 })
-      : json({ error: "Could not read the upload. Choose the file again and retry." }, { status: 400 });
+      ? json({ error: "Keep the whole set under about 160 MB (up to 20 files × 8 MB)." }, { status: 413 })
+      : json({ error: "Could not read the upload. Choose the files again and retry." }, { status: 400 });
   }
 
   const input = await parseMaterial(form);
   if ("error" in input) return json({ error: input.error }, { status: 400 });
 
   try {
-    const id = await saveMaterial(env.DB, env.BUCKET, profileId, session.user_id, input);
-    return id
-      ? json({ id }, { status: 201 })
+    const ids = await saveMaterials(env.DB, env.BUCKET, profileId, session.user_id, input);
+    return ids.length
+      ? json({ ids, id: ids[0], count: ids.length }, { status: 201 })
       : json({ error: "This resource shelf is unavailable." }, { status: 404 });
   } catch {
     return json({ error: "We couldn’t save the resource. Try again." }, { status: 503 });

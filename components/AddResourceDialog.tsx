@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition, type FormEvent } from "react";
 
 import type { ExamGoal } from "@/lib/family";
-import { materialKinds, materialTypes } from "@/lib/shelf-fields";
+import { materialKinds, materialTypes, maxMaterialFiles } from "@/lib/shelf-fields";
 import { parentArchiveHref, parseSubject, practiceSubjects, subjectLabel, type PracticeSubject } from "@/lib/subjects";
 
 export function AddResourceDialog({
@@ -23,7 +23,8 @@ export function AddResourceDialog({
   const [pending, startTransition] = useTransition();
   const [kind, setKind] = useState<string>("coaching_report");
   const profile = encodeURIComponent(profileId);
-  const showPassageSet = subject === "reading" && kind === "study_material";
+  const multiPageKind = kind === "marked_paper" || kind === "study_material";
+  const readingPassage = subject === "reading" && kind === "study_material";
 
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,15 +34,16 @@ export function AddResourceDialog({
     startTransition(async () => {
       try {
         const response = await fetch(`/api/shelf/${profile}/materials`, { method: "POST", body });
-        const result = await response.json() as { error?: string };
+        const result = await response.json() as { error?: string; count?: number };
         if (!response.ok) throw new Error(result.error || "Could not save the resource. Try again.");
         form.reset();
         setKind("coaching_report");
         dialog.current?.close();
         const nextGoal = body.get("goal") === "oc" ? "oc" : "selective";
         const nextSubject = parseSubject(body.get("subject")) ?? subject;
+        const count = result.count ?? 1;
         if (nextGoal === goal && nextSubject === subject) {
-          setNotice("Resource added to this archive.");
+          setNotice(count > 1 ? `Added ${count} pages to this archive.` : "Resource added to this archive.");
           router.refresh();
         } else {
           router.replace(parentArchiveHref({
@@ -63,7 +65,9 @@ export function AddResourceDialog({
       {notice ? <span className="meta" role="status">{notice}</span> : null}
       <dialog ref={dialog} className="shelf-dialog" aria-labelledby="add-resource-heading" onCancel={(event) => { if (pending) event.preventDefault(); }}>
         <h3 id="add-resource-heading">Add a resource</h3>
-        <p className="meta">Save a coaching report/video, or miscellaneous practice pages for the selected module.</p>
+        <p className="meta">
+          Save coaching reports/videos, a marked paper test (many page photos), or miscellaneous practice sources.
+        </p>
         <form onSubmit={save} aria-busy={pending}>
           <fieldset className="stack-form" disabled={pending}>
             <div className="shelf-form-pair">
@@ -86,26 +90,42 @@ export function AddResourceDialog({
                 ))}
               </select>
             </label>
-            <label className="field"><span>Title</span><input name="title" maxLength={140} required placeholder={showPassageSet ? "e.g. River Otters · page 1" : undefined} /></label>
-            {showPassageSet ? (
+            <label className="field">
+              <span>Title</span>
+              <input
+                name="title"
+                maxLength={140}
+                required
+                placeholder={
+                  kind === "marked_paper"
+                    ? "e.g. NSW Selective Reading sample · marked Nov 2026"
+                    : readingPassage
+                      ? "e.g. River Otters practice article"
+                      : undefined
+                }
+              />
+            </label>
+            {multiPageKind ? (
               <>
-                <label className="field"><span>Passage set name</span>
-                  <input name="passageSet" maxLength={120} required placeholder="e.g. River Otters" aria-describedby="passage-set-help" />
+                <label className="field">
+                  <span>{kind === "marked_paper" ? "Paper set name" : readingPassage ? "Passage / source set name" : "Source set name"}</span>
+                  <input
+                    name="setName"
+                    maxLength={120}
+                    required={kind === "marked_paper"}
+                    placeholder={kind === "marked_paper" ? "e.g. NSW Selective Reading PT1 marked" : "e.g. River Otters"}
+                    aria-describedby="resource-set-help"
+                  />
                 </label>
-                <div className="shelf-form-pair">
-                  <label className="field"><span>Page number</span>
-                    <input name="passagePage" inputMode="numeric" maxLength={2} required placeholder="1" />
+                {readingPassage ? (
+                  <label className="field"><span>Questions in this article (optional)</span>
+                    <input name="sourceQuestions" maxLength={40} placeholder="e.g. 3" />
                   </label>
-                  <label className="field"><span>Total pages in set</span>
-                    <input name="passagePageCount" inputMode="numeric" maxLength={2} required placeholder="4" />
-                  </label>
-                </div>
-                <label className="field"><span>Questions in this article (optional)</span>
-                  <input name="sourceQuestions" maxLength={40} placeholder="e.g. 3" />
-                </label>
-                <p id="passage-set-help" className="meta">
-                  Save each screenshot as its own resource with the same passage set name (page 1 of 4, 2 of 4, …).
-                  Bulk Ask Codex to review Reading shelf joins the set and uses it as a style model for new items.
+                ) : null}
+                <p id="resource-set-help" className="meta">
+                  {kind === "marked_paper"
+                    ? "Select every page photo of this marked paper in order (page 1, 2, …). GritRoom saves them as one Paper set for Codex to join."
+                    : "Select every screenshot/page of this practice source in order. GritRoom saves them as one set so Codex can join the pages."}
                 </p>
               </>
             ) : null}
@@ -116,21 +136,30 @@ export function AddResourceDialog({
                 rows={3}
                 maxLength={6000}
                 placeholder={
-                  showPassageSet
-                    ? "Optional extra context for this page"
+                  kind === "marked_paper"
+                    ? "e.g. 30/38 · missed Q8, Q14, Q22 — vocab in context"
                     : "Optional context for a later Codex review"
                 }
               />
             </label>
-            <label className="field"><span>Attach a file (optional)</span><input name="file" type="file" accept={materialTypes.join(",")} aria-describedby="resource-file-help" /></label>
+            <label className="field">
+              <span>{multiPageKind ? "Attach pages (images or PDF)" : "Attach a file (optional)"}</span>
+              <input
+                name={multiPageKind ? "files" : "file"}
+                type="file"
+                accept={materialTypes.join(",")}
+                multiple={multiPageKind}
+                aria-describedby="resource-file-help"
+              />
+            </label>
             <p id="resource-file-help" className="meta">
-              {subject === "reading"
-                ? "PDF, JPG, PNG or WebP · up to 8 MB. Coaching reports can use Ask Codex one-by-one. Practice-question screenshots use a passage set and go through Ask Codex to review Reading shelf in bulk."
-                : "PDF, JPG, PNG or WebP · up to 8 MB. Coaching items can be reviewed with Ask Codex; practice-question sources feed Ask Codex to generate practice bank."}
+              {multiPageKind
+                ? `PDF, JPG, PNG or WebP · up to ${maxMaterialFiles} files · 8 MB each. Choose pages in order; no PDF merge needed.`
+                : "PDF, JPG, PNG or WebP · up to 8 MB. Coaching items can be reviewed with Ask Codex."}
             </p>
             {error ? <p className="error" role="alert">{error}</p> : null}
             <div className="shelf-actions">
-              <button type="submit" className="button">{pending ? "Saving…" : "Save resource"}</button>
+              <button type="submit" className="button">{pending ? "Saving…" : multiPageKind ? "Save set" : "Save resource"}</button>
               <button type="button" className="button secondary" onClick={() => { formReset(dialog.current); setKind("coaching_report"); dialog.current?.close(); }}>Cancel</button>
             </div>
           </fieldset>

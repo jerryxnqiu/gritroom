@@ -55,7 +55,7 @@ import {
   scrubRemediationSummaryForLearner,
 } from "../lib/reading-remediation.ts";
 import { buildPracticeScorePoints } from "../lib/practice-score-chart.ts";
-import { composeReadingPassageNotes } from "../lib/shelf-fields.ts";
+import { composeReadingPassageNotes, composeResourceSetNotes } from "../lib/shelf-fields.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
 
 const core = readFileSync(new URL("../migrations/0002_core_schema.sql", import.meta.url), "utf8");
@@ -677,6 +677,36 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
     }),
     /Passage set: River Otters\nPage: 2 of 4\nSource questions in this article: 3\nExtra/,
   );
+  assert.match(
+    composeResourceSetNotes({
+      setLabel: "Paper set",
+      setName: "NSW Selective Reading PT1 marked",
+      page: "3",
+      pageCount: "12",
+      notes: "30/38 · missed Q8",
+    }),
+    /Paper set: NSW Selective Reading PT1 marked\nPage: 3 of 12\n30\/38 · missed Q8/,
+  );
+  assert.match(
+    composeResourceSetNotes({
+      setLabel: "Source set",
+      setName: "Workbook ch.4",
+      page: "1",
+      pageCount: "5",
+    }),
+    /Source set: Workbook ch\.4\nPage: 1 of 5/,
+  );
+  const markedMaterial = await getMaterialForCodex(db, "p1", "notes", "owner");
+  assert.ok(markedMaterial);
+  const markedBrief = buildCodexMaterialBrief(
+    { ...markedMaterial, kind: "marked_paper", notes: "Paper set: NSW PT1\nPage: 1 of 2\n30/38" },
+    "p1",
+    "owner",
+  );
+  assert.match(markedBrief, /marked-paper review/);
+  assert.match(markedBrief, /PERFORMANCE EVIDENCE/);
+  assert.match(markedBrief, /Paper set/);
+  assert.match(markedBrief, /kind = 'marked_paper'/);
   assert.equal((await readShelf(db, "p1", "selective", "owner", "reading")).materials[0]?.id, "reading-notes");
   assert.equal((await listSucceededMaterialEvidence(db, "p1", "selective", "owner", "reading")).length, 0);
   assert.equal((await listLearnerCoachTips(db, "learner", "reading")).length, 0);

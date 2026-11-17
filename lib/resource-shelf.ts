@@ -56,24 +56,76 @@ export async function readShelf(
   return { materials: materials.results, feedback: feedback.results };
 }
 
-export async function saveMaterial(db: D1Database, bucket: R2Bucket, profileId: string, userId: string, input: MaterialInput) {
-  const id = createId("mat");
-  const { file } = input;
-  const key = file ? `resource-shelf/${profileId}/${id}` : null;
-  if (file && key) await bucket.put(key, await file.arrayBuffer());
+export async function saveMaterial(
+  db: D1Database,
+  bucket: R2Bucket,
+  profileId: string,
+  userId: string,
+  input: MaterialInput,
+) {
+  const ids = await saveMaterials(db, bucket, profileId, userId, input);
+  return ids[0] ?? null;
+}
 
-  const inserted = await db.prepare(
-    `INSERT INTO shelf_materials
-       (id, profile_id, exam_goal, subject, kind, title, source_url, notes, file_key, file_name, file_type, created_by_user_id, created_at)
-     SELECT ?, p.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM profiles p WHERE p.id = ? AND ${parentAccess}`,
-  ).bind(
-    id, input.goal, input.subject, input.kind, input.title, input.url, input.notes, key,
-    file?.name.slice(0, 180) ?? null, file?.type ?? null, userId, nowIso(), profileId, userId,
-  ).run();
+/** Save one or more shelf rows (multi-page marked papers / practice sources). */
+export async function saveMaterials(
+  db: D1Database,
+  bucket: R2Bucket,
+  profileId: string,
+  userId: string,
+  input: MaterialInput,
+) {
+  const allowed = await canOpenShelf(db, profileId, userId);
+  if (!allowed) return [] as string[];
 
-  if (inserted.meta.changes) return id;
-  if (key) await bucket.delete(key);
-  return null;
+  const stamp = nowIso();
+  const uploaded: { id: string; key: string }[] = [];
+  const ids: string[] = [];
+
+  try {
+    for (const [index, page] of input.pages.entries()) {
+      const id = createId("mat");
+      const file = page.file;
+      const key = file ? `resource-shelf/${profileId}/${id}` : null;
+      if (file && key) {
+        await bucket.put(key, await file.arrayBuffer());
+        uploaded.push({ id, key });
+      }
+      const createdAt = new Date(Date.parse(stamp) + index).toISOString();
+      const inserted = await db.prepare(
+        `INSERT INTO shelf_materials
+           (id, profile_id, exam_goal, subject, kind, title, source_url, notes, file_key, file_name, file_type, created_by_user_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        id,
+        profileId,
+        input.goal,
+        input.subject,
+        input.kind,
+        page.title,
+        page.url,
+        page.notes,
+        key,
+        file?.name.slice(0, 180) ?? null,
+        file?.type ?? null,
+        userId,
+        createdAt,
+      ).run();
+      if (!inserted.meta.changes) throw new Error("shelf insert failed");
+      ids.push(id);
+    }
+    return ids;
+  } catch {
+    for (const item of uploaded) {
+      try {
+        await bucket.delete(item.key);
+      } catch {
+        // Best-effort cleanup after a partial batch failure.
+      }
+      await db.prepare(`DELETE FROM shelf_materials WHERE id = ? AND profile_id = ?`).bind(item.id, profileId).run();
+    }
+    return [] as string[];
+  }
 }
 
 /** Learner uploads their own handwriting photos for a Reading remediation plan. */

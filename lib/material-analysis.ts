@@ -1017,6 +1017,10 @@ export function buildCodexMaterialBrief(
   profileId: string,
   actorUserId: string,
 ) {
+  if (material.kind === "marked_paper") {
+    return buildCodexMarkedPaperBrief(material, profileId, actorUserId);
+  }
+
   const analysisId = createId("anl");
   const evidenceId = createId("evd");
   const stamp = nowIso();
@@ -1112,6 +1116,86 @@ export function buildCodexMaterialBrief(
     "```",
     "",
     "Then tell the parent to refresh Parent room → Resource shelf.",
+  ].filter((line) => line !== "").join("\n");
+}
+
+/** Marked NSW / sample papers done on paper — performance evidence for the next bank iteration. */
+function buildCodexMarkedPaperBrief(
+  material: MaterialRow,
+  profileId: string,
+  actorUserId: string,
+) {
+  const analysisId = createId("anl");
+  const evidenceId = createId("evd");
+  const stamp = nowIso();
+
+  return [
+    "GritRoom Codex marked-paper review",
+    "",
+    "You are working in the local gritroom repo.",
+    "This shelf item is a PAPER-BASED sample/government test the learner sat outside GritRoom,",
+    "then the family marked and uploaded (often many page photos in one Paper set).",
+    "Treat it as PERFORMANCE EVIDENCE for the next practice-bank / support iteration — not as a style model only.",
+    "Do NOT copy commercial or NSW sample stems into the live bank. Extract skill gaps and next training directions.",
+    "",
+    "## Scope",
+    `- profile_id: ${profileId}`,
+    `- learner: ${material.nickname}`,
+    `- exam_goal: ${material.examGoal}`,
+    `- subject: ${material.subject}`,
+    `- material_id: ${material.id}`,
+    `- kind: marked_paper`,
+    `- title: ${material.title}`,
+    material.notes?.trim() ? `- notes: ${material.notes.trim()}` : "- notes: (none)",
+    material.fileKey ? `- r2_key: ${material.fileKey}` : "- r2_key: (none — text/link only)",
+    `- actor_user_id: ${actorUserId}`,
+    `- prepared_at: ${stamp}`,
+    "",
+    "## Join the Paper set",
+    "1. List sibling marked_paper rows for this child/archive/module:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, title, notes, file_key, file_name FROM shelf_materials WHERE profile_id = '${profileId}' AND exam_goal = '${material.examGoal}' AND subject = '${material.subject}' AND kind = 'marked_paper' ORDER BY created_at, id;"`,
+    "```",
+    "2. Match partners by the same `Paper set: …` notes line (preferred) or Page N of M / shared title stem.",
+    "3. Download every matched page from R2, read in page order, and treat as ONE marked paper.",
+    material.fileKey
+      ? [
+          "Download example:",
+          "```sh",
+          `npx wrangler r2 object get ${CODEX_R2_BUCKET}/${material.fileKey} --file /tmp/${material.fileName || material.id} --remote`,
+          "```",
+        ].join("\n")
+      : "",
+    "",
+    "## What to extract",
+    "- Overall score if visible (e.g. 30/38) and paper name if known.",
+    "- Which question numbers look incorrect / blank / unsure from the marked pages or parent notes.",
+    `- Map misses to ${material.subject} blueprints/skills already in D1 (do not invent blueprints).`,
+    "- Up to 5 concrete training_directions for the NEXT bank refresh or remediation plan.",
+    "- evidence_limits: what the photos/notes do NOT prove (e.g. guessing, unmarked items).",
+    "- source_excerpt: short factual mark summary (score + miss list), max 8000 chars.",
+    "- summary_en: parent-facing English summary of how the learner went and what to practise next.",
+    "- parent_zh: optional Chinese parent reading, or empty.",
+    "",
+    "Official foundations for mapping (pick the subject tables that match):",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, skill, title FROM thinking_blueprints LIMIT 50;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, skill, title FROM reading_blueprints LIMIT 50;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, skill, title FROM mathematics_blueprints LIMIT 50;"`,
+    "```",
+    "",
+    "## Where to save (remote D1)",
+    "Write one succeeded analysis on THIS material_id (anchor page of the set) plus learning_evidence.",
+    "List partner material ids from the Paper set inside evidence_limits.",
+    `- analysis id: ${analysisId}`,
+    `- evidence id: ${evidenceId}`,
+    `- completed_at / created_at: ${stamp}`,
+    "",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO material_analyses (id, material_id, profile_id, exam_goal, subject, status, summary_en, parent_zh, training_directions_json, evidence_limits, source_excerpt, model, created_by_user_id, created_at, completed_at) VALUES ('${analysisId}', '${material.id}', '${profileId}', '${material.examGoal}', '${material.subject}', 'succeeded', 'SUMMARY_EN', NULL, '[\\"DIRECTION\\"]', 'LIMITS', 'EXCERPT', 'codex', '${actorUserId}', '${stamp}', '${stamp}'); INSERT INTO learning_evidence (id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at) VALUES ('${evidenceId}', '${profileId}', '${material.examGoal}', '${material.subject}', 'material_analysis', '${analysisId}', 'SUMMARY_EN', '${stamp}');"`,
+    "```",
+    "",
+    "Then tell the parent to refresh Parent room → Marked paper tests, then use Practice bank → Ask Codex to generate the next iteration.",
   ].filter((line) => line !== "").join("\n");
 }
 

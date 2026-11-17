@@ -10,6 +10,7 @@ import { RemediationPlanView } from "./RemediationPlanView";
 function tipLabel(kind: string) {
   if (kind === "reading_remediation") return "Words & phrases";
   if (kind === "coaching_report") return "From your coach";
+  if (kind === "marked_paper") return "From a marked paper";
   if (kind === "study_material") return "From your practice papers";
   if (kind === "video") return "From a practice video";
   return "Coach tip";

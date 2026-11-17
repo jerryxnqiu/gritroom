@@ -29,7 +29,8 @@ export async function ResourceShelf({
     listMaterialAnalyses(env.DB, profile.id, goal, userId, subject),
   ]);
   const scope = `${profile.id}:${goal}:${subject}`;
-  const coaching = materials.filter((item) => item.kind !== "study_material");
+  const coaching = materials.filter((item) => item.kind === "coaching_report" || item.kind === "coaching_video");
+  const marked = materials.filter((item) => item.kind === "marked_paper");
   const study = materials.filter((item) => item.kind === "study_material");
   const moduleLabel = subjectLabel(subject);
 
@@ -38,7 +39,7 @@ export async function ResourceShelf({
       <p className="eyebrow">04 / Practice inputs</p>
       <h2 id="resource-shelf-heading">{moduleLabel} resource shelf</h2>
       <p className="lede">
-        Store coaching reports and miscellaneous practice sources for {profile.nickname}’s {moduleLabel} module.
+        Store coaching reports, marked paper tests, and miscellaneous practice sources for {profile.nickname}’s {moduleLabel} module.
         {subject === "writing"
           ? " Writing is open response — keep prompts and marked samples here for coaching."
           : " Use Practice bank when you want Codex to refresh questions from everything here."}
@@ -82,12 +83,30 @@ export async function ResourceShelf({
       </details>
 
       <details className="family-subsection">
-        <summary id="shelf-study">03 · Practice questions from other sources</summary>
+        <summary id="shelf-marked">03 · Marked paper tests</summary>
         <div className="shelf-nest">
           <p className="meta">
-            {subject === "thinking"
-              ? "Workbook pages and other miscellaneous practice papers used as style exemplars. No per-file Codex click — use Generate practice bank above."
-              : "Reading passages and workbook pages used as style exemplars. No per-file Codex click — use Ask Codex to review Reading shelf above in bulk. For one article across several screenshots, add each photo with the same Passage set name and page N of M; the bulk review joins the set and keeps it as a style model for later original questions."}
+            Upload every page photo of a government/sample paper the learner sat on paper (no PDF merge needed).
+            Add a score/miss note, then Ask Codex to review the marked paper — that becomes training directions for the next bank iteration.
+          </p>
+          <ShelfMaterialList
+            profileId={profile.id}
+            materials={marked}
+            analyses={analyses.filter((item) => marked.some((material) => material.id === item.materialId))}
+            empty="No marked paper tests in this module shelf yet."
+            askCodexLabel="Ask Codex to review marked paper"
+            askCodexAgainLabel="Ask Codex to review marked paper again"
+          />
+        </div>
+      </details>
+
+      <details className="family-subsection">
+        <summary id="shelf-study">04 · Practice questions from other sources</summary>
+        <div className="shelf-nest">
+          <p className="meta">
+            {subject === "reading"
+              ? "Upload every screenshot/page of a practice article or workbook set in one go. Codex joins the Source/Passage set as a style model when generating Reading practice — it does not copy protected text."
+              : "Upload every screenshot/page of a miscellaneous practice paper in one go. These are style exemplars for Ask Codex to generate practice bank — not live bank items themselves."}
           </p>
           <ShelfMaterialList
             profileId={profile.id}
@@ -100,7 +119,7 @@ export async function ResourceShelf({
       </details>
 
       <details className="family-subsection shelf-anchor" id="parent-feedback">
-        <summary id="shelf-feedback">04 · Feedback &amp; question preferences</summary>
+        <summary id="shelf-feedback">05 · Feedback &amp; question preferences</summary>
         <div className="shelf-nest">
           <p className="meta">
             Save your observations or share what your child says about {moduleLabel.toLowerCase()} in this exam archive.

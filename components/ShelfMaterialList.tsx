@@ -8,7 +8,13 @@ import type { ShelfMaterial } from "@/lib/resource-shelf";
 import { materialKinds } from "@/lib/shelf-fields";
 
 export function ShelfMaterialList({
-  materials, profileId, empty, analyses = [], showAskCodex = true,
+  materials,
+  profileId,
+  empty,
+  analyses = [],
+  showAskCodex = true,
+  askCodexLabel = "Ask Codex",
+  askCodexAgainLabel = "Ask Codex again",
 }: {
   materials: ShelfMaterial[];
   profileId: string;
@@ -16,6 +22,8 @@ export function ShelfMaterialList({
   analyses?: MaterialAnalysis[];
   /** Per-item Codex analysis. Off for misc practice sources — use archive bank generation instead. */
   showAskCodex?: boolean;
+  askCodexLabel?: string;
+  askCodexAgainLabel?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -124,7 +132,7 @@ export function ShelfMaterialList({
                     disabled={pending}
                     onClick={() => askCodex(material)}
                   >
-                    {busy ? "Preparing…" : analysed ? "Ask Codex again" : "Ask Codex"}
+                    {busy ? "Preparing…" : analysed ? askCodexAgainLabel : askCodexLabel}
                   </button>
                 ) : null}
                 <button type="button" className="text-button shelf-delete" disabled={pending} onClick={() => deleteMaterial(material)}>
