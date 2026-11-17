@@ -1,11 +1,31 @@
 -- Read-only coaching teachers: invite by email, land in a learner-mirrored results room.
 -- SQLite cannot ALTER CHECK in place, so rebuild invite + login tables.
+-- D1 ignores PRAGMA foreign_keys=OFF. Drop dependent learner_links FKs before
+-- swapping family_invites, then restore them. Also defer checks for D1.
 
-PRAGMA foreign_keys = OFF;
+PRAGMA defer_foreign_keys = ON;
 
-DROP VIEW IF EXISTS open_family_invites;
--- RENAME recompiles cross-table triggers; drop before swapping the invites table.
+-- Drop invite triggers before the open_family_invites view; otherwise RENAME
+-- recompiles them and fails because the view is missing.
+DROP TRIGGER IF EXISTS invite_identity_immutable;
+DROP TRIGGER IF EXISTS invite_accept_guard;
+DROP TRIGGER IF EXISTS invite_accept_relationship;
+DROP TRIGGER IF EXISTS invite_cancel_audit;
 DROP TRIGGER IF EXISTS learner_link_guard;
+DROP TRIGGER IF EXISTS learner_link_immutable;
+DROP VIEW IF EXISTS open_family_invites;
+
+-- Break the learner_links → family_invites FK so the invites table can be rebuilt.
+CREATE TABLE learner_links_tmp (
+  profile_id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL UNIQUE,
+  invite_id TEXT NOT NULL UNIQUE,
+  linked_at TEXT NOT NULL
+);
+INSERT INTO learner_links_tmp (profile_id, user_id, invite_id, linked_at)
+SELECT profile_id, user_id, invite_id, linked_at FROM learner_links;
+DROP TABLE learner_links;
+ALTER TABLE learner_links_tmp RENAME TO learner_links;
 
 CREATE TABLE family_invites_new (
   id TEXT PRIMARY KEY,
@@ -33,9 +53,23 @@ INSERT INTO family_invites_new (
   created_by_user_id, created_at, delivery_status, accepted_by_user_id, revoked_by_user_id
 )
 SELECT
-  id, family_id, email, role, profile_id, token_hash, expires_at, accepted_at, revoked_at,
-  created_by_user_id, created_at, delivery_status, accepted_by_user_id, revoked_by_user_id
-FROM family_invites;
+  i.id,
+  i.family_id,
+  i.email,
+  i.role,
+  (SELECT p.id FROM profiles p WHERE p.id = i.profile_id),
+  i.token_hash,
+  i.expires_at,
+  i.accepted_at,
+  i.revoked_at,
+  i.created_by_user_id,
+  i.created_at,
+  i.delivery_status,
+  (SELECT u.id FROM users u WHERE u.id = i.accepted_by_user_id),
+  (SELECT u.id FROM users u WHERE u.id = i.revoked_by_user_id)
+FROM family_invites i
+WHERE EXISTS (SELECT 1 FROM families f WHERE f.id = i.family_id)
+  AND EXISTS (SELECT 1 FROM users u WHERE u.id = i.created_by_user_id);
 
 DROP TABLE family_invites;
 ALTER TABLE family_invites_new RENAME TO family_invites;
@@ -43,6 +77,22 @@ ALTER TABLE family_invites_new RENAME TO family_invites;
 CREATE INDEX idx_family_invites_profile ON family_invites(profile_id, created_at DESC);
 CREATE INDEX idx_family_invites_recipient ON family_invites(email, created_at DESC);
 CREATE INDEX idx_family_invites_sender ON family_invites(created_by_user_id, created_at DESC);
+
+-- Restore learner_links with full foreign keys to the rebuilt invites table.
+CREATE TABLE learner_links_new (
+  profile_id TEXT PRIMARY KEY REFERENCES profiles(id),
+  user_id TEXT NOT NULL UNIQUE REFERENCES users(id),
+  invite_id TEXT NOT NULL UNIQUE REFERENCES family_invites(id),
+  linked_at TEXT NOT NULL
+);
+INSERT INTO learner_links_new (profile_id, user_id, invite_id, linked_at)
+SELECT l.profile_id, l.user_id, l.invite_id, l.linked_at
+FROM learner_links l
+WHERE EXISTS (SELECT 1 FROM profiles p WHERE p.id = l.profile_id)
+  AND EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)
+  AND EXISTS (SELECT 1 FROM family_invites i WHERE i.id = l.invite_id);
+DROP TABLE learner_links;
+ALTER TABLE learner_links_new RENAME TO learner_links;
 
 CREATE TABLE login_challenges_new (
   id TEXT PRIMARY KEY,
@@ -92,8 +142,18 @@ INSERT INTO login_sessions_new (
   id, user_id, entry, token_hash, profile_id, family_id, expires_at, revoked_at, created_at, last_seen_at
 )
 SELECT
-  id, user_id, entry, token_hash, profile_id, family_id, expires_at, revoked_at, created_at, last_seen_at
-FROM login_sessions;
+  s.id,
+  s.user_id,
+  s.entry,
+  s.token_hash,
+  (SELECT p.id FROM profiles p WHERE p.id = s.profile_id),
+  (SELECT f.id FROM families f WHERE f.id = s.family_id),
+  s.expires_at,
+  s.revoked_at,
+  s.created_at,
+  s.last_seen_at
+FROM login_sessions s
+WHERE EXISTS (SELECT 1 FROM users u WHERE u.id = s.user_id);
 
 DROP TABLE login_sessions;
 ALTER TABLE login_sessions_new RENAME TO login_sessions;
@@ -199,6 +259,12 @@ BEGIN
   SELECT RAISE(ABORT, 'A verified acceptance is required');
 END;
 
+CREATE TRIGGER learner_link_immutable
+BEFORE UPDATE ON learner_links
+BEGIN
+  SELECT RAISE(ABORT, 'A linked learner identity is immutable');
+END;
+
 CREATE TRIGGER coach_link_guard
 BEFORE INSERT ON coach_links
 WHEN NOT EXISTS (
@@ -227,5 +293,3 @@ BEGIN
     'coach_revoked', datetime('now')
   FROM profiles p WHERE p.id = OLD.profile_id;
 END;
-
-PRAGMA foreign_keys = ON;
