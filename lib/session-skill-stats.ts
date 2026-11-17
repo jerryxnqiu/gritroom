@@ -21,6 +21,11 @@ function skillLabel(attempt: SkillAttempt) {
   return "Unclassified";
 }
 
+/** Same key SessionSkillChart uses — for filtering attempt lists by selected skill. */
+export function attemptSkillKey(attempt: SkillAttempt) {
+  return skillLabel(attempt).toLowerCase();
+}
+
 /** Group one paper’s Thinking Skills attempts by knowledge point / skill. */
 export function buildSessionSkillStats(attempts: SkillAttempt[]): SessionSkillStat[] {
   const byKey = new Map<string, SessionSkillStat>();

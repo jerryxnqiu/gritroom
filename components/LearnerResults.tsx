@@ -8,6 +8,7 @@ import type {
   PracticeEvidenceSession,
   PracticeResultSessionSummary,
 } from "@/lib/practice";
+import { attemptSkillKey } from "@/lib/session-skill-stats";
 import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { CollapseToggle, useCollapsedList } from "./CollapsedList";
 import { PracticePrompt } from "./PracticePrompt";
@@ -29,15 +30,17 @@ function AttemptRow({
   item,
   index,
   subject,
+  focused = false,
 }: {
   item: PracticeEvidenceItem;
   index: number;
   subject: PracticeSubject;
+  focused?: boolean;
 }) {
   const review = item.attemptReviewEn || item.explanationEn;
   const optionEntries = Object.entries(item.options || {});
   return (
-    <details className="practice-result-attempt">
+    <details className={`practice-result-attempt${focused ? " is-skill-focus" : ""}`}>
       <summary>
         <span className="meta">Q{index + 1}</span>
         <strong className={item.isCorrect ? "practice-ok" : "practice-miss"}>
@@ -46,6 +49,7 @@ function AttemptRow({
             : `Incorrect · answered ${item.selectedOption} · correct ${item.correctOption}`}
         </strong>
         {item.blueprintTitle ? <span className="meta">{item.blueprintTitle}</span> : null}
+        {item.skill ? <span className="meta">{item.skill}</span> : null}
       </summary>
       <div className="practice-result-attempt-body">
         {item.imageKey ? (
@@ -108,6 +112,7 @@ export function LearnerResults({
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [openId, setOpenId] = useState<string | null>(initialSessions[0]?.id ?? null);
   const [details, setDetails] = useState<Record<string, PracticeEvidenceSession>>({});
+  const [skillKey, setSkillKey] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<{ text: string; error?: boolean }>();
   const list = useCollapsedList(sessions);
@@ -115,10 +120,12 @@ export function LearnerResults({
   const openSession = details[openId || ""] ?? null;
   const visibleAttempts = useMemo(() => {
     if (!openSession) return [];
-    return answerFilter === "incorrect"
+    const base = answerFilter === "incorrect"
       ? openSession.attempts.filter((item) => !item.isCorrect)
       : openSession.attempts;
-  }, [openSession, answerFilter]);
+    if (!skillKey) return base;
+    return base.filter((item) => attemptSkillKey(item) === skillKey);
+  }, [openSession, answerFilter, skillKey]);
 
   useEffect(() => {
     if (openId && !details[openId]) openSessionDetail(openId);
@@ -166,6 +173,7 @@ export function LearnerResults({
 
   function openSessionDetail(sessionId: string) {
     setOpenId(sessionId);
+    setSkillKey(null);
     if (details[sessionId]) return;
     setStatus(undefined);
     startTransition(async () => {
@@ -339,15 +347,31 @@ export function LearnerResults({
             ) : (
               <>
                 {subject === "thinking" || subject === "mathematics" ? (
-                  <SessionSkillChart attempts={openSession.attempts} />
+                  <SessionSkillChart
+                    attempts={openSession.attempts}
+                    selectedKey={skillKey}
+                    onSelectKey={setSkillKey}
+                  />
                 ) : null}
                 {answerFilter === "incorrect" && openSession.incorrect === 0 ? (
                   <p className="meta">No incorrect answers in this paper — nice.</p>
+                ) : visibleAttempts.length === 0 && skillKey ? (
+                  <p className="meta" data-skill-attempts>
+                    No {answerFilter === "incorrect" ? "incorrect " : ""}questions in that skill for this paper.
+                  </p>
                 ) : (
-                  <div className="practice-result-attempts">
+                  <div className="practice-result-attempts" data-skill-attempts>
                     {visibleAttempts.map((item) => {
                       const index = openSession.attempts.findIndex((attempt) => attempt.id === item.id);
-                      return <AttemptRow key={item.id} item={item} index={index} subject={subject} />;
+                      return (
+                        <AttemptRow
+                          key={item.id}
+                          item={item}
+                          index={index}
+                          subject={subject}
+                          focused={Boolean(skillKey)}
+                        />
+                      );
                     })}
                   </div>
                 )}
