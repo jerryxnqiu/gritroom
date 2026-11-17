@@ -8,9 +8,69 @@ type SendEmailInput = {
   to: string;
   subject: string;
   text: string;
+  /** Optional HTML alternative; clients that support it will show this instead of text. */
+  html?: string;
   purpose: string;
   db: D1Database;
 };
+
+/** SMTP DATA end marker is a lone "."; prefix body lines that start with "." */
+function smtpDotStuff(body: string) {
+  return body.replace(/\r\n/g, "\n").split("\n").map((line) => (line.startsWith(".") ? `.${line}` : line)).join("\r\n");
+}
+
+function buildMimePayload(input: {
+  from: string;
+  to: string;
+  subject: string;
+  date: string;
+  messageId: string;
+  text: string;
+  html?: string;
+}) {
+  const headers = [
+    `From: GritRoom <${input.from}>`,
+    `To: ${input.to}`,
+    `Subject: ${input.subject}`,
+    `Date: ${input.date}`,
+    `Message-ID: ${input.messageId}`,
+    "MIME-Version: 1.0",
+  ];
+
+  if (!input.html) {
+    return [
+      ...headers,
+      'Content-Type: text/plain; charset="utf-8"',
+      "Content-Transfer-Encoding: 8bit",
+      "",
+      smtpDotStuff(input.text),
+      "",
+      ".",
+    ].join("\r\n");
+  }
+
+  const boundary = `gritroom_${input.messageId.replace(/[^a-zA-Z0-9]/g, "").slice(-18)}`;
+  return [
+    ...headers,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="utf-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    smtpDotStuff(input.text),
+    "",
+    `--${boundary}`,
+    'Content-Type: text/html; charset="utf-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    smtpDotStuff(input.html),
+    "",
+    `--${boundary}--`,
+    "",
+    ".",
+  ].join("\r\n");
+}
 
 type SmtpResult =
   | { ok: true; messageId: string }
@@ -68,20 +128,15 @@ export async function sendEmail(input: SendEmailInput): Promise<SmtpResult> {
   const { email, host, port, password } = configured.keys;
   const messageId = `<${createId("msg")}@gritroom.local>`;
   const date = new Date().toUTCString();
-  const payload = [
-    `From: GritRoom <${email}>`,
-    `To: ${input.to}`,
-    `Subject: ${input.subject}`,
-    `Date: ${date}`,
-    `Message-ID: ${messageId}`,
-    "MIME-Version: 1.0",
-    'Content-Type: text/plain; charset="utf-8"',
-    "Content-Transfer-Encoding: 8bit",
-    "",
-    input.text,
-    "",
-    ".",
-  ].join("\r\n");
+  const payload = buildMimePayload({
+    from: email,
+    to: input.to,
+    subject: input.subject,
+    date,
+    messageId,
+    text: input.text,
+    html: input.html,
+  });
 
   let socket: ReturnType<typeof connect> | undefined;
   try {

@@ -11,6 +11,7 @@ import {
   listParentProfiles,
 } from "./family";
 import type { ExamGoal } from "./family";
+import { signInCodeEmail } from "./email-templates";
 import { createId } from "./ids";
 import { sendEmail } from "./smtp";
 import { isExpired, minutesFromNow, nowIso } from "./time";
@@ -94,17 +95,14 @@ export async function requestSignInCode(input: {
     return { ok: false, error: "Please wait before requesting another sign-in code.", status: 429 };
   }
 
+  const mailBody = signInCodeEmail({ code, minutes: CODE_TTL_MINUTES });
   const mail = await sendEmail({
     db: env.DB,
     purpose: "login-code",
     to: input.email,
     subject: "Your GritRoom sign-in code",
-    text: [
-      `Your GritRoom sign-in code is ${code}.`,
-      "",
-      `It expires in ${CODE_TTL_MINUTES} minutes.`,
-      "If you did not request this code, you can ignore this email.",
-    ].join("\n"),
+    text: mailBody.text,
+    html: mailBody.html,
   });
 
   if (!mail.ok) {
