@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import type { MaterialAnalysis } from "@/lib/material-analysis";
 import type { ShelfMaterial } from "@/lib/resource-shelf";
 import { materialKinds } from "@/lib/shelf-fields";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 export function ShelfMaterialList({
   materials,
@@ -30,13 +31,19 @@ export function ShelfMaterialList({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ShelfMaterial | null>(null);
   const latest = new Map(analyses.map((item) => [item.materialId, item]));
 
-  function deleteMaterial(material: ShelfMaterial) {
+  function requestDelete(material: ShelfMaterial) {
     if (pending) return;
-    if (!window.confirm(`Delete “${material.title}” from this shelf?`)) return;
     setError("");
     setNotice("");
+    setPendingDelete(material);
+  }
+
+  function confirmDelete() {
+    const material = pendingDelete;
+    if (!material || pending) return;
     setBusyId(material.id);
     startTransition(async () => {
       try {
@@ -46,9 +53,11 @@ export function ShelfMaterialList({
         );
         const result = await response.json() as { error?: string };
         if (!response.ok) throw new Error(result.error || "Could not delete this resource. Try again.");
+        setPendingDelete(null);
         router.refresh();
       } catch (problem) {
         setError(problem instanceof Error ? problem.message : "Something went wrong. Try again.");
+        setPendingDelete(null);
       } finally {
         setBusyId(null);
       }
@@ -135,7 +144,7 @@ export function ShelfMaterialList({
                     {busy ? "Preparing…" : analysed ? askCodexAgainLabel : askCodexLabel}
                   </button>
                 ) : null}
-                <button type="button" className="text-button shelf-delete" disabled={pending} onClick={() => deleteMaterial(material)}>
+                <button type="button" className="text-button shelf-delete" disabled={pending} onClick={() => requestDelete(material)}>
                   Delete
                 </button>
               </div>
@@ -143,6 +152,22 @@ export function ShelfMaterialList({
           );
         })}
       </ul>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title="Delete this resource?"
+        message={
+          pendingDelete
+            ? `Remove “${pendingDelete.title}” from this shelf? This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        pending={pending && busyId === pendingDelete?.id}
+        onCancel={() => {
+          if (!pending) setPendingDelete(null);
+        }}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

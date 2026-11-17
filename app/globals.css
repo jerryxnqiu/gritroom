@@ -1235,6 +1235,10 @@ p { margin: 0; }
 .shelf-dialog { position: fixed; inset: 0; margin: auto; width: min(34rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.25rem; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--ink); }
 .shelf-dialog::backdrop { background: #182c26a6; }
 .shelf-dialog fieldset { margin-top: 1rem; }
+.confirm-dialog { width: min(26rem, calc(100% - 2rem)); }
+.confirm-dialog h3 { margin: 0 0 .45rem; font-size: 1.15rem; }
+.confirm-dialog .meta { margin: 0 0 1.1rem; }
+.confirm-dialog .shelf-actions { justify-content: flex-end; }
 .shelf-form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
 @media (max-width: 480px) {
   .shelf-form-pair { grid-template-columns: 1fr; }
