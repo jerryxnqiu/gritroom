@@ -8,10 +8,10 @@ export function ParentSectionNav() {
   const { section, setSection } = useParentSection();
   const items: Array<{ id: ParentSection; label: string }> = [
     { id: "progress", label: "Progress" },
-    { id: "family", label: "Family" },
     { id: "bank", label: "Practice bank" },
-    { id: "shelf", label: "Resources" },
     { id: "evidence", label: "Evidence" },
+    { id: "shelf", label: "Resources" },
+    { id: "family", label: "Family" },
   ];
   return (
     <nav className="practice-section-nav parent-section-nav" aria-label="Parent room sections">

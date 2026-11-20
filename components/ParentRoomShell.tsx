@@ -43,10 +43,10 @@ export function ParentRoomShell({
 
   const navItems: RoomNavItem[] = useMemo(() => [
     { href: "#progress", label: "Progress", current: section === "progress" },
-    { href: "#family", label: "Family", current: section === "family" },
     { href: "#bank", label: "Practice bank", current: section === "bank" },
-    { href: "#shelf", label: "Resources", current: section === "shelf" },
     { href: "#evidence", label: "Evidence", current: section === "evidence" },
+    { href: "#shelf", label: "Resources", current: section === "shelf" },
+    { href: "#family", label: "Family", current: section === "family" },
   ], [section]);
 
   return (
