@@ -619,6 +619,9 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(readingBrief, /COUNT\(DISTINCT passage_group\) AS articles/);
   assert.match(readingBrief, /reading_questions q ON q.id = a.question_id/);
   assert.match(readingBrief, /ALWAYS set blueprint_id/);
+  assert.match(readingBrief, /whole articles only/);
+  assert.match(readingBrief, /contiguous block/);
+  assert.match(readingBrief, /Aim for 6–7 answers per article/);
   assert.match(readingBrief, /Never copy or lightly paraphrase/);
   assert.match(readingBrief, /Passage authenticity/);
   assert.match(readingBrief, /genuine-feeling/);

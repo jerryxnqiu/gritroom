@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import type { LearnerCoachTip } from "@/lib/material-analysis";
 import type {
@@ -9,6 +9,10 @@ import type {
   PracticeResultSessionSummary,
   PracticeSessionView,
 } from "@/lib/practice";
+import {
+  buildReadingArticleBlocks,
+  readingArticleForIndex,
+} from "@/lib/reading-articles";
 import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
 import { LearnerCoachTips } from "./LearnerCoachTips";
 import { LearnerResults } from "./LearnerResults";
@@ -125,6 +129,19 @@ export function LearnerPractice({
   const canStartTimed = !active && remainingCount >= paper.questions;
   const inQuestion = phase === "question" && Boolean(current) && (active || Boolean(review));
   const sectionForActive = session?.mode === "timed" ? "timed" : "practice";
+  const readingArticles = useMemo(
+    () => (reading && session ? buildReadingArticleBlocks(session.attempts) : []),
+    [reading, session],
+  );
+  const currentReadingArticle = reading && session
+    ? readingArticleForIndex(
+      readingArticles,
+      Math.max(0, (current ? session.attempts.findIndex((item) => item.id === current.id) : timedIndex)),
+    )
+    : null;
+  const currentArticleIndex = currentReadingArticle
+    ? readingArticles.findIndex((block) => block.key === currentReadingArticle.key)
+    : -1;
 
   useEffect(() => {
     if (review || !current) return;
@@ -438,28 +455,70 @@ export function LearnerPractice({
           ) : null}
 
           {timed && session ? (
-            <div className="practice-question-nav" role="navigation" aria-label="Jump to question">
-              {session.attempts.map((item, index) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`practice-q-chip${index === timedIndex ? " is-current" : ""}${item.selectedOption ? " is-answered" : ""}`}
-                  aria-current={index === timedIndex ? "true" : undefined}
-                  aria-label={`Question ${index + 1}${item.selectedOption ? ", answered" : ", unanswered"}`}
-                  disabled={pending || timedTimeUp}
-                  onClick={() => jumpTimed(index)}
-                >
-                  {index + 1}
-                </button>
-              ))}
-            </div>
+            reading && readingArticles.length ? (
+              <div className="practice-article-nav" role="navigation" aria-label="Reading articles and questions">
+                {readingArticles.map((block, articleIndex) => (
+                  <div key={block.key} className="practice-article-block">
+                    <p className={`practice-article-label${articleIndex === currentArticleIndex ? " is-current" : ""}`}>
+                      Article {articleIndex + 1}
+                      <span className="meta">
+                        {" · "}Q{block.startIndex + 1}–{block.endIndex + 1}
+                        {block.title ? ` · ${block.title}` : ""}
+                      </span>
+                    </p>
+                    <div className="practice-question-nav">
+                      {session.attempts.slice(block.startIndex, block.endIndex + 1).map((item, offset) => {
+                        const index = block.startIndex + offset;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className={`practice-q-chip${index === timedIndex ? " is-current" : ""}${item.selectedOption ? " is-answered" : ""}`}
+                            aria-current={index === timedIndex ? "true" : undefined}
+                            aria-label={`Article ${articleIndex + 1}, question ${index + 1}${item.selectedOption ? ", answered" : ", unanswered"}`}
+                            disabled={pending || timedTimeUp}
+                            onClick={() => jumpTimed(index)}
+                          >
+                            {index + 1}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="practice-question-nav" role="navigation" aria-label="Jump to question">
+                {session.attempts.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`practice-q-chip${index === timedIndex ? " is-current" : ""}${item.selectedOption ? " is-answered" : ""}`}
+                    aria-current={index === timedIndex ? "true" : undefined}
+                    aria-label={`Question ${index + 1}${item.selectedOption ? ", answered" : ", unanswered"}`}
+                    disabled={pending || timedTimeUp}
+                    onClick={() => jumpTimed(index)}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+              </div>
+            )
           ) : null}
 
           <h2 id="practice-heading">
-            {current?.blueprintTitle
-              || (reading ? "Reading question" : mathematics ? "Mathematics question" : "Your next question")}
+            {reading && currentReadingArticle
+              ? `Article ${currentArticleIndex + 1} of ${readingArticles.length}`
+              : current?.blueprintTitle
+                || (reading ? "Reading question" : mathematics ? "Mathematics question" : "Your next question")}
           </h2>
-          {current?.skill ? <p className="meta">{current.skill}</p> : null}
+          {reading && currentReadingArticle ? (
+            <p className="meta">
+              {currentReadingArticle.title}
+              {" · "}Q{questionNumber} of {total}
+              {" · "}this article Q{currentReadingArticle.startIndex + 1}–{currentReadingArticle.endIndex + 1}
+            </p>
+          ) : current?.skill ? <p className="meta">{current.skill}</p> : null}
           {current?.imageKey ? (
             <p className="practice-figure">
               <img
@@ -515,7 +574,9 @@ export function LearnerPractice({
             <p className="meta">
               {timedTimeUp
                 ? "Time is up — this paper is being submitted. Unanswered questions count as misses."
-                : "You can jump back to any question and change answers until time runs out or you submit. You’ll get warnings at 10 and 5 minutes left. Correct answers stay hidden until submit."}
+                : reading
+                  ? "Reading follows the real paper layout: finish one article’s answers together before moving on. Each article appears once. You can still jump within an article and change answers until time runs out or you submit."
+                  : "You can jump back to any question and change answers until time runs out or you submit. You’ll get warnings at 10 and 5 minutes left. Correct answers stay hidden until submit."}
             </p>
           )}
           {review ? (
@@ -694,7 +755,9 @@ export function LearnerPractice({
                   : "Sit a full Thinking Skills paper."}
             </h2>
             <p className="lede">
-              {`${paper.questions} ${reading ? "answers" : "questions"} · ${paper.minutes} minutes${mathematics ? " · five options (A–E)" : ""}. Move between questions freely and change answers anytime. You’ll get warnings at 10 and 5 minutes left; when time runs out the paper submits automatically and unanswered items count as misses.`}
+              {reading
+                ? `${paper.questions} answers · ${paper.minutes} minutes. Official layout: whole articles one after another (about 6–7 answers each), each article used once. Work an article’s answers together; you can still jump and change answers until time runs out or you submit. Warnings at 10 and 5 minutes left; when time ends the paper submits and unanswered items count as misses.`
+                : `${paper.questions} questions · ${paper.minutes} minutes${mathematics ? " · five options (A–E)" : ""}. Move between questions freely and change answers anytime. You’ll get warnings at 10 and 5 minutes left; when time runs out the paper submits automatically and unanswered items count as misses.`}
             </p>
             <div className="actions practice-start-actions">
               <button
@@ -719,7 +782,7 @@ export function LearnerPractice({
             <h2 id="practice-heading">A short {subjectLabel(subject)} practice set.</h2>
             <p className="lede">
               {reading
-                ? "Do up to ten unused Reading questions from the family bank. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."
+                ? "Practice uses whole Reading articles (each article’s answers stay together). The set aims for about ten answers and allows one minute per answer in total, including reviews."
                 : mathematics
                   ? "Do up to ten unused Mathematical Reasoning questions from the family bank. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."
                   : "Do a mixed ten-question set, or practise only the skills you miss most. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."}

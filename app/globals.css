@@ -487,11 +487,39 @@ p { margin: 0; }
 .practice-timer.is-up .practice-timer-kicker,
 .practice-timer.is-up .practice-timer-clock,
 .practice-timer.is-up .practice-timer-label { color: var(--danger); }
+.practice-article-nav {
+  display: grid;
+  gap: .7rem;
+  margin: .85rem 0 1rem;
+}
+.practice-article-block {
+  display: grid;
+  gap: .35rem;
+  padding: .55rem .65rem;
+  border: 1px solid #e4ecdb;
+  border-radius: 10px;
+  background: #fafcf7;
+}
+.practice-article-label {
+  margin: 0;
+  font-size: .86rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.practice-article-label.is-current {
+  color: var(--green);
+}
+.practice-article-label .meta {
+  font-weight: 550;
+}
 .practice-question-nav {
   display: flex;
   flex-wrap: wrap;
   gap: .35rem;
   margin: .85rem 0 1rem;
+}
+.practice-article-block .practice-question-nav {
+  margin: 0;
 }
 .practice-q-chip {
   min-width: 2rem;

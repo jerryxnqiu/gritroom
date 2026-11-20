@@ -1,9 +1,8 @@
 import type { ExamGoal } from "./family";
 import { createId } from "./ids.ts";
 import { getPracticeSession, type PracticeMode, type PracticeSessionView } from "./practice.ts";
+import { pickReadingQuestionsByArticle } from "./reading-articles.ts";
 import { nowIso } from "./time.ts";
-
-const SHORT_SET_SIZE = 10;
 
 /** Official Reading timed paper length (answers + minutes) from NSW format guides. */
 export function readingTimedPaperSpec(goal: ExamGoal) {
@@ -160,22 +159,6 @@ export async function loadUnusedReadingQuestions(
   return results;
 }
 
-function pickReadingQuestions(
-  unused: ReadingQuestion[],
-  mode: PracticeMode,
-  examGoal: ExamGoal,
-) {
-  const shuffled = [...unused];
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(Math.random() * (index + 1));
-    [shuffled[index], shuffled[swap]] = [shuffled[swap]!, shuffled[index]!];
-  }
-  if (mode === "timed") {
-    return shuffled.slice(0, readingTimedPaperSpec(examGoal).answers);
-  }
-  return shuffled.slice(0, Math.min(SHORT_SET_SIZE, shuffled.length));
-}
-
 async function learnerProfile(db: D1Database, userId: string) {
   return db.prepare(
     `SELECT p.id, p.exam_goal AS examGoal, p.nickname
@@ -232,18 +215,26 @@ export async function startReadingPracticeSession(
     };
   }
 
-  if (mode === "timed") {
-    const paper = readingTimedPaperSpec(profile.examGoal);
-    if (unused.length < paper.answers) {
-      return {
-        ok: false,
-        status: 409,
-        error: `A ${paper.label} needs ${paper.answers} unused answers. ${unused.length} left in the bank — ask your family to refresh, or use Practice for a short set.`,
-      };
-    }
+  const paper = readingTimedPaperSpec(profile.examGoal);
+  if (mode === "timed" && unused.length < paper.answers) {
+    return {
+      ok: false,
+      status: 409,
+      error: `A ${paper.label} needs ${paper.answers} unused answers. ${unused.length} left in the bank — ask your family to refresh, or use Practice for a short set.`,
+    };
   }
 
-  const questions = pickReadingQuestions(unused, mode, profile.examGoal);
+  const questions = pickReadingQuestionsByArticle(unused, mode, paper.answers) as ReadingQuestion[];
+  if (!questions.length) {
+    return {
+      ok: false,
+      status: 409,
+      error: mode === "timed"
+        ? `Could not build a ${paper.label} from whole articles only (each passage must appear once as a contiguous block summing to ${paper.answers} answers). Ask your family to refresh the Reading bank with complete article sets.`
+        : "No unused Reading articles left. Ask your family to generate the Reading practice bank.",
+    };
+  }
+
   const sessionId = createId("psn");
   const startedAt = nowIso();
   const storedMode = mode === "timed" ? "timed" : "daily";
