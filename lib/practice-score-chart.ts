@@ -21,6 +21,46 @@ export type PracticeScorePoint = {
   at: string;
 };
 
+export type PracticeScoreDateGroup = {
+  date: string;
+  points: PracticeScorePoint[];
+};
+
+/** Group chronological score points into same-date columns. */
+export function groupPracticeScorePointsByDate(points: PracticeScorePoint[]): PracticeScoreDateGroup[] {
+  const groups: PracticeScoreDateGroup[] = [];
+  for (const point of points) {
+    const last = groups[groups.length - 1];
+    if (last && last.date === point.date) last.points.push(point);
+    else groups.push({ date: point.date, points: [point] });
+  }
+  return groups;
+}
+
+/**
+ * Cumulative overall hit rate through each date: sum(correct) / sum(total).
+ * Matches the Progress “Accuracy” card on the latest date.
+ */
+export function cumulativeHitRatesByDate(groups: PracticeScoreDateGroup[]) {
+  let correct = 0;
+  let answered = 0;
+  let papers = 0;
+  return groups.map((group) => {
+    for (const point of group.points) {
+      correct += point.correct;
+      answered += point.total;
+      papers += 1;
+    }
+    return {
+      date: group.date,
+      average: answered ? Math.round((correct / answered) * 100) : 0,
+      papers,
+      answered,
+      correct,
+    };
+  });
+}
+
 function sessionStamp(session: PracticeScoreSession) {
   return session.completedAt || session.startedAt;
 }

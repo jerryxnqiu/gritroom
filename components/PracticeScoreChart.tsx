@@ -4,36 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   buildPracticeScorePoints,
+  cumulativeHitRatesByDate,
+  groupPracticeScorePointsByDate,
   type PracticeScorePoint,
   type PracticeScoreSession,
 } from "@/lib/practice-score-chart";
-
-function groupPointsByDate(points: PracticeScorePoint[]) {
-  const groups: { date: string; points: PracticeScorePoint[] }[] = [];
-  for (const point of points) {
-    const last = groups[groups.length - 1];
-    if (last && last.date === point.date) last.points.push(point);
-    else groups.push({ date: point.date, points: [point] });
-  }
-  return groups;
-}
-
-/** Running mean of all paper scores up to and including each date. */
-function cumulativeAveragesByDate(groups: { date: string; points: PracticeScorePoint[] }[]) {
-  let sum = 0;
-  let count = 0;
-  return groups.map((group) => {
-    for (const point of group.points) {
-      sum += point.percent;
-      count += 1;
-    }
-    return {
-      date: group.date,
-      average: count ? Math.round(sum / count) : 0,
-      papers: count,
-    };
-  });
-}
 
 export function PracticeScoreChart({
   sessions,
@@ -45,8 +20,8 @@ export function PracticeScoreChart({
   onSelect?: (sessionId: string) => void;
 }) {
   const points = useMemo(() => buildPracticeScorePoints(sessions), [sessions]);
-  const groups = useMemo(() => groupPointsByDate(points), [points]);
-  const runningAverages = useMemo(() => cumulativeAveragesByDate(groups), [groups]);
+  const groups = useMemo(() => groupPracticeScorePointsByDate(points), [points]);
+  const runningAverages = useMemo(() => cumulativeHitRatesByDate(groups), [groups]);
   const hostRef = useRef<HTMLDivElement>(null);
   const [hostWidth, setHostWidth] = useState(0);
   const [tooltip, setTooltip] = useState<{
@@ -123,13 +98,13 @@ export function PracticeScoreChart({
           <strong>{subjectLabel} papers by date</strong>
         </div>
         <p className="meta">
-          Bars are each paper. The line is the running average score through that date.
+          Bars are each paper. The line is the overall hit rate (correct ÷ all answers) through that date — same as Accuracy.
         </p>
       </div>
 
       <p className="practice-score-legend" aria-hidden="true">
         <span className="practice-score-legend-bar">Paper score</span>
-        <span className="practice-score-legend-line">Running average</span>
+        <span className="practice-score-legend-line">Overall hit rate</span>
       </p>
 
       <div
@@ -246,7 +221,7 @@ export function PracticeScoreChart({
                     className="practice-score-average-dot"
                   >
                     <title>
-                      {`Running average through ${item.date}: ${item.average}% (${item.papers} paper${item.papers === 1 ? "" : "s"})`}
+                      {`Overall hit rate through ${item.date}: ${item.average}% (${item.correct} of ${item.answered} answers)`}
                     </title>
                   </circle>
                   <text

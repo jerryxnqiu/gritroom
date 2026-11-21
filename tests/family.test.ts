@@ -54,7 +54,11 @@ import {
   remediationSourcePaperLabel,
   scrubRemediationSummaryForLearner,
 } from "../lib/reading-remediation.ts";
-import { buildPracticeScorePoints } from "../lib/practice-score-chart.ts";
+import {
+  buildPracticeScorePoints,
+  cumulativeHitRatesByDate,
+  groupPracticeScorePointsByDate,
+} from "../lib/practice-score-chart.ts";
 import { composeReadingPassageNotes, composeResourceSetNotes, parseResourceSetNotes, stripResourcePageSuffix } from "../lib/shelf-fields.ts";
 import { groupShelfMaterials } from "../lib/shelf-sets.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
@@ -440,6 +444,14 @@ test("practice score chart keeps plain dates and tags identical sources", () => 
   assert.equal(points[1]?.percent, 70);
   assert.equal(points[2]?.percent, 70);
   assert.equal(points[3]?.percent, 80);
+
+  // Answer-weighted running hit rate matches overall Accuracy on the latest date.
+  // Day1: 9/10 = 90%. Day2 adds 7+28+8 = 43 correct / 60 answers → 52/70 = 74%.
+  const hitRates = cumulativeHitRatesByDate(groupPracticeScorePointsByDate(points));
+  assert.equal(hitRates[0]?.average, 90);
+  assert.equal(hitRates[1]?.average, Math.round((52 / 70) * 100));
+  assert.equal(hitRates[1]?.correct, 52);
+  assert.equal(hitRates[1]?.answered, 70);
 });
 
 test("reading remediation plans parse model sentences for handwriting UI", () => {
