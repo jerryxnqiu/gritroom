@@ -3,14 +3,17 @@
 import { useState, useTransition } from "react";
 
 import type { ExamGoal } from "@/lib/family";
+import type { PracticeSubject } from "@/lib/subjects";
 
 export function AskCodexAttemptReviewButton({
   profileId,
   goal,
+  subject = "thinking",
   disabled = false,
 }: {
   profileId: string;
   goal: ExamGoal;
+  subject?: Extract<PracticeSubject, "thinking" | "mathematics">;
   disabled?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
@@ -24,7 +27,7 @@ export function AskCodexAttemptReviewButton({
     startTransition(async () => {
       try {
         const response = await fetch(
-          `/api/shelf/${encodeURIComponent(profileId)}/attempt-review-brief?goal=${encodeURIComponent(goal)}`,
+          `/api/shelf/${encodeURIComponent(profileId)}/attempt-review-brief?goal=${encodeURIComponent(goal)}&subject=${encodeURIComponent(subject)}`,
         );
         const result = await response.json() as { brief?: string; pendingCount?: number; error?: string };
         if (!response.ok || !result.brief) throw new Error(result.error || "Could not prepare the Codex review task.");

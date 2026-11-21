@@ -125,7 +125,9 @@ export function LearnerPractice({
     ? session.attempts.findIndex((item) => item.id === current.id) + 1
     : answered.length + 1;
   const canStartPractice = remainingCount > 0 && !active;
-  const canStartFocus = subject === "thinking" && weakRemainingCount > 0 && !active;
+  const canStartFocus = (subject === "thinking" || subject === "mathematics")
+    && weakRemainingCount > 0
+    && !active;
   const canStartTimed = !active && remainingCount >= paper.questions;
   const inQuestion = phase === "question" && Boolean(current) && (active || Boolean(review));
   const sectionForActive = session?.mode === "timed" ? "timed" : "practice";
@@ -784,7 +786,7 @@ export function LearnerPractice({
               {reading
                 ? "Practice uses whole Reading articles (each article’s answers stay together). The set aims for about ten answers and allows one minute per answer in total, including reviews."
                 : mathematics
-                  ? "Do up to ten unused Mathematical Reasoning questions from the family bank. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."
+                  ? "Do a mixed ten-question set, or practise only the Mathematics skills you miss most. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."
                   : "Do a mixed ten-question set, or practise only the skills you miss most. The set clock allows one minute per question in total (10 questions → 10 minutes), including reviews."}
             </p>
             <div className="actions practice-start-actions">
@@ -801,7 +803,7 @@ export function LearnerPractice({
                       : "You have finished every practice question available right now. Ask your family to refresh the practice bank when they are ready."}
                 </p>
               )}
-              {subject === "thinking" ? (
+              {subject === "thinking" || subject === "mathematics" ? (
                 <>
                   <button
                     type="button"
@@ -824,7 +826,7 @@ export function LearnerPractice({
                 </>
               ) : canStartPractice ? (
                 <p className="meta">
-                  {remainingCount} unused {reading ? "Reading" : mathematics ? "Mathematics" : subjectLabel(subject)} question{remainingCount === 1 ? "" : "s"} ready.
+                  {remainingCount} unused {reading ? "Reading" : subjectLabel(subject)} question{remainingCount === 1 ? "" : "s"} ready.
                 </p>
               ) : null}
             </div>

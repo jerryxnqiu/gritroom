@@ -604,6 +604,17 @@ function buildCodexMathematicsBankBrief(input: {
     `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT question_id, is_correct, substr(question_prompt,1,80) AS prompt FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'mathematics' AND finalized_at IS NOT NULL ORDER BY finalized_at DESC LIMIT 100;"`,
     "```",
     "",
+    "Weak-spot Mathematics blueprints for this learner (incorrect finalized attempts, highest miss count first).",
+    "Join via mathematics_questions.blueprint_id — practice_attempts.blueprint_id stays null for Mathematics (FK is Thinking-only):",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT q.blueprint_id, b.skill, b.title, COUNT(*) AS misses FROM practice_attempts a JOIN mathematics_questions q ON q.id = a.question_id AND q.version = a.question_version LEFT JOIN mathematics_blueprints b ON b.id = q.blueprint_id WHERE a.profile_id = '${profileId}' AND a.exam_goal = '${goal}' AND a.subject = 'mathematics' AND a.finalized_at IS NOT NULL AND a.is_correct = 0 AND q.blueprint_id IS NOT NULL GROUP BY q.blueprint_id, b.skill, b.title ORDER BY misses DESC, q.blueprint_id LIMIT 8;"`,
+    "```",
+    "",
+    "Active parent feedback:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT body, created_at FROM shelf_feedback WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'mathematics' AND withdrawn_at IS NULL ORDER BY created_at DESC;"`,
+    "```",
+    "",
     `## Coaching reports & videos (${coaching.length})`,
     coaching.length ? materialLines(coaching) : "(none in this archive)",
     "",
@@ -611,9 +622,18 @@ function buildCodexMathematicsBankBrief(input: {
     practiceSources.length ? materialLines(practiceSources) : "(none in this archive)",
     "",
     "## What to write",
-    "ADD about 45 new active mathematics_questions for this exam_goal (enough for a 35-question timed paper + Practice · 10).",
+    "ADD about 80 new active mathematics_questions for this exam_goal:",
+    "enough for 2 full 35-question timed papers (70) plus 10 weak-spot items (80 total).",
+    "Mix for the ~80 new items: exactly about 10 on the learner’s weak-spot mathematics blueprints",
+    "(from the miss counts above — these feed Practice weak spots),",
+    "and the remaining ~70 spread across other mathematics_blueprints so two full timed papers stay balanced.",
+    "If there are no weak-spot misses yet, spread all ~80 evenly across blueprints (still keep coverage for two timed papers).",
+    "Also honour training directions from material analyses and parent feedback when choosing which weak blueprints to reinforce.",
+    "Several original items per blueprint is expected; one-per-blueprint is not enough.",
+    "Prefer fresh stems over near-copies of active bank items.",
     "Every item needs five options in options_json keys A–E and explanation_en.",
-    "Leave practice_attempts.blueprint_id null (Thinking FK); set mathematics_questions.blueprint_id to a mathematics blueprint id.",
+    "Leave practice_attempts.blueprint_id null (Thinking FK); set mathematics_questions.blueprint_id to a mathematics blueprint id",
+    "(required so weak-spot practice and refreshes can count misses by skill).",
     "Insert example:",
     "```sh",
     `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO mathematics_questions (id, version, exam_goal, blueprint_id, prompt, options_json, correct_option, explanation_en, status, created_at) VALUES ('mq-example', 1, '${goal}', 'number-sense', 'PROMPT', '{\\"A\\":\\"\\",\\"B\\":\\"\\",\\"C\\":\\"\\",\\"D\\":\\"\\",\\"E\\":\\"\\"}', 'C', 'WHY', 'active', '${stamp}');"`,
@@ -959,6 +979,7 @@ function buildCodexReadingRemediationBrief(input: {
 
 /**
  * Codex task: write personalised kid-facing reviews for incorrect attempts that still lack attempt_review_en.
+ * Thinking Skills and Mathematics only — Reading uses the remediation brief instead.
  */
 export function buildCodexAttemptReviewBrief(input: {
   profileId: string;
@@ -966,24 +987,38 @@ export function buildCodexAttemptReviewBrief(input: {
   nickname: string;
   actorUserId: string;
   pendingCount: number;
+  subject?: "thinking" | "mathematics";
 }) {
   const { profileId, goal, nickname, actorUserId, pendingCount } = input;
+  const subject = input.subject ?? "thinking";
   const stamp = nowIso();
+  const moduleName = subject === "mathematics" ? "Mathematical Reasoning" : "Thinking Skills";
+  const parentModule = subject === "mathematics" ? "Mathematics" : "Thinking Skills";
+
+  const attemptSelect = subject === "mathematics"
+    ? `SELECT a.id, a.question_id, a.question_version, q.blueprint_id, a.selected_option, a.correct_option, a.confidence, substr(a.question_prompt,1,120) AS prompt, substr(a.draft_notes,1,160) AS notes, substr(a.explanation_en,1,160) AS bank_explanation FROM practice_attempts a LEFT JOIN mathematics_questions q ON q.id = a.question_id AND q.version = a.question_version WHERE a.profile_id = '${profileId}' AND a.exam_goal = '${goal}' AND a.subject = 'mathematics' AND a.finalized_at IS NOT NULL AND a.is_correct = 0 AND a.attempt_review_en IS NULL ORDER BY a.finalized_at DESC LIMIT 200;`
+    : `SELECT id, question_id, question_version, blueprint_id, selected_option, correct_option, confidence, substr(question_prompt,1,120) AS prompt, substr(draft_notes,1,160) AS notes, substr(explanation_en,1,160) AS bank_explanation FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'thinking' AND finalized_at IS NOT NULL AND is_correct = 0 AND attempt_review_en IS NULL ORDER BY finalized_at DESC LIMIT 200;`;
+
+  const blueprintSelect = subject === "mathematics"
+    ? "SELECT id, version, title, method, verification_rule FROM mathematics_blueprints;"
+    : "SELECT id, version, title, method, verification_rule FROM thinking_blueprints;";
 
   return [
-    "GritRoom Codex incorrect-attempt reviews (Thinking Skills only)",
+    `GritRoom Codex incorrect-attempt reviews (${moduleName})`,
     "",
     "You are working in the local gritroom repo with wrangler access to remote D1.",
-    "Write short kid-facing reviews for incorrect Thinking Skills practice attempts that still have attempt_review_en IS NULL.",
-    "Scope is subject = 'thinking' only — do not review Reading attempts here (Reading uses remediation / copywork briefs).",
+    `Write short kid-facing reviews for incorrect ${moduleName} practice attempts that still have attempt_review_en IS NULL.`,
+    `Scope is subject = '${subject}' only — do not review Reading attempts here (Reading uses remediation / copywork briefs).`,
     "These offline reviews are Codex’s job — learners practise without an in-app chat bot.",
-    "Do not invent exam rules. Use the attempt snapshot + matching thinking_blueprints verification_rule.",
+    subject === "mathematics"
+      ? "Do not invent exam rules. Use the attempt snapshot + matching mathematics_blueprints verification_rule (join via mathematics_questions; practice_attempts.blueprint_id stays null for Mathematics)."
+      : "Do not invent exam rules. Use the attempt snapshot + matching thinking_blueprints verification_rule.",
     "",
     "## Scope",
     `- profile_id: ${profileId}`,
     `- learner: ${nickname}`,
     `- exam_goal: ${goal}`,
-    `- subject: thinking`,
+    `- subject: ${subject}`,
     `- actor_user_id: ${actorUserId}`,
     `- pending_incorrect_without_review: ${pendingCount}`,
     `- prepared_at: ${stamp}`,
@@ -991,35 +1026,35 @@ export function buildCodexAttemptReviewBrief(input: {
     "## Where to read",
     `- D1: ${CODEX_D1_NAME} (${CODEX_D1_ID}) via wrangler.d1.jsonc`,
     "",
-    "Incorrect Thinking Skills attempts still needing a review (up to 200):",
+    `Incorrect ${moduleName} attempts still needing a review (up to 200):`,
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, question_id, question_version, blueprint_id, selected_option, correct_option, confidence, substr(question_prompt,1,120) AS prompt, substr(draft_notes,1,160) AS notes, substr(explanation_en,1,160) AS bank_explanation FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'thinking' AND finalized_at IS NOT NULL AND is_correct = 0 AND attempt_review_en IS NULL ORDER BY finalized_at DESC LIMIT 200;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "${attemptSelect}"`,
     "```",
     "",
     "Blueprint checks for those items:",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, version, title, method, verification_rule FROM thinking_blueprints;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "${blueprintSelect}"`,
     "```",
     "",
     "## What to write",
-    "For each listed Thinking Skills attempt, UPDATE practice_attempts.attempt_review_en with 2–4 short sentences for the child:",
+    `For each listed ${moduleName} attempt, UPDATE practice_attempts.attempt_review_en with 2–4 short sentences for the child:`,
     "- name the option they chose and why it fails",
     "- name the correct option and the key reason it works",
     "- one next-time tip tied to the blueprint method",
     "Keep English, kind, concrete. Max 4000 characters. Do not overwrite explanation_en.",
-    "Optionally INSERT learning_evidence kind='review' with ref_id=attempt id and a one-line summary (subject = 'thinking').",
+    `Optionally INSERT learning_evidence kind='review' with ref_id=attempt id and a one-line summary (subject = '${subject}').`,
     "",
     "Example update:",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "UPDATE practice_attempts SET attempt_review_en = 'You chose D because … The correct answer is A because … Next time …' WHERE id = 'pat_EXAMPLE' AND profile_id = '${profileId}' AND subject = 'thinking' AND is_correct = 0 AND attempt_review_en IS NULL;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "UPDATE practice_attempts SET attempt_review_en = 'You chose D because … The correct answer is A because … Next time …' WHERE id = 'pat_EXAMPLE' AND profile_id = '${profileId}' AND subject = '${subject}' AND is_correct = 0 AND attempt_review_en IS NULL;"`,
     "```",
     "",
     "Confirm remaining gaps:",
     "```sh",
-    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT COUNT(*) AS still_open FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'thinking' AND is_correct = 0 AND finalized_at IS NOT NULL AND attempt_review_en IS NULL;"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT COUNT(*) AS still_open FROM practice_attempts WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = '${subject}' AND is_correct = 0 AND finalized_at IS NOT NULL AND attempt_review_en IS NULL;"`,
     "```",
     "",
-    "Then tell the parent to refresh Parent room → Thinking Skills → Evidence / have the learner reopen Last results.",
+    `Then tell the parent to refresh Parent room → ${parentModule} → Evidence / have the learner reopen Last results.`,
   ].join("\n");
 }
 

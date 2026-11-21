@@ -38,6 +38,11 @@ import {
   submitTimedPaper,
 } from "../lib/practice.ts";
 import {
+  countUnusedWeakMathematicsQuestions,
+  listWeakMathematicsBlueprintIds,
+  startMathematicsPracticeSession,
+} from "../lib/mathematics-practice.ts";
+import {
   countUnusedReadingQuestions,
   readingRemediationAvailability,
   startReadingPracticeSession,
@@ -673,6 +678,9 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(mathematicsBrief, /mathematics_blueprints/);
   assert.match(mathematicsBrief, /mathematics_questions/);
   assert.match(mathematicsBrief, /five options A–E/);
+  assert.match(mathematicsBrief, /ADD about 80 new active mathematics_questions/);
+  assert.match(mathematicsBrief, /2 full 35-question timed papers \(70\) plus 10 weak-spot items \(80 total\)/);
+  assert.match(mathematicsBrief, /exactly about 10 on the learner’s weak-spot mathematics blueprints/);
   assert.match(mathematicsBrief, /mathematics_practice_pack/);
   const writingBrief = buildCodexBankBrief({
     profileId: "p1",
@@ -825,7 +833,19 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(reviewBrief, /attempt_review_en/);
   assert.match(reviewBrief, /incorrect/);
   assert.match(reviewBrief, /subject = 'thinking'/);
-  assert.match(reviewBrief, /Thinking Skills only/);
+  assert.match(reviewBrief, /Thinking Skills/);
+  const mathReviewBrief = buildCodexAttemptReviewBrief({
+    profileId: "p1",
+    goal: "selective",
+    nickname: bankShelf.nickname,
+    actorUserId: "owner",
+    pendingCount: 2,
+    subject: "mathematics",
+  });
+  assert.match(mathReviewBrief, /Mathematical Reasoning/);
+  assert.match(mathReviewBrief, /subject = 'mathematics'/);
+  assert.match(mathReviewBrief, /mathematics_blueprints/);
+  assert.match(mathReviewBrief, /attempt_review_en/);
   assert.equal("error" in parseCodexAnalysisInput({ json: "{" }), true);
   const parsed = parseCodexAnalysisInput({
     json: JSON.stringify({
@@ -1337,4 +1357,95 @@ test("learners can practise from the Reading question bank", async (t) => {
   const remediationDone = await readingRemediationAvailability(db, "p1", "selective");
   assert.equal(remediationDone.enabled, false);
   assert.match(remediationDone.reason, /already on file/);
+});
+
+test("learners can practise Mathematics weak-spot skills", async (t) => {
+  const { sql, db } = fixture();
+  t.after(() => sql.close());
+  sql.exec(readFileSync(new URL("../migrations/0004_thinking_knowledge.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0005_resource_shelf.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0006_learning_inputs.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0007_practice_questions.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0008_practice_explanations.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0010_timed_draft_answers.sql", import.meta.url), "utf8"));
+  sql.exec(readFileSync(new URL("../migrations/0011_focus_practice_mode.sql", import.meta.url), "utf8"));
+  // Widen subject CHECKs without running full 0012–0018 rebuilds.
+  sql.exec(`
+    ALTER TABLE practice_sessions ADD COLUMN subject TEXT NOT NULL DEFAULT 'thinking'
+      CHECK (subject IN ('thinking', 'reading', 'mathematics', 'writing'));
+    ALTER TABLE practice_attempts ADD COLUMN subject TEXT NOT NULL DEFAULT 'thinking'
+      CHECK (subject IN ('thinking', 'reading', 'mathematics', 'writing'));
+  `);
+  ensureMathematicsJoinTables(sql);
+  sql.exec(`
+    INSERT INTO mathematics_blueprints
+      (id, version, skill, title, method, authoring_rule, verification_rule)
+    VALUES
+      ('number-sense', 1, 'Number', 'Number sense', 'm', 'a', 'v'),
+      ('space', 1, 'Space', 'Space', 'm', 'a', 'v');
+  `);
+
+  const invite = await issueInvitation(
+    db,
+    actor("owner"),
+    { profileId: "p1", email: actor("learner").email, role: "learner" },
+    accepted,
+  );
+  assert.ok(invite.ok);
+  assert.equal((await acceptInvitation(db, actor("learner"), invite.id)).ok, true);
+
+  assert.equal((await startMathematicsPracticeSession(db, "learner", "focus")).ok, false);
+
+  const options = '{"A":"1","B":"2","C":"3","D":"4","E":"5"}';
+  for (let index = 0; index < 4; index += 1) {
+    sql.prepare(
+      `INSERT INTO mathematics_questions
+         (id, version, exam_goal, blueprint_id, prompt, options_json, correct_option, explanation_en, status, created_at)
+       VALUES (?, 1, 'selective', 'number-sense', ?, ?, 'A', 'why', 'active', ?)`,
+    ).run(
+      `mq-num-${index}`,
+      `Number prompt ${index}`,
+      options,
+      `2026-11-20T10:0${index}:00.000Z`,
+    );
+  }
+  for (let index = 0; index < 4; index += 1) {
+    sql.prepare(
+      `INSERT INTO mathematics_questions
+         (id, version, exam_goal, blueprint_id, prompt, options_json, correct_option, explanation_en, status, created_at)
+       VALUES (?, 1, 'selective', 'space', ?, ?, 'A', 'why', 'active', ?)`,
+    ).run(
+      `mq-space-${index}`,
+      `Space prompt ${index}`,
+      options,
+      `2026-11-20T11:0${index}:00.000Z`,
+    );
+  }
+
+  sql.exec(`
+    INSERT INTO practice_sessions(id, profile_id, exam_goal, mode, status, started_at, completed_at, is_focus, subject)
+    VALUES('psn-math-miss','p1','selective','daily','completed','2026-11-20T09:00:00.000Z','2026-11-20T09:10:00.000Z',0,'mathematics');
+    INSERT INTO practice_attempts
+      (id, session_id, profile_id, exam_goal, subject, question_id, question_version,
+       question_prompt, options_json, correct_option, selected_option, is_correct, finalized_at, created_at)
+    VALUES
+      ('pat-math-miss-1','psn-math-miss','p1','selective','mathematics','mq-num-0',1,
+       'Number prompt 0','${options}','A','B',0,'2026-11-20T09:05:00.000Z','2026-11-20T09:01:00.000Z'),
+      ('pat-math-miss-2','psn-math-miss','p1','selective','mathematics','mq-num-1',1,
+       'Number prompt 1','${options}','A','C',0,'2026-11-20T09:06:00.000Z','2026-11-20T09:02:00.000Z');
+  `);
+
+  const weakIds = await listWeakMathematicsBlueprintIds(db, "p1", "selective");
+  assert.deepEqual(weakIds, ["number-sense"]);
+  assert.ok((await countUnusedWeakMathematicsQuestions(db, "p1", "selective")) >= 2);
+
+  const focused = await startMathematicsPracticeSession(db, "learner", "focus");
+  assert.equal(focused.ok, true);
+  if (!focused.ok) return;
+  assert.equal(focused.session.mode, "focus");
+  assert.equal(focused.session.subject, "mathematics");
+  assert.ok(focused.session.attempts.length >= 1 && focused.session.attempts.length <= 10);
+  for (const attempt of focused.session.attempts) {
+    assert.ok(attempt.questionId?.startsWith("mq-num-"));
+  }
 });

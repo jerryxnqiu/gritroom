@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { getSessionTokenFromCookies, json, readJson } from "@/lib/http";
 import {
   countUnusedMathematicsQuestions,
+  countUnusedWeakMathematicsQuestions,
   latestMathematicsSession,
   startMathematicsPracticeSession,
 } from "@/lib/mathematics-practice";
@@ -42,13 +43,14 @@ export async function GET(request: Request) {
   }
 
   if (subject === "mathematics") {
-    const [latest, remainingCount] = await Promise.all([
+    const [latest, remainingCount, weakRemainingCount] = await Promise.all([
       latestMathematicsSession(env.DB, profile.id, profile.examGoal),
       countUnusedMathematicsQuestions(env.DB, profile.id, profile.examGoal),
+      countUnusedWeakMathematicsQuestions(env.DB, profile.id, profile.examGoal),
     ]);
-    if (!latest) return json({ session: null, profile, remainingCount, weakRemainingCount: 0, subject });
+    if (!latest) return json({ session: null, profile, remainingCount, weakRemainingCount, subject });
     const practice = await getPracticeSession(env.DB, latest.id, session.user_id);
-    return json({ session: practice, profile, remainingCount, weakRemainingCount: 0, subject });
+    return json({ session: practice, profile, remainingCount, weakRemainingCount, subject });
   }
 
   if (subject === "writing") {
@@ -95,12 +97,11 @@ export async function POST(request: Request) {
   if (subject === "mathematics") {
     const result = await startMathematicsPracticeSession(env.DB, session.user_id, mode);
     if (!result.ok) return json({ error: result.error }, { status: result.status });
-    const remainingCount = await countUnusedMathematicsQuestions(
-      env.DB,
-      result.session.profileId,
-      result.session.examGoal,
-    );
-    return json({ session: result.session, remainingCount, weakRemainingCount: 0, subject }, { status: 201 });
+    const [remainingCount, weakRemainingCount] = await Promise.all([
+      countUnusedMathematicsQuestions(env.DB, result.session.profileId, result.session.examGoal),
+      countUnusedWeakMathematicsQuestions(env.DB, result.session.profileId, result.session.examGoal),
+    ]);
+    return json({ session: result.session, remainingCount, weakRemainingCount, subject }, { status: 201 });
   }
 
   const result = await startPracticeSession(env.DB, session.user_id, mode);

@@ -4,6 +4,7 @@ import { getPracticeSession, type PracticeMode, type PracticeSessionView } from 
 import { nowIso } from "./time.ts";
 
 const SHORT_SET_SIZE = 10;
+const WEAK_BLUEPRINT_LIMIT = 3;
 
 /** Official Mathematical Reasoning timed paper from NSW format guides. */
 export function mathematicsTimedPaperSpec(goal: ExamGoal) {
@@ -28,6 +29,28 @@ export type MathematicsQuestion = {
   imageKey: string | null;
 };
 
+/** Mathematics blueprints this learner misses most often (via bank join — attempts.blueprint_id stays null). */
+export async function listWeakMathematicsBlueprintIds(
+  db: D1Database,
+  profileId: string,
+  examGoal: ExamGoal,
+  limit = WEAK_BLUEPRINT_LIMIT,
+) {
+  const { results } = await db.prepare(
+    `SELECT q.blueprint_id AS blueprintId, COUNT(*) AS misses
+     FROM practice_attempts a
+     JOIN mathematics_questions q
+       ON q.id = a.question_id AND q.version = a.question_version
+     WHERE a.profile_id = ? AND a.exam_goal = ? AND a.subject = 'mathematics'
+       AND a.finalized_at IS NOT NULL AND a.is_correct = 0
+       AND q.blueprint_id IS NOT NULL
+     GROUP BY q.blueprint_id
+     ORDER BY misses DESC, q.blueprint_id
+     LIMIT ?`,
+  ).bind(profileId, examGoal, Math.max(1, limit)).all<{ blueprintId: string; misses: number }>();
+  return results.map((row) => row.blueprintId);
+}
+
 export async function countUnusedMathematicsQuestions(
   db: D1Database,
   profileId: string,
@@ -37,17 +60,39 @@ export async function countUnusedMathematicsQuestions(
   return unused.length;
 }
 
-export async function loadUnusedMathematicsQuestions(
+export async function countUnusedWeakMathematicsQuestions(
   db: D1Database,
   profileId: string,
   examGoal: ExamGoal,
 ) {
+  const weakIds = await listWeakMathematicsBlueprintIds(db, profileId, examGoal);
+  if (!weakIds.length) return 0;
+  const unused = await loadUnusedMathematicsQuestions(db, profileId, examGoal, weakIds);
+  return unused.length;
+}
+
+export async function loadUnusedMathematicsQuestions(
+  db: D1Database,
+  profileId: string,
+  examGoal: ExamGoal,
+  blueprintIds?: string[],
+) {
+  if (blueprintIds && !blueprintIds.length) return [] as MathematicsQuestion[];
+
+  const blueprintClause = blueprintIds?.length
+    ? `AND q.blueprint_id IN (${blueprintIds.map(() => "?").join(", ")})`
+    : "";
+  const binds: Array<string | ExamGoal> = blueprintIds?.length
+    ? [examGoal, ...blueprintIds, profileId, examGoal]
+    : [examGoal, profileId, examGoal];
+
   const { results } = await db.prepare(
     `SELECT q.id, q.version, q.exam_goal AS examGoal, q.blueprint_id AS blueprintId,
             q.prompt, q.options_json AS optionsJson, q.correct_option AS correctOption,
             q.explanation_en AS explanationEn, q.image_key AS imageKey
      FROM mathematics_questions q
      WHERE q.status = 'active' AND q.exam_goal = ?
+       ${blueprintClause}
        AND q.version = (
          SELECT MAX(other.version) FROM mathematics_questions other
          WHERE other.id = q.id AND other.status = 'active'
@@ -59,7 +104,7 @@ export async function loadUnusedMathematicsQuestions(
            AND a.finalized_at IS NOT NULL
        )
      ORDER BY q.blueprint_id, q.id`,
-  ).bind(examGoal, profileId, examGoal).all<MathematicsQuestion>();
+  ).bind(...binds).all<MathematicsQuestion>();
   return results;
 }
 
@@ -77,6 +122,12 @@ function pickMathematicsQuestions(
     return shuffled.slice(0, mathematicsTimedPaperSpec(examGoal).questions);
   }
   return shuffled.slice(0, Math.min(SHORT_SET_SIZE, shuffled.length));
+}
+
+function storedMathematicsSessionMode(mode: PracticeMode) {
+  if (mode === "focus") return { mode: "daily" as const, isFocus: 1 };
+  if (mode === "timed") return { mode: "timed" as const, isFocus: 0 };
+  return { mode: "daily" as const, isFocus: 0 };
 }
 
 async function learnerProfile(db: D1Database, userId: string) {
@@ -118,20 +169,32 @@ export async function startMathematicsPracticeSession(
     if (session) return { ok: true, session };
   }
 
+  let blueprintFilter: string[] | undefined;
   if (mode === "focus") {
-    return {
-      ok: false,
-      status: 409,
-      error: "Mathematics weak-spot rounds unlock after more Mathematics practice. Use a short Practice set for now.",
-    };
+    const weakIds = await listWeakMathematicsBlueprintIds(db, profile.id, profile.examGoal);
+    if (!weakIds.length) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Weak-spot practice needs a few incorrect Mathematics answers first. Do a short Practice set, then try again.",
+      };
+    }
+    blueprintFilter = weakIds;
   }
 
-  const unused = await loadUnusedMathematicsQuestions(db, profile.id, profile.examGoal);
+  const unused = await loadUnusedMathematicsQuestions(
+    db,
+    profile.id,
+    profile.examGoal,
+    blueprintFilter,
+  );
   if (!unused.length) {
     return {
       ok: false,
       status: 409,
-      error: "No unused Mathematics questions yet. Ask your family to generate the Mathematics practice bank.",
+      error: mode === "focus"
+        ? "No unused questions left for your Mathematics weak spots. Ask your family to refresh the Mathematics bank for those skills."
+        : "No unused Mathematics questions yet. Ask your family to generate the Mathematics practice bank.",
     };
   }
 
@@ -149,14 +212,14 @@ export async function startMathematicsPracticeSession(
   const questions = pickMathematicsQuestions(unused, mode, profile.examGoal);
   const sessionId = createId("psn");
   const startedAt = nowIso();
-  const storedMode = mode === "timed" ? "timed" : "daily";
+  const stored = storedMathematicsSessionMode(mode);
 
   try {
     await db.batch([
       db.prepare(
         `INSERT INTO practice_sessions (id, profile_id, exam_goal, mode, status, started_at, is_focus, subject)
-         VALUES (?, ?, ?, ?, 'active', ?, 0, 'mathematics')`,
-      ).bind(sessionId, profile.id, profile.examGoal, storedMode, startedAt),
+         VALUES (?, ?, ?, ?, 'active', ?, ?, 'mathematics')`,
+      ).bind(sessionId, profile.id, profile.examGoal, stored.mode, startedAt, stored.isFocus),
       ...questions.map((question, index) => {
         const stamp = new Date(Date.parse(startedAt) + index).toISOString();
         return db.prepare(

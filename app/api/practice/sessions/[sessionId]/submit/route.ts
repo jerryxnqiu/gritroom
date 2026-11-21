@@ -2,7 +2,10 @@ import { env } from "cloudflare:workers";
 
 import { getSession } from "@/lib/auth";
 import { getSessionTokenFromCookies, json } from "@/lib/http";
-import { countUnusedMathematicsQuestions } from "@/lib/mathematics-practice";
+import {
+  countUnusedMathematicsQuestions,
+  countUnusedWeakMathematicsQuestions,
+} from "@/lib/mathematics-practice";
 import {
   countUnusedPracticeQuestions,
   countUnusedWeakPracticeQuestions,
@@ -34,7 +37,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
         : countUnusedPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal),
     subject === "thinking"
       ? countUnusedWeakPracticeQuestions(env.DB, result.session.profileId, result.session.examGoal)
-      : Promise.resolve(0),
+      : subject === "mathematics"
+        ? countUnusedWeakMathematicsQuestions(env.DB, result.session.profileId, result.session.examGoal)
+        : Promise.resolve(0),
   ]);
   return json({ session: result.session, remainingCount, weakRemainingCount });
 }

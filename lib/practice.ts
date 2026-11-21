@@ -1095,21 +1095,23 @@ export async function getLearnerPracticeResultSession(
   } satisfies PracticeEvidenceSession;
 }
 
-/** Incorrect attempts still missing a personalised Codex review (this child + archive). */
+/** Incorrect attempts still missing a personalised Codex review (this child + archive + subject). */
 export async function countIncorrectAttemptsNeedingReview(
   db: D1Database,
   profileId: string,
   examGoal: ExamGoal,
   userId: string,
+  subject: PracticeSubject = "thinking",
 ) {
+  if (subject !== "thinking" && subject !== "mathematics") return 0;
   const row = await db.prepare(
     `SELECT COUNT(*) AS total
      FROM practice_attempts a
      JOIN profiles p ON p.id = a.profile_id
-     WHERE a.profile_id = ? AND a.exam_goal = ? AND a.subject = 'thinking'
+     WHERE a.profile_id = ? AND a.exam_goal = ? AND a.subject = ?
        AND a.finalized_at IS NOT NULL
        AND a.is_correct = 0 AND a.attempt_review_en IS NULL AND ${parentAccess}`,
-  ).bind(profileId, examGoal, userId).first<{ total: number }>();
+  ).bind(profileId, examGoal, subject, userId).first<{ total: number }>();
   return Number(row?.total ?? 0);
 }
 

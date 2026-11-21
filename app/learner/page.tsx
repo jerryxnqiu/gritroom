@@ -13,6 +13,7 @@ import { getSessionTokenFromCookies } from "@/lib/http";
 import { listLearnerCoachTips } from "@/lib/material-analysis";
 import {
   countUnusedMathematicsQuestions,
+  countUnusedWeakMathematicsQuestions,
   latestMathematicsSession,
 } from "@/lib/mathematics-practice";
 import {
@@ -67,7 +68,9 @@ export default async function LearnerPage({
             : countUnusedPracticeQuestions(env.DB, profile.id, profile.examGoal),
       subject === "thinking"
         ? countUnusedWeakPracticeQuestions(env.DB, profile.id, profile.examGoal)
-        : Promise.resolve(0),
+        : subject === "mathematics"
+          ? countUnusedWeakMathematicsQuestions(env.DB, profile.id, profile.examGoal)
+          : Promise.resolve(0),
       listLearnerPracticeResults(env.DB, session.user_id, { sessionLimit: 11, subject }),
       listLearnerCoachTips(env.DB, session.user_id, subject),
     ])
