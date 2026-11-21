@@ -515,13 +515,21 @@ export function buildCodexBankBrief(input: {
     "```",
     "",
     "## What to write",
-    "This refresh should ADD about 60 new active Thinking Skills questions (subject = 'thinking').",
     goal === "selective"
-      ? "Selective mix for the ~60 new items: about 25–30 on the learner’s weak-spot blueprints (from the miss counts above),"
-        + " and the remaining ~30–35 spread across other blueprints so a full 40-question timed paper and mixed Practice · 10 sets stay balanced."
-      : "OC mix for the ~60 new items: about 25–30 on the learner’s weak-spot blueprints (from the miss counts above),"
-        + " and the remaining ~30–35 spread across other blueprints so a full 30-question timed paper and mixed Practice · 10 sets stay balanced.",
-    "If there are no weak-spot misses yet, spread all ~60 evenly across blueprints.",
+      ? "This refresh should ADD about 90 new active Thinking Skills questions (subject = 'thinking'):"
+        + " enough for 2 full 40-question timed papers (80) plus 10 weak-spot items (90 total)."
+      : "This refresh should ADD about 70 new active Thinking Skills questions (subject = 'thinking'):"
+        + " enough for 2 full 30-question timed papers (60) plus 10 weak-spot items (70 total).",
+    goal === "selective"
+      ? "Selective mix for the ~90 new items: exactly about 10 on the learner’s weak-spot blueprints"
+        + " (from the miss counts above — these feed Practice weak spots),"
+        + " and the remaining ~80 spread across blueprints so two full 40-question timed papers stay balanced."
+      : "OC mix for the ~70 new items: exactly about 10 on the learner’s weak-spot blueprints"
+        + " (from the miss counts above — these feed Practice weak spots),"
+        + " and the remaining ~60 spread across blueprints so two full 30-question timed papers stay balanced.",
+    goal === "selective"
+      ? "If there are no weak-spot misses yet, spread all ~90 evenly across blueprints (still keep coverage for two timed papers)."
+      : "If there are no weak-spot misses yet, spread all ~70 evenly across blueprints (still keep coverage for two timed papers).",
     "Also honour training directions from material analyses and parent feedback when choosing which weak blueprints to reinforce.",
     "Several original items per blueprint is expected; one-per-blueprint is not enough.",
     "Prefer fresh stems over near-copies of active bank items. Keep official blueprint coverage so the bank is not only remediation.",

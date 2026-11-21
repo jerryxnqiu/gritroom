@@ -583,9 +583,10 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(bankBrief, /Practice questions from miscellaneous sources/);
   assert.match(bankBrief, /CRITICAL style models/);
   assert.match(bankBrief, /at least half/);
-  assert.match(bankBrief, /ADD about 60 new active Thinking Skills questions/);
-  assert.match(bankBrief, /25–30 on the learner’s weak-spot blueprints/);
-  assert.match(bankBrief, /30–35 spread across other blueprints/);
+  assert.match(bankBrief, /ADD about 90 new active Thinking Skills questions/);
+  assert.match(bankBrief, /2 full 40-question timed papers \(80\) plus 10 weak-spot items \(90 total\)/);
+  assert.match(bankBrief, /exactly about 10 on the learner’s weak-spot blueprints/);
+  assert.match(bankBrief, /remaining ~80 spread across blueprints/);
   assert.match(bankBrief, /40-question timed paper/);
   assert.match(bankBrief, /Weak-spot blueprints for this learner/);
   assert.match(bankBrief, /subject = 'thinking'/);

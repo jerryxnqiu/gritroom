@@ -46,7 +46,7 @@ export async function PracticeBankPanel({
             ? `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Mathematical Reasoning archive — blueprints, coaching reports, miscellaneous practice sources, material analyses and practice evidence — then add original five-option (A–E) questions into mathematics_questions: enough for a full 35-question timed paper plus a Practice · 10 buffer, with no calculator and paper working assumed.`
             : subject === "writing"
               ? `Writing is one open-response Selective task (30 minutes). Keep coaching reports, marked samples and prompts on the Writing shelf. Timed MCQ banks are for Thinking, Reading and Mathematics.`
-              : `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Thinking Skills archive — blueprints, coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback — then add about 60 new questions (with kid-facing explanations): enough for weak-spot practice, with the rest balanced across other skills for timed papers and mixed sets.`}
+              : `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Thinking Skills archive — blueprints, coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback — then add about ${goal === "oc" ? "70" : "90"} new questions (with kid-facing explanations): enough for 2 full timed papers (${goal === "oc" ? "30×2" : "40×2"}) plus 10 weak-spot items, with the paper portion balanced across skills.`}
       </p>
       <div className="shelf-toolbar">
         <nav className="shelf-actions" aria-label="Exam archive">
