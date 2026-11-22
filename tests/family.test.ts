@@ -710,8 +710,10 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
   assert.match(bankBrief, /at least half/);
   assert.match(bankBrief, /ADD about 90 new active Thinking Skills questions/);
   assert.match(bankBrief, /2 full 40-question timed papers \(80\) plus 10 weak-spot items \(90 total\)/);
-  assert.match(bankBrief, /exactly about 10 on the learner’s weak-spot blueprints/);
-  assert.match(bankBrief, /remaining ~80 spread across blueprints/);
+  assert.match(bankBrief, /about 10 on the learner’s weak-spot blueprints/);
+  assert.match(bankBrief, /balanced timed-paper pool/);
+  assert.match(bankBrief, /Do NOT skew the timed-paper pool toward weak spots/);
+  assert.match(bankBrief, /slightly concise/);
   assert.match(bankBrief, /40-question timed paper/);
   assert.match(bankBrief, /Weak-spot blueprints for this learner/);
   assert.match(bankBrief, /subject = 'thinking'/);

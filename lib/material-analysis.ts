@@ -467,9 +467,10 @@ export function buildCodexBankBrief(input: {
     "plus official thinking blueprints to refresh the active Thinking Skills practice question bank.",
     "Write original Selective/OC Thinking Skills items. Do NOT copy commercial or NSW sample stems.",
     "Follow each blueprint authoring_rule and verification_rule. Respect evidence limits from coaching notes.",
-    "Imitate the uploaded miscellaneous practice sources for length, density and wording quality — real papers are",
-    "comprehensive, not one-line riddles. Prefer visual stems: aim for at least half of new items to use a figure,",
-    "table, chart, diagram or spatial layout (upload to R2) when the blueprint can support it.",
+    "Imitate the uploaded miscellaneous practice sources for difficulty, method and option craft — real papers are",
+    "exam-like, not one-line riddles. Prefer stems and options that are slightly concise / tighter than long coaching",
+    "explanations: enough context to solve, without padded prose. Prefer visual stems: aim for at least half of new",
+    "items to use a figure, table, chart, diagram or spatial layout (upload to R2) when the blueprint can support it.",
     "",
     "## Scope",
     `- profile_id: ${profileId}`,
@@ -523,7 +524,8 @@ export function buildCodexBankBrief(input: {
     "",
     `## Practice questions from miscellaneous sources (${practiceSources.length})`,
     "CRITICAL style models — download and study these pages before authoring.",
-    "Match their comprehensive wording, multi-step stems, option craft, and visual density.",
+    "Match their difficulty, multi-step reasoning, option craft, and visual density — but keep wording slightly",
+    "more concise where the sample is wordy: clear stem + options, not essay-length setup.",
     "In real Selective/OC Thinking Skills, graph / table / diagram / spatial items are a large share (target ≥ 50%).",
     "Use these sources for difficulty, method and layout cues only. Invent new scenarios; never reproduce protected text or figures.",
     practiceSources.length ? materialLines(practiceSources) : "(none in this archive — still prefer visual stems where blueprints allow)",
@@ -540,21 +542,24 @@ export function buildCodexBankBrief(input: {
       : "This refresh should ADD about 70 new active Thinking Skills questions (subject = 'thinking'):"
         + " enough for 2 full 30-question timed papers (60) plus 10 weak-spot items (70 total).",
     goal === "selective"
-      ? "Selective mix for the ~90 new items: exactly about 10 on the learner’s weak-spot blueprints"
-        + " (from the miss counts above — these feed Practice weak spots),"
-        + " and the remaining ~80 spread across blueprints so two full 40-question timed papers stay balanced."
-      : "OC mix for the ~70 new items: exactly about 10 on the learner’s weak-spot blueprints"
-        + " (from the miss counts above — these feed Practice weak spots),"
-        + " and the remaining ~60 spread across blueprints so two full 30-question timed papers stay balanced.",
+      ? "Selective mix for the ~90 new items: about 10 on the learner’s weak-spot blueprints"
+        + " (from the miss counts above — these feed Practice weak spots only),"
+        + " and the remaining ~80 as a balanced timed-paper pool across blueprints."
+      : "OC mix for the ~70 new items: about 10 on the learner’s weak-spot blueprints"
+        + " (from the miss counts above — these feed Practice weak spots only),"
+        + " and the remaining ~60 as a balanced timed-paper pool across blueprints.",
+    "Do NOT skew the timed-paper pool toward weak spots — a full timed paper should feel like a real exam mix,",
+    "with only a light touch of weaker skills (not remediation-heavy). Keep weak-spot reinforcement mainly in the separate ~10 items.",
     goal === "selective"
       ? "If there are no weak-spot misses yet, spread all ~90 evenly across blueprints (still keep coverage for two timed papers)."
       : "If there are no weak-spot misses yet, spread all ~70 evenly across blueprints (still keep coverage for two timed papers).",
-    "Also honour training directions from material analyses and parent feedback when choosing which weak blueprints to reinforce.",
+    "Also honour training directions from material analyses and parent feedback when choosing which weak blueprints to reinforce — lightly, not as the main timed-paper theme.",
     "Several original items per blueprint is expected; one-per-blueprint is not enough.",
     "Prefer fresh stems over near-copies of active bank items. Keep official blueprint coverage so the bank is not only remediation.",
     "Insert new active practice_questions rows with subject = 'thinking'",
     "(same id with version = previous max + 1, or new ids for added coverage).",
-    "Write full, exam-like stems (context + data + question), not short toy prompts.",
+    "Write exam-like stems (context + data + question) that are slightly concise — not short toy prompts, and not padded.",
+    "Options A–D should also stay tight: clear, parallel wording without long explanations inside the choices.",
     "Across the refresh batch, at least half of new active items should include a figure or table image in R2",
     "(graphs, tables, diagrams, maps, nets, rotations, count grids, etc.) when the skill can use one.",
     "Text-only is OK only when a visual would not help that blueprint.",
