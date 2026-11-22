@@ -3,6 +3,52 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 
+test("0020–0021 writing mark and prompt evidence kinds are allowed", () => {
+  const dir = new URL("../migrations/", import.meta.url);
+  const files = readdirSync(dir).filter((name) => name.endsWith(".sql")).sort();
+  assert.ok(files.includes("0020_writing_mark_evidence.sql"));
+  assert.ok(files.includes("0021_writing_prompt_evidence.sql"));
+  const sql = new DatabaseSync(":memory:");
+  for (const name of files) {
+    if (name > "0021_writing_prompt_evidence.sql") continue;
+    sql.exec(readFileSync(new URL(name, dir), "utf8"));
+  }
+  assert.doesNotThrow(() => {
+    sql.exec(`
+      INSERT INTO users(id,email) VALUES ('owner','o@x.invalid');
+      INSERT INTO families(id,name,installation_owner_user_id) VALUES ('f1','F','owner');
+      INSERT INTO profiles(id,family_id,nickname,exam_goal) VALUES ('p1','f1','Kid','selective');
+      INSERT INTO learning_evidence(id,profile_id,exam_goal,subject,kind,ref_id,summary,created_at)
+      VALUES ('e1','p1','selective','writing','writing_mark','wmk1',
+        'Writing mark
+Date: 2026-11-22
+Prompt title: Test
+Task response: 3/5
+Organisation: 3/5
+Language control: 3/5
+Total: 9/15
+Weakest: organisation
+Kid notes:
+Keep going.
+Next focus:
+Plan three points.', datetime('now'));
+      INSERT INTO learning_evidence(id,profile_id,exam_goal,subject,kind,ref_id,summary,created_at)
+      VALUES ('e2','p1','selective','writing','writing_prompt','wpr1',
+        'Writing prompt
+Status: active
+Title: New club
+Form: letter
+Audience: the principal
+Minutes: 30
+Focus skill: language-control
+Brief:
+Write a letter.
+Why this prompt:
+Builds on last mark.', datetime('now'));
+    `);
+  });
+});
+
 test("0018 mathematics and writing migration widens subjects and seeds knowledge", () => {
   const sql = new DatabaseSync(":memory:");
   sql.exec("PRAGMA foreign_keys = ON");

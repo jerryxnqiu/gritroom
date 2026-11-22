@@ -73,6 +73,7 @@ export function practiceScoreSourceName(mode: string) {
   if (mode === "diagnostic") return "Starting-point";
   if (mode === "timed") return "Timed";
   if (mode === "focus") return "Weak spots";
+  if (mode === "writing") return "Writing";
   return "Practice";
 }
 

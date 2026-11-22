@@ -6,6 +6,7 @@ import {
 } from "./reading-remediation.ts";
 import type { PracticeSubject } from "./subjects.ts";
 import { nowIso } from "./time.ts";
+import { listLearnerWritingMarks } from "./writing-mark.ts";
 
 const parentAccess = `EXISTS (
   SELECT 1 FROM guardian_grants g WHERE g.family_id = p.family_id AND g.user_id = ?
@@ -310,42 +311,65 @@ export async function listLearnerCoachTips(
     completedAt: row.completedAt,
   }));
 
+  const link = await db.prepare(
+    `SELECT profile_id AS profileId, p.exam_goal AS examGoal
+     FROM (
+       SELECT profile_id, user_id FROM learner_links
+       UNION ALL
+       SELECT profile_id, user_id FROM coach_links
+     ) v
+     JOIN profiles p ON p.id = v.profile_id
+     WHERE v.user_id = ? AND (? IS NULL OR v.profile_id = ?)
+     ORDER BY v.profile_id LIMIT 1`,
+  ).bind(userId, preferredProfileId ?? null, preferredProfileId ?? null)
+    .first<{ profileId: string; examGoal: ExamGoal }>();
+
   // Reading remediation plans hold the vocab / phrases / slang list for memorising.
-  if (subject === "reading") {
-    const link = await db.prepare(
-      `SELECT profile_id AS profileId, p.exam_goal AS examGoal
-       FROM (
-         SELECT profile_id, user_id FROM learner_links
-         UNION ALL
-         SELECT profile_id, user_id FROM coach_links
-       ) v
-       JOIN profiles p ON p.id = v.profile_id
-       WHERE v.user_id = ? AND (? IS NULL OR v.profile_id = ?)
-       ORDER BY v.profile_id LIMIT 1`,
-    ).bind(userId, preferredProfileId ?? null, preferredProfileId ?? null)
-      .first<{ profileId: string; examGoal: ExamGoal }>();
-    if (link) {
-      const remediation = await listReadingRemediationPlans(
-        db,
-        link.profileId,
-        link.examGoal,
-        userId,
-        20,
-      );
-      for (const row of remediation) {
-        tips.push({
-          id: row.id,
-          materialKind: "reading_remediation",
-          summaryEn: row.summary,
-          trainingDirections: [],
-          createdAt: row.createdAt,
-          completedAt: row.createdAt,
-          refId: row.refId,
-          sourcePapers: row.sourcePapers,
-        });
-      }
-      tips.sort((a, b) => String(b.completedAt || b.createdAt).localeCompare(String(a.completedAt || a.createdAt)));
+  if (subject === "reading" && link) {
+    const remediation = await listReadingRemediationPlans(
+      db,
+      link.profileId,
+      link.examGoal,
+      userId,
+      20,
+    );
+    for (const row of remediation) {
+      tips.push({
+        id: row.id,
+        materialKind: "reading_remediation",
+        summaryEn: row.summary,
+        trainingDirections: [],
+        createdAt: row.createdAt,
+        completedAt: row.createdAt,
+        refId: row.refId,
+        sourcePapers: row.sourcePapers,
+      });
     }
+  }
+
+  // Writing marks hold kid-facing notes + rubric scores for open-response practice.
+  if (subject === "writing" && link) {
+    const marks = await listLearnerWritingMarks(db, link.profileId, link.examGoal, userId, 20);
+    for (const mark of marks) {
+      const directions = [
+        mark.promptTitle ? `Prompt: ${mark.promptTitle}` : null,
+        `Scores · Task ${mark.scores.taskResponse}/5 · Organisation ${mark.scores.organisation}/5 · Language ${mark.scores.languageControl}/5 · Total ${mark.total}/15`,
+        mark.nextFocus ? `Next focus: ${mark.nextFocus}` : null,
+      ].filter((item): item is string => Boolean(item));
+      tips.push({
+        id: mark.id,
+        materialKind: "writing_mark",
+        summaryEn: mark.kidNotes || mark.summary,
+        trainingDirections: directions,
+        createdAt: mark.createdAt,
+        completedAt: mark.createdAt,
+        refId: mark.refId,
+      });
+    }
+  }
+
+  if (subject === "reading" || subject === "writing") {
+    tips.sort((a, b) => String(b.completedAt || b.createdAt).localeCompare(String(a.completedAt || a.createdAt)));
   }
 
   return tips;
@@ -427,12 +451,7 @@ export function buildCodexBankBrief(input: {
     return buildCodexMathematicsBankBrief(input);
   }
   if (subject === "writing") {
-    return [
-      "GritRoom Writing support",
-      "",
-      "Writing is an open-response Selective task (one prompt, 30 minutes), not an MCQ bank.",
-      "Use the Writing shelf for coaching reports and sample prompts. Do not insert mathematics_questions or practice_questions rows for Writing.",
-    ].join("\n");
+    return buildCodexWritingMarkBrief(input);
   }
 
   const { profileId, goal, nickname, actorUserId, materials } = input;
@@ -556,6 +575,144 @@ export function buildCodexBankBrief(input: {
     "```",
     "",
     "Then tell the parent to refresh Parent room → Thinking Skills → Practice bank / start a new practice session.",
+  ].join("\n");
+}
+
+/**
+ * Writing is open-response: assign learner-visible prompts (using past writing as reference)
+ * and/or mark shelf drafts against the three blueprints. Not an MCQ bank.
+ */
+function buildCodexWritingMarkBrief(input: {
+  profileId: string;
+  goal: ExamGoal;
+  nickname: string;
+  actorUserId: string;
+  materials: BankMaterial[];
+}) {
+  const { profileId, goal, nickname, actorUserId, materials } = input;
+  const stamp = nowIso();
+  const promptEvidenceId = createId("evd");
+  const promptRef = createId("wpr");
+  const markEvidenceId = createId("evd");
+  const markId = createId("wmk");
+  const coaching = materials.filter((item) => item.kind === "coaching_report" || item.kind === "coaching_video");
+  const drafts = materials.filter((item) => item.kind === "study_material" || item.kind === "marked_paper");
+
+  return [
+    "GritRoom Codex Writing coaching (prompts + marks)",
+    "",
+    "You are working in the local gritroom repo with wrangler access to remote D1/R2.",
+    `Support ${nickname}’s Selective-style Writing (one typed task, ~30 minutes) using writing_blueprints.`,
+    "Do NOT insert practice_questions, reading_questions, or mathematics_questions rows for Writing.",
+    "Never copy commercial or NSW sample text — invent original prompts.",
+    "",
+    "## Scope",
+    `- profile_id: ${profileId}`,
+    `- learner: ${nickname}`,
+    `- exam_goal: ${goal}`,
+    `- subject: writing`,
+    `- actor_user_id: ${actorUserId}`,
+    `- prepared_at: ${stamp}`,
+    "",
+    "## Where to read",
+    `- D1: ${CODEX_D1_NAME} (${CODEX_D1_ID}) via wrangler.d1.jsonc`,
+    `- R2 bucket: ${CODEX_R2_BUCKET}`,
+    "",
+    "Official Writing format + blueprints:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, exam_goal, kind, label, url, question_count, minutes, substr(notes,1,200) AS notes FROM writing_sources WHERE exam_goal = '${goal}';"`,
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, version, skill, title, method, authoring_rule, verification_rule FROM writing_blueprints;"`,
+    "```",
+    "",
+    "CRITICAL — existing writing as reference (read these before inventing a new topic):",
+    "Past marks (weak skills, titles, kid notes):",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, ref_id, substr(summary,1,400) AS summary, created_at FROM learning_evidence WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'writing' AND kind = 'writing_mark' ORDER BY created_at DESC LIMIT 40;"`,
+    "```",
+    "Assigned prompts already on file:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT id, ref_id, substr(summary,1,400) AS summary, created_at FROM learning_evidence WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'writing' AND kind = 'writing_prompt' ORDER BY created_at DESC LIMIT 20;"`,
+    "```",
+    "",
+    "Active parent feedback:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT body, created_at FROM shelf_feedback WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'writing' AND withdrawn_at IS NULL ORDER BY created_at DESC;"`,
+    "```",
+    "",
+    `## Coaching reports & videos (${coaching.length})`,
+    coaching.length ? materialLines(coaching) : "(none in this archive)",
+    "",
+    `## Learner drafts / marked samples / prompt sheets on the shelf (${drafts.length})`,
+    "Download R2 files — these are the learner’s existing writing and any prompt PDFs. Use them as reference for difficulty, form, and voice.",
+    drafts.length ? materialLines(drafts) : "(none on the shelf yet)",
+    "",
+    "Download each R2 file you need, e.g.:",
+    "```sh",
+    `npx wrangler r2 object get ${CODEX_R2_BUCKET}/R2_KEY --file /tmp/source.bin --remote`,
+    "```",
+    "",
+    "## What to write",
+    goal === "oc"
+      ? "OC has no official Writing paper. You may still assign composition prompts and mark drafts for coaching."
+      : "Selective Writing: one open-response task, 30 minutes, marked for content and style.",
+    "",
+    "### A) Assign a learner-visible Writing prompt (usually do this)",
+    "INSERT learning_evidence kind = 'writing_prompt', subject = 'writing'.",
+    "The learner sees Title + Brief in Learner room → Writing. Base the topic on:",
+    "- weakest skills from past writing_mark rows (Focus skill = that blueprint id when possible)",
+    "- forms / themes from their earlier drafts on the shelf (do not repeat the same prompt)",
+    "- coaching directions and parent feedback",
+    "Only one Status: active prompt should be current — if an older active prompt exists, UPDATE its Status line to archived",
+    "(or insert the new one as active and note the parent should treat the newest active as current).",
+    "",
+    "Use EXACTLY this labelled layout in summary (≤4000 chars):",
+    "",
+    "Writing prompt",
+    "Status: active",
+    "Title: SHORT TITLE",
+    "Form: letter|article|story|speech|…",
+    "Audience: who they write for",
+    "Minutes: 30",
+    "Focus skill: task-response|organisation|language-control",
+    "Brief:",
+    "Full exam-style prompt the child should write from (audience, purpose, form, constraints).",
+    "Why this prompt:",
+    "One short parent/Codex note: which past piece or weak skill this builds on.",
+    "",
+    "Example prompt insert:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO learning_evidence (id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at) VALUES ('${promptEvidenceId}', '${profileId}', '${goal}', 'writing', 'writing_prompt', '${promptRef}', 'Writing prompt\\nStatus: active\\nTitle: New sports club\\nForm: letter\\nAudience: the principal\\nMinutes: 30\\nFocus skill: language-control\\nBrief:\\nWrite a letter to your principal persuading them to start an after-school sports club. Give three clear reasons and end with a polite request.\\nWhy this prompt:\\nBuilds on last mark’s weak language-control; similar persuasive letter form to their garden draft.', '${stamp}');"`,
+    "```",
+    "",
+    "### B) Mark a real learner draft (when a new response is on the shelf)",
+    "Score integers 0–5 on Task response, Organisation, Language control (blueprint ids task-response, organisation, language-control).",
+    "Total = sum (max 15). Name Weakest blueprint id.",
+    "INSERT learning_evidence kind = 'writing_mark'. Do not invent a fake draft to mark.",
+    "",
+    "Writing mark",
+    "Date: YYYY-MM-DD",
+    "Prompt title: SHORT TITLE",
+    "Task response: N/5",
+    "Organisation: N/5",
+    "Language control: N/5",
+    "Total: N/15",
+    "Weakest: task-response|organisation|language-control",
+    "Kid notes:",
+    "2–5 short sentences for the child.",
+    "Next focus:",
+    "One drill for the next sitting.",
+    "",
+    "Example mark insert:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "INSERT INTO learning_evidence (id, profile_id, exam_goal, subject, kind, ref_id, summary, created_at) VALUES ('${markEvidenceId}', '${profileId}', '${goal}', 'writing', 'writing_mark', '${markId}', 'Writing mark\\nDate: 2026-11-22\\nPrompt title: New sports club\\nTask response: 3/5\\nOrganisation: 4/5\\nLanguage control: 3/5\\nTotal: 10/15\\nWeakest: language-control\\nKid notes:\\nYou answered the letter task clearly. Tighten word choice in paragraph 2.\\nNext focus:\\nRewrite one paragraph with more precise verbs.', '${stamp}');"`,
+    "```",
+    "",
+    "Confirm prompts + marks:",
+    "```sh",
+    `npx wrangler d1 execute ${CODEX_D1_NAME} --remote --config wrangler.d1.jsonc --command "SELECT kind, id, substr(summary,1,200) AS summary, created_at FROM learning_evidence WHERE profile_id = '${profileId}' AND exam_goal = '${goal}' AND subject = 'writing' AND kind IN ('writing_prompt','writing_mark') ORDER BY created_at DESC LIMIT 30;"`,
+    "```",
+    "",
+    "Then tell the parent to refresh Parent room → Writing. The learner should open Learner room → Writing to see the active prompt, and Coach tips for marks.",
   ].join("\n");
 }
 

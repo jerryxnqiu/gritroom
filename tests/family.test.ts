@@ -64,6 +64,15 @@ import {
   cumulativeHitRatesByDate,
   groupPracticeScorePointsByDate,
 } from "../lib/practice-score-chart.ts";
+import {
+  parseWritingMarkSummary,
+  writingMarkPercent,
+  writingMarksAsScoreSessions,
+} from "../lib/writing-mark.ts";
+import {
+  parseWritingPromptSummary,
+  pickActiveWritingPrompt,
+} from "../lib/writing-prompt.ts";
 import { composeReadingPassageNotes, composeResourceSetNotes, parseResourceSetNotes, stripResourcePageSuffix } from "../lib/shelf-fields.ts";
 import { groupShelfMaterials } from "../lib/shelf-sets.ts";
 import { youtubeVideoId } from "../lib/youtube-transcript.ts";
@@ -459,6 +468,105 @@ test("practice score chart keeps plain dates and tags identical sources", () => 
   assert.equal(hitRates[1]?.answered, 70);
 });
 
+test("writing prompt summaries parse the learner-visible brief", () => {
+  const parsed = parseWritingPromptSummary(`Writing prompt
+Status: active
+Title: New sports club
+Form: letter
+Audience: the principal
+Minutes: 30
+Focus skill: language-control
+Brief:
+Write a letter to your principal persuading them to start an after-school sports club.
+
+Give three clear reasons and end with a polite request.
+Why this prompt:
+Builds on last mark’s weak language-control.`);
+  assert.ok(parsed);
+  assert.equal(parsed!.status, "active");
+  assert.equal(parsed!.title, "New sports club");
+  assert.equal(parsed!.form, "letter");
+  assert.equal(parsed!.audience, "the principal");
+  assert.equal(parsed!.minutes, 30);
+  assert.equal(parsed!.focusSkill, "language-control");
+  assert.match(parsed!.brief, /after-school sports club/);
+  assert.match(parsed!.whyThisPrompt || "", /language-control/);
+  assert.equal(
+    pickActiveWritingPrompt([
+      {
+        id: "old",
+        refId: "a",
+        createdAt: "2026-11-01T00:00:00.000Z",
+        summary: "x",
+        ...parsed!,
+        status: "archived",
+        title: "Old",
+      },
+      {
+        id: "new",
+        refId: "b",
+        createdAt: "2026-11-22T00:00:00.000Z",
+        summary: "x",
+        ...parsed!,
+      },
+    ])?.id,
+    "new",
+  );
+});
+
+test("writing mark summaries parse rubric scores for the progress chart", () => {
+  const parsed = parseWritingMarkSummary(`Writing mark
+Date: 2026-11-22
+Prompt title: School garden letter
+Task response: 3/5
+Organisation: 4/5
+Language control: 3/5
+Total: 10/15
+Weakest: language-control
+Kid notes:
+You answered the letter task clearly. Tighten word choice in paragraph 2.
+Next focus:
+Rewrite one paragraph with more precise verbs.`);
+  assert.ok(parsed);
+  assert.equal(parsed!.scores.taskResponse, 3);
+  assert.equal(parsed!.scores.organisation, 4);
+  assert.equal(parsed!.scores.languageControl, 3);
+  assert.equal(parsed!.total, 10);
+  assert.equal(parsed!.weakest, "language-control");
+  assert.match(parsed!.kidNotes || "", /Tighten word choice/);
+  assert.match(parsed!.nextFocus || "", /precise verbs/);
+  assert.equal(writingMarkPercent({
+    id: "1",
+    refId: "wmk1",
+    createdAt: "2026-11-22T00:00:00.000Z",
+    summary: "x",
+    ...parsed!,
+  }), 67);
+
+  const sessions = writingMarksAsScoreSessions([
+    {
+      id: "m1",
+      refId: "w1",
+      createdAt: "2026-11-21T00:00:00.000Z",
+      summary: "x",
+      ...parsed!,
+      total: 9,
+    },
+    {
+      id: "m2",
+      refId: "w2",
+      createdAt: "2026-11-22T00:00:00.000Z",
+      summary: "x",
+      ...parsed!,
+    },
+  ]);
+  assert.equal(sessions.length, 2);
+  assert.equal(sessions[0]?.mode, "writing");
+  assert.equal(sessions[0]?.correct, 9);
+  assert.equal(sessions[1]?.correct, 10);
+  assert.equal(sessions[0]?.total, 15);
+});
+
 test("reading remediation plans parse model sentences for handwriting UI", () => {
   const parsed = parseRemediationPlan([
     "Reading repair follow-up — 2/3: Eight targets",
@@ -690,8 +798,14 @@ test("shelf evidence is limited to the authorised child and chosen exam archive"
     actorUserId: "owner",
     materials: bankShelf.materials,
   });
-  assert.match(writingBrief, /open-response Selective task/);
-  assert.match(writingBrief, /Do not insert mathematics_questions/);
+  assert.match(writingBrief, /Writing coaching \(prompts \+ marks\)/);
+  assert.match(writingBrief, /writing_prompt/);
+  assert.match(writingBrief, /writing_mark/);
+  assert.match(writingBrief, /existing writing as reference/);
+  assert.match(writingBrief, /Status: active/);
+  assert.match(writingBrief, /Task response: N\/5/);
+  assert.match(writingBrief, /Do NOT insert practice_questions/);
+  assert.match(writingBrief, /writing_blueprints/);
   assert.match(
     composeReadingPassageNotes({
       passageSet: "River Otters",
