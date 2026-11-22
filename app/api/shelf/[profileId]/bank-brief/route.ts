@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ prof
   const { profileId } = await params;
   const shelf = await listMaterialsForCodexBank(env.DB, profileId, goal, session.user_id, subject);
   if (!shelf) return json({ error: "This resource shelf is unavailable." }, { status: 404 });
-  if (!shelf.materials.length) {
+  if (!shelf.materials.length && subject !== "writing") {
     return json({
       error: subject === "reading"
         ? task === "remediation"

@@ -2,6 +2,7 @@
 
 import type { PracticeResultSessionSummary } from "@/lib/practice";
 import type { PracticeSubject } from "@/lib/subjects";
+import { WRITING_TOTAL_MAX } from "@/lib/writing-mark";
 import { CollapseToggle, useCollapsedList } from "./CollapsedList";
 import { PracticeScoreChart } from "./PracticeScoreChart";
 import { useParentSection } from "./ParentSectionContext";
@@ -10,6 +11,7 @@ function modeLabel(mode: string) {
   if (mode === "diagnostic") return "Starting-point check";
   if (mode === "timed") return "Timed paper";
   if (mode === "focus") return "Weak-spot practice";
+  if (mode === "writing") return "Writing mark";
   return "Practice";
 }
 
@@ -29,10 +31,12 @@ export function ParentProgressPanel({
   sessions: PracticeResultSessionSummary[];
 }) {
   const { setSection } = useParentSection();
+  const writing = subject === "writing";
   const completed = sessions.filter((item) => item.status === "completed");
   const answered = completed.reduce((sum, item) => sum + item.total, 0);
   const correct = completed.reduce((sum, item) => sum + item.correct, 0);
   const accuracy = answered ? Math.round((correct / answered) * 100) : null;
+  const latest = completed[0] ?? null;
   const list = useCollapsedList(sessions);
 
   return (
@@ -40,28 +44,61 @@ export function ParentProgressPanel({
       <p className="eyebrow">01 / Progress</p>
       <h2 id="progress-heading">{nickname}’s {moduleLabel} snapshot</h2>
       <p className="lede">
-        Bank balance and recent scores for {moduleLabel} in the {archiveLabel} archive. Open Evidence for shelf findings
-        and question detail.
+        {writing
+          ? `Open-response marks for ${moduleLabel} in the ${archiveLabel} archive. Each piece is scored /${WRITING_TOTAL_MAX} on Task response, Organisation and Language control.`
+          : `Bank balance and recent scores for ${moduleLabel} in the ${archiveLabel} archive. Open Evidence for shelf findings and question detail.`}
       </p>
 
       <div className="progress-stat-row" role="list">
-        <div className="progress-stat" role="listitem">
-          <span className="eyebrow">Unused questions</span>
-          <strong>{unusedCount}</strong>
-          <span className="meta">Ready for practice or a timed paper</span>
-        </div>
-        <div className="progress-stat" role="listitem">
-          <span className="eyebrow">Recent papers</span>
-          <strong>{completed.length}</strong>
-          <span className="meta">In this overview window</span>
-        </div>
-        <div className="progress-stat" role="listitem">
-          <span className="eyebrow">Accuracy</span>
-          <strong>{accuracy === null ? "—" : `${accuracy}%`}</strong>
-          <span className="meta">
-            {answered ? `${correct} of ${answered} recent answers` : "No finished answers yet"}
-          </span>
-        </div>
+        {writing ? (
+          <>
+            <div className="progress-stat" role="listitem">
+              <span className="eyebrow">Marked pieces</span>
+              <strong>{completed.length}</strong>
+              <span className="meta">Codex / coach rubric marks</span>
+            </div>
+            <div className="progress-stat" role="listitem">
+              <span className="eyebrow">Latest total</span>
+              <strong>
+                {latest ? `${latest.correct}/${WRITING_TOTAL_MAX}` : "—"}
+              </strong>
+              <span className="meta">
+                {latest
+                  ? `${Math.round((latest.correct / WRITING_TOTAL_MAX) * 100)}% on the last marked draft`
+                  : "No Writing marks yet"}
+              </span>
+            </div>
+            <div className="progress-stat" role="listitem">
+              <span className="eyebrow">Average rubric</span>
+              <strong>{accuracy === null ? "—" : `${accuracy}%`}</strong>
+              <span className="meta">
+                {answered
+                  ? `${correct} of ${answered} rubric points across marked pieces`
+                  : "Upload a draft and ask Codex to mark Writing"}
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="progress-stat" role="listitem">
+              <span className="eyebrow">Unused questions</span>
+              <strong>{unusedCount}</strong>
+              <span className="meta">Ready for practice or a timed paper</span>
+            </div>
+            <div className="progress-stat" role="listitem">
+              <span className="eyebrow">Recent papers</span>
+              <strong>{completed.length}</strong>
+              <span className="meta">In this overview window</span>
+            </div>
+            <div className="progress-stat" role="listitem">
+              <span className="eyebrow">Accuracy</span>
+              <strong>{accuracy === null ? "—" : `${accuracy}%`}</strong>
+              <span className="meta">
+                {answered ? `${correct} of ${answered} recent answers` : "No finished answers yet"}
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       <PracticeScoreChart
@@ -73,7 +110,9 @@ export function ParentProgressPanel({
 
       {sessions.length ? (
         <>
-          <h3 className="progress-session-heading">Recent sessions</h3>
+          <h3 className="progress-session-heading">
+            {writing ? "Recent Writing marks" : "Recent sessions"}
+          </h3>
           <ul className="progress-session-list">
             {list.visible.map((session) => {
               const when = (session.completedAt || session.startedAt).slice(0, 10);
@@ -90,10 +129,9 @@ export function ParentProgressPanel({
                       {session.status === "abandoned" ? " · abandoned" : ""}
                     </span>
                     <span className="meta">
-                      {session.correct} of {session.total} correct · {pct}%
-                      {session.incorrect ? ` · ${session.incorrect} incorrect` : ""}
-                      {" · "}
-                      {when}
+                      {writing
+                        ? `${session.correct} of ${session.total} · ${pct}% · ${when}`
+                        : `${session.correct} of ${session.total} correct · ${pct}%${session.incorrect ? ` · ${session.incorrect} incorrect` : ""} · ${when}`}
                     </span>
                   </button>
                 </li>
@@ -103,7 +141,7 @@ export function ParentProgressPanel({
           <CollapseToggle
             expanded={list.expanded}
             hiddenCount={list.hiddenCount}
-            noun="older sessions"
+            noun={writing ? "older marks" : "older sessions"}
             onShowOlder={list.showOlder}
             onShowLatestOnly={list.showLatestOnly}
           />
@@ -114,7 +152,11 @@ export function ParentProgressPanel({
           </div>
         </>
       ) : (
-        <p className="meta">No finished practice sessions in this archive yet.</p>
+        <p className="meta">
+          {writing
+            ? "No Writing marks in this archive yet. Upload a draft on the shelf and ask Codex to mark Writing."
+            : "No finished practice sessions in this archive yet."}
+        </p>
       )}
     </section>
   );

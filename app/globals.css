@@ -419,6 +419,22 @@ p { margin: 0; }
 .practice-panel > .lede { max-width: none; }
 .practice-panel .actions { margin-top: 1rem; }
 .practice-panel .notice, .practice-panel .error { margin-top: .85rem; }
+.writing-task-panel { display: grid; gap: 1.25rem; }
+.writing-active-prompt {
+  padding: 1rem 1.05rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel) 88%, #dfe8d4) 0%, var(--panel) 100%);
+}
+.writing-prompt-brief {
+  margin-top: .85rem;
+  display: grid;
+  gap: .65rem;
+  font-size: 1.02rem;
+  line-height: 1.55;
+}
+.writing-past-pieces { margin-top: .25rem; }
 .practice-start-actions { display: grid; gap: .65rem; justify-items: start; }
 .practice-timer {
   display: flex;

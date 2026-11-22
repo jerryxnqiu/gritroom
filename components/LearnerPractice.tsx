@@ -14,10 +14,13 @@ import {
   readingArticleForIndex,
 } from "@/lib/reading-articles";
 import { subjectLabel, type PracticeSubject } from "@/lib/subjects";
+import type { WritingMark } from "@/lib/writing-mark";
+import type { WritingPrompt } from "@/lib/writing-prompt";
 import { LearnerCoachTips } from "./LearnerCoachTips";
 import { LearnerResults } from "./LearnerResults";
 import { PracticePrompt } from "./PracticePrompt";
 import { useLearnerSection, type LearnerSection } from "./LearnerSectionContext";
+import { WritingTaskPanel } from "./WritingTaskPanel";
 
 const WARN_10_SECONDS = 10 * 60;
 const WARN_5_SECONDS = 5 * 60;
@@ -78,6 +81,8 @@ export function LearnerPractice({
   initialResultSessions,
   initialResultsHasMore = false,
   initialCoachTips = [],
+  initialWritingPrompt = null,
+  initialWritingMarks = [],
   profile,
 }: {
   subject?: PracticeSubject;
@@ -87,6 +92,8 @@ export function LearnerPractice({
   initialResultSessions: PracticeResultSessionSummary[];
   initialResultsHasMore?: boolean;
   initialCoachTips?: LearnerCoachTip[];
+  initialWritingPrompt?: WritingPrompt | null;
+  initialWritingMarks?: WritingMark[];
   profile: Profile;
 }) {
   const { section, setSection } = useLearnerSection();
@@ -736,14 +743,15 @@ export function LearnerPractice({
           </>
         ) : writing ? (
           <>
-            <h2 id="practice-heading">Writing is open response.</h2>
-            <p className="lede">
-              The Selective Writing paper is one typed task in {paper.minutes} minutes — not a multiple-choice set.
-              Use Coach tips and your family’s Writing shelf for prompts and feedback.
-            </p>
+            <WritingTaskPanel
+              nickname={profile.nickname}
+              minutes={paper.minutes}
+              prompt={initialWritingPrompt}
+              pastMarks={initialWritingMarks}
+            />
             <div className="actions">
               <button type="button" className="button secondary" onClick={() => go("tips")}>
-                Open coach tips
+                Open Writing feedback
               </button>
             </div>
           </>

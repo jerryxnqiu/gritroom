@@ -23,6 +23,8 @@ import {
   latestPracticeSession,
   listLearnerPracticeResults,
 } from "@/lib/practice";
+import { listLearnerWritingMarks } from "@/lib/writing-mark";
+import { listLearnerWritingPrompts, pickActiveWritingPrompt } from "@/lib/writing-prompt";
 import {
   countUnusedReadingQuestions,
   latestReadingSession,
@@ -56,7 +58,7 @@ export default async function LearnerPage({
           ? null
           : await latestPracticeSession(env.DB, profile.id, profile.examGoal)
     : null;
-  const [practice, remainingCount, weakRemainingCount, resultPage, coachTips] = profile
+  const [practice, remainingCount, weakRemainingCount, resultPage, coachTips, writingPrompts, writingMarks] = profile
     ? await Promise.all([
       latest ? getPracticeSession(env.DB, latest.id, session.user_id) : Promise.resolve(null),
       subject === "reading"
@@ -73,10 +75,25 @@ export default async function LearnerPage({
           : Promise.resolve(0),
       listLearnerPracticeResults(env.DB, session.user_id, { sessionLimit: 11, subject }),
       listLearnerCoachTips(env.DB, session.user_id, subject),
+      subject === "writing"
+        ? listLearnerWritingPrompts(env.DB, profile.id, profile.examGoal, session.user_id, 10)
+        : Promise.resolve([] as Awaited<ReturnType<typeof listLearnerWritingPrompts>>),
+      subject === "writing"
+        ? listLearnerWritingMarks(env.DB, profile.id, profile.examGoal, session.user_id, 10)
+        : Promise.resolve([] as Awaited<ReturnType<typeof listLearnerWritingMarks>>),
     ])
-    : [null, 0, 0, [] as Awaited<ReturnType<typeof listLearnerPracticeResults>>, [] as Awaited<ReturnType<typeof listLearnerCoachTips>>];
+    : [
+      null,
+      0,
+      0,
+      [] as Awaited<ReturnType<typeof listLearnerPracticeResults>>,
+      [] as Awaited<ReturnType<typeof listLearnerCoachTips>>,
+      [] as Awaited<ReturnType<typeof listLearnerWritingPrompts>>,
+      [] as Awaited<ReturnType<typeof listLearnerWritingMarks>>,
+    ];
   const resultsHasMore = resultPage.length > 10;
   const resultSessions = resultsHasMore ? resultPage.slice(0, 10) : resultPage;
+  const activeWritingPrompt = pickActiveWritingPrompt(writingPrompts);
 
   const name = profile?.nickname || "Learner";
   const badge = profile
@@ -102,6 +119,8 @@ export default async function LearnerPage({
             initialResultSessions={resultSessions}
             initialResultsHasMore={resultsHasMore}
             initialCoachTips={coachTips}
+            initialWritingPrompt={activeWritingPrompt}
+            initialWritingMarks={writingMarks}
             profile={{ id: profile.id, examGoal: profile.examGoal, nickname: profile.nickname }}
           />
         </>

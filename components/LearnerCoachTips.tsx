@@ -9,6 +9,7 @@ import { RemediationPlanView } from "./RemediationPlanView";
 
 function tipLabel(kind: string) {
   if (kind === "reading_remediation") return "Words & phrases";
+  if (kind === "writing_mark") return "Writing mark";
   if (kind === "coaching_report") return "From your coach";
   if (kind === "marked_paper") return "From a marked paper";
   if (kind === "study_material") return "From your practice papers";
@@ -18,6 +19,7 @@ function tipLabel(kind: string) {
 
 function tipHeading(kind: string) {
   if (kind === "reading_remediation") return "Memorise these";
+  if (kind === "writing_mark") return "Your Writing feedback";
   return "Remember this";
 }
 
@@ -44,7 +46,9 @@ export function LearnerCoachTips({
         <p className="lede">
           {subject === "reading"
             ? "When your family runs Reading remediation & copywork, vocabulary, phrases and slang to memorise will show up under Last results — including a place for you to upload handwriting photos — plus tips from coaching notes here."
-            : `When your family asks Codex to review coaching notes for ${moduleLabel}, short tips for you will show up here.`}
+            : subject === "writing"
+              ? "When your family asks Codex to mark a Writing draft, your scores and kid notes will show up here."
+              : `When your family asks Codex to review coaching notes for ${moduleLabel}, short tips for you will show up here.`}
         </p>
       </section>
     );
@@ -54,12 +58,18 @@ export function LearnerCoachTips({
     <section className="panel practice-panel" aria-labelledby="coach-tips-heading">
       <p className="eyebrow">Coach tips</p>
       <h2 id="coach-tips-heading">
-        {subject === "reading" ? "Words, phrases and tips for Reading." : `Things to watch for in ${moduleLabel}.`}
+        {subject === "reading"
+          ? "Words, phrases and tips for Reading."
+          : subject === "writing"
+            ? "Feedback on your Writing."
+            : `Things to watch for in ${moduleLabel}.`}
       </h2>
       <p className="lede">
         {subject === "reading"
           ? "Language lists from remediation (vocab, slang, phrases) plus notes from coaching reviews — useful before the next Reading set."
-          : "Short notes from your family’s coaching reviews — useful before a practice set."}
+          : subject === "writing"
+            ? "Rubric scores and notes from each marked draft — useful before your next 30-minute write."
+            : "Short notes from your family’s coaching reviews — useful before a practice set."}
       </p>
       <div className="reading-evidence-layout">
         <aside className="reading-evidence-rail" aria-label="Coach tips list">

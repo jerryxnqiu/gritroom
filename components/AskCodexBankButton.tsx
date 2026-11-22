@@ -38,9 +38,11 @@ export function AskCodexBankButton({
         if (!response.ok || !result.brief) throw new Error(result.error || "Could not prepare the Codex bank task.");
         await navigator.clipboard.writeText(result.brief);
         setNotice(
-          task === "remediation"
-            ? "Codex Reading remediation task copied. Paste it into a Codex chat in this gritroom repo."
-            : "Codex bank task copied. Paste it into a Codex chat in this gritroom repo.",
+          subject === "writing"
+            ? "Codex Writing prompts/marks task copied. Paste it into a Codex chat in this gritroom repo."
+            : task === "remediation"
+              ? "Codex Reading remediation task copied. Paste it into a Codex chat in this gritroom repo."
+              : "Codex bank task copied. Paste it into a Codex chat in this gritroom repo.",
         );
       } catch (problem) {
         setError(problem instanceof Error ? problem.message : "Could not prepare the Codex bank task.");

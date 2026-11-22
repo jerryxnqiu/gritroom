@@ -45,7 +45,7 @@ export async function PracticeBankPanel({
           : subject === "mathematics"
             ? `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Mathematical Reasoning archive — blueprints, coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback — then add about 80 original five-option (A–E) questions into mathematics_questions: enough for 2 full 35-question timed papers plus 10 weak-spot items, with no calculator and paper working assumed.`
             : subject === "writing"
-              ? `Writing is one open-response Selective task (30 minutes). Keep coaching reports, marked samples and prompts on the Writing shelf. Timed MCQ banks are for Thinking, Reading and Mathematics.`
+              ? `Writing is one open-response Selective task (30 minutes). Ask Codex to assign a learner-visible prompt (using ${profile.nickname}’s earlier writing as reference), and to mark new drafts on Task response, Organisation and Language control.`
               : `Ask Codex to read the latest D1 inputs for ${profile.nickname}’s ${examLabel(goal)} Thinking Skills archive — blueprints, coaching reports, miscellaneous practice sources, material analyses, practice evidence and parent feedback — then add about ${goal === "oc" ? "70" : "90"} new questions (with kid-facing explanations): enough for 2 full timed papers (${goal === "oc" ? "30×2" : "40×2"}) plus 10 weak-spot items, with the paper portion balanced across skills.`}
       </p>
       <div className="shelf-toolbar">
@@ -92,9 +92,20 @@ export async function PracticeBankPanel({
           {remediation ? <p className="meta">{remediation.reason}</p> : null}
         </>
       ) : subject === "writing" ? (
-        <p className="meta">
-          Add coaching reports or sample prompts in the Writing resource shelf below. Composition practice stays outside the MCQ learner flow for now.
-        </p>
+        <>
+          <AskCodexBankButton
+            profileId={profile.id}
+            goal={goal}
+            subject="writing"
+            disabled={goal === "oc" && materialCount === 0}
+            label="Ask Codex for Writing prompts / marks"
+          />
+          <p className="meta">
+            Codex reads {profile.nickname}’s past marks and shelf drafts as reference, then assigns an active Writing
+            prompt the learner can see in Learner room → Writing. When a new draft is uploaded, ask again to mark it
+            (Task / Organisation / Language, each /5).
+          </p>
+        </>
       ) : (
         <AskCodexBankButton
           profileId={profile.id}
@@ -105,16 +116,24 @@ export async function PracticeBankPanel({
         />
       )}
 
-      {subject !== "writing" && materialCount === 0 ? (
+      {subject === "writing" ? (
+        <p className="meta">
+          {materialCount === 0
+            ? goal === "oc"
+              ? "OC has no official Writing paper. Add a practice draft on the Writing shelf if you still want composition coaching."
+              : "No Writing shelf files yet — Codex can still invent practice prompts; add a learner draft when you are ready to mark."
+            : `${materialCount} Writing shelf source${materialCount === 1 ? "" : "s"} ready. Paste the copied task into a Codex chat in this gritroom repo.`}
+        </p>
+      ) : materialCount === 0 ? (
         <p className="meta">
           Add coaching reports or practice-question sources in the {moduleLabel} resource shelf below first.
         </p>
-      ) : subject !== "writing" ? (
+      ) : (
         <p className="meta">
           {materialCount} {moduleLabel.toLowerCase()} shelf source{materialCount === 1 ? "" : "s"} ready for this archive.
           Paste the copied task into a Codex chat in this gritroom repo.
         </p>
-      ) : null}
+      )}
 
       {subject === "thinking" || subject === "mathematics" ? (
         <div className="family-subsection">

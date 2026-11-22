@@ -25,6 +25,7 @@ import {
 import { countUnusedReadingQuestions } from "@/lib/reading-practice";
 import { shelfGoal } from "@/lib/shelf-fields";
 import { shelfSubject, subjectLabel } from "@/lib/subjects";
+import { listWritingMarks, writingMarksAsScoreSessions } from "@/lib/writing-mark";
 
 export default async function ParentPage({
   searchParams,
@@ -48,7 +49,7 @@ export default async function ParentPage({
   const subject = shelfSubject(params.subject);
   const access = selected?.canManage ? await childAccess(env.DB, selected.id, session.user_id) : null;
 
-  const [unusedCount, evidencePage] = selected
+  const [unusedCount, evidencePage, writingMarks] = selected
     ? await Promise.all([
       subject === "reading"
         ? countUnusedReadingQuestions(env.DB, selected.id, goal)
@@ -57,14 +58,23 @@ export default async function ParentPage({
           : subject === "writing"
             ? Promise.resolve(0)
             : countUnusedPracticeQuestions(env.DB, selected.id, goal, subject),
-      listPracticeEvidenceSummaries(env.DB, selected.id, goal, session.user_id, {
-        sessionLimit: 21,
-        subject,
-      }),
+      subject === "writing"
+        ? Promise.resolve([] as Awaited<ReturnType<typeof listPracticeEvidenceSummaries>>)
+        : listPracticeEvidenceSummaries(env.DB, selected.id, goal, session.user_id, {
+          sessionLimit: 21,
+          subject,
+        }),
+      subject === "writing"
+        ? listWritingMarks(env.DB, selected.id, goal, session.user_id, 40)
+        : Promise.resolve([] as Awaited<ReturnType<typeof listWritingMarks>>),
     ])
-    : [0, [] as Awaited<ReturnType<typeof listPracticeEvidenceSummaries>>];
-  const evidenceHasMore = evidencePage.length > 20;
-  const evidenceSessions = evidenceHasMore ? evidencePage.slice(0, 20) : evidencePage;
+    : [0, [] as Awaited<ReturnType<typeof listPracticeEvidenceSummaries>>, [] as Awaited<ReturnType<typeof listWritingMarks>>];
+  const evidenceHasMore = subject === "writing" ? false : evidencePage.length > 20;
+  const evidenceSessions = subject === "writing"
+    ? writingMarksAsScoreSessions(writingMarks).reverse()
+    : evidenceHasMore
+      ? evidencePage.slice(0, 20)
+      : evidencePage;
 
   const name = selected?.nickname || "Your family";
   const badge = selected
